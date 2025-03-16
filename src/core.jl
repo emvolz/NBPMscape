@@ -113,7 +113,7 @@ end
 
 function transmissionrate(carestage, infstage, contacttype, t, tinfectious, initialdow, p) 
 	dow = dayofweek(t,initialdow) 
-	ρ = 1.0 
+	ρ = 0.250 
 	if carestage in (:admittedhospital,:admittedicu)
 		ρ *= p.ρ
 	end
@@ -175,6 +175,7 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	trecovered = Inf # recovered/deceased/removed
 
 	# initial state of infection 
+	sampled = false 
 	carestage = :undiagnosed 
 	infstage = :latent 
 	agegroup = :adult # TODO sample 
@@ -193,6 +194,7 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	lagrecovery = rand( gammarecovery ) 
 	tinfectious = tinf + laglatent
 	tfin = laglatent + lagrecovery + tinf
+	trecovered = tfin 
 	tspan = (tinfectious, tfin)
 	
 
@@ -253,45 +255,53 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	j_transmh = VariableRateJump(rate_transmh, aff_transmh!; lrate=lrate_transmh, urate=hrate_transmh, rateinterval=rint)
 
 
-	# care/sampling pathways TODO 
-	rate_ehi2chron(u,p,t) = u[3]==UNDIAGNOSED_EHI ? p.γ_ehi : 0.0
-	tchronstart = missing
-	rate_chron2aids(u,p,t) = u[3]==UNDIAGNOSED_CHRONIC ? gamhazard(t-tchronstart) : 0.0 
-		hrate_chron2aids(u,p,t) = 1
-		lrate_chron2aids(u,p,t) = 0.0
-	rate_aids2death(u,p,t) = u[3]==UNDIAGNOSED_AIDS ? p.γ_aids : 0.0 
-	rate_diagnosis(u, p, t) = u[3]∈[UNDIAGNOSED_EHI,UNDIAGNOSED_CHRONIC,UNDIAGNOSED_AIDS] ? p.δ*(1+4*(u[3]==UNDIAGNOSED_AIDS)) : 0.0 
-	rate_care(u,p,t) = u[3]==DIAGNOSED ? p.κ*(1+4diagnosedwithaids) : 0.0  
-
-	rint(u,p,t) = 1.0 #Inf 
-
-	function aff_diagnosis!(int)
-		# α = p.fα(int.t) 
-		α = p.α
-		pseq = p.fpsequenced(int.t)
-		tseq = Inf
-		if rand() < pseq
-			tseq = int.t + (Exponential(1.0/α) |> Base.rand)
-		end
-		tdiagnosed = int.t 
-		if int.u[3] == UNDIAGNOSED_AIDS
-			# will influence subsequent care rate 
-			diagnosedwithaids = true 
-		end 
-		int.u[3] = DIAGNOSED
-	end
-
-	function aff_care!(int)
-		int.u[3] = SUPPRESSED
-	end
-
-	j_ehi2chron = ConstantRateJump(rate_ehi2chron, aff_ehi2chron!)
-	j_aids2death = ConstantRateJump(rate_aids2death, aff_aids2death!)
-	j_diagnosis = ConstantRateJump(rate_diagnosis, aff_diagnosis!)
-	j_care = ConstantRateJump(rate_care, aff_care!) 
-
-	j_chron2aids = VariableRateJump(rate_chron2aids, aff_chron2aids!; lrate= lrate_chron2aids, urate=hrate_chron2aids, rateinterval=rint) # 
+	# care pathway  
+	# const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :discharged) 
+	# const SEVERITY = (:mildorasymptomatic, :moderate, :severe )
 	
+	# tseq = Inf # time of sequencing 
+	# ticu = Inf # icu admit 
+	# tgp = Inf # gpu attend 
+	# thospital = Inf # hospital admit 
+	# tsampled = Inf # sampled 
+	# tseqdeposition = Inf # sequence db 
+	# trecovered = Inf # recovered/deceased/removed
+
+	## gp 
+	rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe))) ? p.gp_rate : 0.0 
+	aff_gp!(int) = begin 
+		carestage = :GP; 
+		tgp = int.t 
+	end
+	j_gp = ConstantRateJump(rategp, aff_gp!)
+
+	## hospital TODO add hospital -> discharged rate 
+	ratehospital(u,p,t) = ((carestage in (:undiagnosed,:GP) & (severity in (:severe)) )) ? p.hospadmitrate : 0.0 
+	aff_hosp!(int) = begin 
+		carestage = :admittedhospital  
+		thospital = int.t 
+	end 
+	j_hospital = ConstantRateJump( ratehospital, aff_hosp! )
+
+	## icu TODO add icu -> hosp rate  
+	rateicu(u,p,t) = ((carestage in (:undiagnosed,:GP,:admittedhospital) & (severity in (:severe)) )) ? p.icurate : 0.0 
+	aff_icu!(int) = begin 
+		carestage = :icu  
+		ticu = int.t 
+	end 
+	j_icu = ConstantRateJump( rateicu, aff_icu! )
+
+
+	# sampling 
+	ratesample(u,p,t) = (carestage == :icu & sampled=false) ? p.samplerate : 0.0 
+	aff_sample!(int) = begin 
+		sampled = true 
+		tsampled = int.t 
+	end
+	j_sample = ConstantRateJump( ratesample, aff_sample! )
+
+
+# TODO 	
 	simgenprob0 = DiscreteProblem(u₀, tspan, p)
 	jumps = [ j_gainf
 		, j_gaing
@@ -321,6 +331,8 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	else 
 		d = simgendist(abs((tseq-tinf) + (donor.tsequenced-tinf)), p)
 	end
+
+	# TODO check if sampled and generate tseqdeposition
 
 	Infection(
 		pid
