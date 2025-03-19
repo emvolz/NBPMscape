@@ -2,7 +2,7 @@ default(;lw = 4)
 
 const MAXDURATION = 180.0
 
-struct Infection
+mutable struct Infection
 	pid::String # infection id 
 	dpid::Union{String,Missing}
 	H::DataFrame # transmission linelist 
@@ -12,21 +12,21 @@ struct Infection
 	tgp::Float64 # time 
 	thospital::Float64 # time 
 	ticu::Float64 # time 
-	tsampled::Float64 # time
-	tseqdeposition::Float64 # time for sequencing + qc + bioninf 
+	# tsampled::Float64 # time
+	# tseqdeposition::Float64 # time for sequencing + qc + bioninf 
 	trecovered::Float64 
-	d::Float64 # distance to donor 
 	contacttype::Symbol # cause of infection
 	degree::Tuple{Int64,Int64,Float64}
-	initialregion::Int
-	finalregion::Int
+	iscommuter::Bool
+	homeregion::String
+	commuteregion::String
 	initialdayofweek::Int # day 1-7 when infection ocurred 
 	generation::Int64
 end
 
 const AGEGROUPS = (:youth, :youngadult, :adult, :old, :elderly) 
 const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :discharged) 
-const SEVERITY = (:mildorasymptomatic, :moderate, :severe )
+const SEVERITY = [:mildorasymptomatic, :moderate, :severe ]
 const STAGE = (:latent, :infectious, :recovered)
 
 const CONTACTTYPES = (:F, :G, :H)
@@ -34,24 +34,17 @@ const CONTACTTYPES = (:F, :G, :H)
 const NREGIONS = 50
 const REGIONS = ( :TODO )
 
-# TODO temporary migration matrix 
-MIGMATRIX = fill( 1.0, NREGIONS, NREGIONS )
-for i in 1:NREGIONS
-	MIGMATRIX[i,i] = 100.0 
-	MIGMATRIX[i,:] ./= sum( MIGMATRIX[i,:] )
-end
+# # temporary migration matrix 
+# MIGMATRIX = fill( 1.0, NREGIONS, NREGIONS )
+# for i in 1:NREGIONS
+# 	MIGMATRIX[i,i] = 100.0 
+# 	MIGMATRIX[i,:] ./= sum( MIGMATRIX[i,:] )
+# end
+# MIGRATES = [ sum(MIGRATES[i,:])-MIGRATES[i,i] for i in 1:NREGIONS ]
 
 
 # default parameters 
 P = ( 
-	#τ₀ = 0.1 #  -log( 1 - .0075)* (7/1.5)*(1/30) ; # initial transm prob per act (acute)
-	#, τ₁ = 0.01 # # final transm prob per act 
-	# , T = 4.299657975412291 # scale for transmission prob 
-	# , ftransmscale =  interpolate([ 1990.0, 2010.0, 2020.0]
-	# 			   , [ 4.299657975412291, 4.299657975412291 , 4.299657975412291  ] 
-	# 			   , SteffenMonotonicInterpolation())
-	# , ν = -log(0.5)/(0.5) # decay rate transmission probability # half-life 6 months 
-	
 	fcont = 1.0 # relative contact rate for flinks  (household) # TODO get from contact tracing studies 
 	, gcont = .25 # contact rate for glinks (work)
 	, oocont = .05 # contact rate stranger 
@@ -86,33 +79,47 @@ P = (
 	, oorateshape1 = 2.9750  # excess rate distribution (also gamma)
 	, ooratescale1 = 5.0 
 
+	, lagseqdblb = 3 # Uniform delay from sampling to sequencing+bioinformatics+database
+	, lagsseqdbub = 7
+	
+	, propmild = 0.60 
+	, propsevere = 0.10 
+
+	, gprate = 1 
+	, hospadmitrate = 1/3
+	, icurate = 1/3 
+	, psampled = .1 
+
+	, commuterate = 2.0
+
 	, μ = 0.001 # mean clock rate -- additive relaxed clock
 	, ω = 0.5 # variance inflation
 )
 
 
 function sampdegree(p; contacttype = :nothing)
-	gnegbinomr = p.gnegbinomr*p.gnegbinomp/p.varinflation
-	gnegbinomp = p.gnegbinomp/(p.gnegbinomp + p.varinflation*(1-g.negbinomp))
-	r = Gamma( p.oorateshape/p.varinflation, p.ooratescale*p.varinflation ) |> Base.rand 
-	kf = rand( NegativeBinomial(fnegbinomr, fnegbinomp) )
-	kg = rand( NegativeBinomial(gnegbinomr, gnegbinomp) )
+	# gnegbinomr = p.gnegbinomr*p.gnegbinomp
+	# gnegbinomp = p.gnegbinomp/(p.gnegbinomp + (1-p.gnegbinomp))
+	r = Gamma( p.oorateshape, p.ooratescale ) |> Base.rand 
+	kf = rand( NegativeBinomial(p.fnegbinomr, p.fnegbinomp) )
+	kg = rand( NegativeBinomial(p.gnegbinomr, p.gnegbinomp) )
 	if contacttype == :F # note this counts the link that transmitted infection
-		kf = rand( NegativeBinomial(fnegbinomr+1, fnegbinomp) ) + 1 
+		kf = rand( NegativeBinomial(p.fnegbinomr+1, p.fnegbinomp) ) + 1 
 	elseif contacttype == :G
-		kg = rand( NegativeBinomial(gnegbinomr+1, gnegbinomp) ) + 1 
+		# kg = rand( NegativeBinomial(gnegbinomr+1, gnegbinomp) ) + 1 
+		kg = rand( NegativeBinomial(p.gnegbinomr+1, p.gnegbinomp) ) + 1 
 	elseif contacttype == :H 
-		r = Gamma( p.oorateshape1/p.varinflation, p.ooratescale1*p.varinflation ) |> Base.rand 
+		r = Gamma( p.oorateshape1, p.ooratescale1) |> Base.rand 
 	end 
 	[ kf, kg, r ]	
 end
 
-function dayofweek(t, initialdow)
-	Int( floor( t-initialdow-1 ) % 7  ) + 1
+function dayofweek(t, tinf, initialdow)
+	initialdow + Int( floor( t-tinf ) % 7  ) 
 end
 
 function transmissionrate(carestage, infstage, contacttype, t, tinfectious, initialdow, p) 
-	dow = dayofweek(t,initialdow) 
+	dow = dayofweek(t,0.0,initialdow) 
 	ρ = 0.250 
 	if carestage in (:admittedhospital,:admittedicu)
 		ρ *= p.ρ
@@ -144,15 +151,32 @@ function simgendist(tuv, p; s = 1000)
 	simgendist(0., tuv, p; s = s)
 end
 
-function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :nothing, donor::Union{Nothing,Infection} = nothing)
+function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :nothing, donor::Union{Nothing,Infection} = nothing)
+	# initial migration status 
+	iregion = findfirst(REGKEY.code .== region) 
+	if contacttype == :F 
+		homeregion = region 
+		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
+		commuteregion = iscommuter ? wsample(REGKEY.code, COMMUTEPROB[iregion].data)  : region
+	else 
+		iscommuter = true 
+		homeregion  = wsample(REGKEY.code, COMMUTEINPROB[region].data) 
+		commuteregion = region 
+	end
+	# TODO elif contact is H vs G 
+	
 	# transmission line list 
-	H = DataFrame(pid1 = String[], pid2 = String[]
+	H = DataFrame(pid1 = String[]
+	       , pid2 = String[]
 	       , timetransmission = Float64[]
+	       , dayofweek = Int64[]
+	       , region = String[]
 	       , transmissiontype = Symbol[]
 	       # , gendist0 = Float64[]
 	       , degreef = Int64[]
 	       , degreeg = Int64[] 
 	       , oorate = Float64[] 
+	       , carestage = Symbol[]
 	)
 
 	# initial contact network 
@@ -177,10 +201,9 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	# initial state of infection 
 	sampled = false 
 	carestage = :undiagnosed 
-	infstage = :latent 
+	infstage = :latent # jump process will actually start with this :infectious
 	agegroup = :adult # TODO sample 
-	severity = :moderate # TODO sample 
-	region = :london # TODO sample 
+	severity = StatsBase.wsample( SEVERITY, [p.propmild, 1-p.propmild-p.propsevere , p.propsevere]  )
 
 	#cumulative transm 
 	R = 0 
@@ -197,6 +220,8 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	trecovered = tfin 
 	tspan = (tinfectious, tfin)
 	
+	# rate interval for variable rate jumps
+	rint(u,p,t) = 1.0 
 
 	# network dynamics 
 	rate_gainf(u, p, t) = flinks * p.frate
@@ -216,7 +241,7 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	j_loseg = ConstantRateJump(rate_loseg, aff_loseg!) 
 
 	# transmissions 
-	rate_transmf(u,p,t) = Kf*transmissionrate(carestage, infstage, :F, t, tinfectious, initialdow, p) 
+	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t, tinfectious, initialdow, p) : 0.0 
 	hrate_transmf(u,p,t) = max(1.2*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3, tinfectious, initialdow, p) )
 	lrate_transmf(u,p,t) = min(0.8*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3, tinfectious, initialdow, p) )
 	aff_transmf!(int) = begin 
@@ -224,12 +249,12 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 		R += 1
 		nextpid = pid * ".$(R)"
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t,initialdow), :F, flinks, glinks, hr, carestage)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :F, flinks, glinks, hr, carestage)
 		)
 	end
 	j_transmf = VariableRateJump(rate_transmf, aff_transmf!; lrate=lrate_transmf, urate=hrate_transmf, rateinterval=rint) # 
 	
-	rate_transmg(u,p,t) = Kg*transmissionrate(carestage, infstage, :G, t, tinfectious, initialdow, p) 
+	rate_transmg(u,p,t) = (region==commuteregion) ? Kg*transmissionrate(carestage, infstage, :G, t, tinfectious, initialdow, p) : 0.0 
 	hrate_transmg(u,p,t) = max(1.2*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3, tinfectious, initialdow, p) )
 	lrate_transmg(u,p,t) = min(0.8*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3, tinfectious, initialdow, p) )
 	aff_transmg!(int) = begin 
@@ -237,7 +262,7 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 		R += 1
 		nextpid = pid * ".$(R)"
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t,initialdow), :G, flinks, glinks, hr, carestage)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :G, flinks, glinks, hr, carestage)
 		)
 	end
 	j_transmg = VariableRateJump(rate_transmg, aff_transmg!; lrate=lrate_transmg, urate=hrate_transmg, rateinterval=rint)
@@ -249,7 +274,7 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 		R += 1
 		nextpid = pid * ".$(R)"
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t,initialdow), :H, flinks, glinks, hr, carestage)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :H, flinks, glinks, hr, carestage)
 		)
 	end
 	j_transmh = VariableRateJump(rate_transmh, aff_transmh!; lrate=lrate_transmh, urate=hrate_transmh, rateinterval=rint)
@@ -268,7 +293,7 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	# trecovered = Inf # recovered/deceased/removed
 
 	## gp 
-	rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe))) ? p.gp_rate : 0.0 
+	rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe))) ? p.gprate : 0.0 
 	aff_gp!(int) = begin 
 		carestage = :GP; 
 		tgp = int.t 
@@ -276,7 +301,7 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	j_gp = ConstantRateJump(rategp, aff_gp!)
 
 	## hospital TODO add hospital -> discharged rate 
-	ratehospital(u,p,t) = ((carestage in (:undiagnosed,:GP) & (severity in (:severe)) )) ? p.hospadmitrate : 0.0 
+	ratehospital(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity in (:severe,)) )) ? p.hospadmitrate : 0.0 
 	aff_hosp!(int) = begin 
 		carestage = :admittedhospital  
 		thospital = int.t 
@@ -284,55 +309,85 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 	j_hospital = ConstantRateJump( ratehospital, aff_hosp! )
 
 	## icu TODO add icu -> hosp rate  
-	rateicu(u,p,t) = ((carestage in (:undiagnosed,:GP,:admittedhospital) & (severity in (:severe)) )) ? p.icurate : 0.0 
+	rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:severe,)) )) ? p.icurate : 0.0 
 	aff_icu!(int) = begin 
 		carestage = :icu  
 		ticu = int.t 
+		sampled = (rand() < p.psampled )
 	end 
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
 
-	# sampling 
-	ratesample(u,p,t) = (carestage == :icu & sampled=false) ? p.samplerate : 0.0 
-	aff_sample!(int) = begin 
-		sampled = true 
-		tsampled = int.t 
-	end
-	j_sample = ConstantRateJump( ratesample, aff_sample! )
+	# # sampling 
+	# ratesample(u,p,t) = (carestage == :icu & sampled=false) ? p.samplerate : 0.0 
+	# aff_sample!(int) = begin 
+	# 	sampled = true 
+	# 	tsampled = int.t 
+	# end
+	# j_sample = ConstantRateJump( ratesample, aff_sample! )
+	
 
+	# migration  
+	## model commuter traffic and return journeys 
+	ratecommute(u,p,t) = iscommuter ? p.commuterate : 0.0 
+	aff_commute!(int) = begin 
+		# @show homeregion 
+		# @show commuteregion 
+		# @show region
+		# @show setdiff( [homeregion, commuteregion], [region] ) 
+		# (homeregion!=commuteregion) && (region= setdiff( [homeregion, commuteregion], [region] )[1] )
+		if (homeregion!=commuteregion) & ( region in [homeregion, commuteregion] )
+			region= setdiff( [homeregion, commuteregion], [region] )[1]
+		end
+	end 
+	j_commute = ConstantRateJump( ratecommute, aff_commute! )
 
-# TODO 	
-	simgenprob0 = DiscreteProblem(u₀, tspan, p)
+	## TODO long distance occasional travel 
+	
+	# ratemigration(u,p,t) = MIGRATES[region] 
+	# aff_migration!(int) = begin 
+	# 	w = MIGMATRIX[region, :] 
+	# 	w[region] = 0.0 
+	# 	region = StatsBase.wsample( 1:NREGIONS, w )
+	# end
+	# j_migration = ConstantRateJump( ratemigration, aff_migration! )
+
+	# simulate 
+	## set to infectious; tspan starts from this point 
+	infstage = :infectious
+	simgenprob0 = DiscreteProblem([], tspan, p)
 	jumps = [ j_gainf
 		, j_gaing
 		, j_losef
 		, j_loseg
-		, j_ehi2chron
-		, j_chron2aids
-		, j_aids2death 
-		, j_diagnosis
-		, j_care
 		, j_transmf
 		, j_transmg
 		, j_transmh 
+		, j_gp 
+		, j_hospital 
+		, j_icu
+		# , j_migration
+		, j_commute
 	]
-
 	# jdep complete graph works, but is probably slower 
-	jdep = repeat([collect(1:12)], 12) # complete graph 
-
+	jdep = repeat([collect(1:length(jumps))],length(jumps)) # complete graph 
 	simgenprob1 = JumpProblem(simgenprob0, Coevolve(), jumps...; dep_graph=jdep)
-	
 	sol = solve(simgenprob1, SSAStepper())
 
-	if isnothing(donor) || isinf(tseq)
-		d = Inf 
-	elseif isinf(donor.tsequenced)
-		d = Inf 
-	else 
-		d = simgendist(abs((tseq-tinf) + (donor.tsequenced-tinf)), p)
-	end
+	# # check if sampled and generate tseqdeposition
+	# sampled && (tsampled = rand(Uniform(ticu, tfin)) ) # TODO should have icu discharge distinct from recovery
+	# sampled && ( tseqdeposition = tsampled + rand( Uniform( p.lagseqdblb , p.lagsseqdbub)) )
+	
+	# evo distance   
+	# if isnothing(donor) || isinf(tseq)
+	# 	d = Inf 
+	# elseif isinf(donor.tsequenced)
+	# 	d = Inf 
+	# else 
+	# 	d = simgendist(abs((tseq-tinf) + (donor.tsequenced-tinf)), p)
+	# end
 
-	# TODO check if sampled and generate tseqdeposition
+	@bp 
 
 	Infection(
 		pid
@@ -341,17 +396,27 @@ function Infection(p; pid = "0", tinf = 0.0, initialdow = 1, contacttype = :noth
 		, R
 		, sol
 		, tinf
-		, tdiagnosed 
-		, tseq 
-		, d 
+		, tgp
+		, thospital
+		, ticu 
+		# , tsampled 
+		# , tseqdeposition 
+		, trecovered 
 		, contacttype
 		, (flinks,glinks,hr)
-		, isnothing(donor) ? 0 : donor.generation+1
+		, iscommuter 
+		, homeregion
+		, commuteregion
+		, initialdow # day 1-7 when infection ocurred 
+		, isnothing(donor) ? 0 : donor.generation+1 # generation 
 	)
 end
 
-Infection(p, h::DataFrameRow, donor::Infection) = Infection(p; pid=h["pid2"], tinf=h["timetransmission"], contacttype=h["transmissiontype"], donor=donor)
-
+Infection(p, h::DataFrameRow, donor::Infection) = Infection(p; pid=h["pid2"], tinf=h["timetransmission"]
+							, initialdow = h["dayofweek"]
+							, contacttype=h["transmissiontype"]
+							, donor=donor
+							, carestage = h["carestage"])
 
 function simgeneration(p, prevgen::Array{Infection})
 	length(prevgen) == 0 && return Array{Infection}([]) 
@@ -360,7 +425,8 @@ function simgeneration(p, prevgen::Array{Infection})
 	)
 end
 
-function simbp(p; initialtime=1990.0, maxtime=2020.0, maxgenerations::Int64=100, initialcontact=:G)
+# simulate continuous importation 
+function simbp(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H)
 	# clustthreshold::Float64 = 0.005,
 	
 	@assert maxgenerations > 0
