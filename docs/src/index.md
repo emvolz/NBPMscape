@@ -21,7 +21,7 @@ Pkg.add(url="https://github.com/emvolz/NBPMscape.jl")
 using NBPMscape
 
 # Run a simulation
-results = simbp(NBPMscape.P; 
+results = simtree(NBPMscape.P; 
     initialtime=1990.0, 
     maxtime=2020.0, 
     maxgenerations=100, 

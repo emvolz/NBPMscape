@@ -10,11 +10,13 @@ import StatsBase
 using Interpolations
 import SpecialFunctions as SF 
 using Plots 
+using LinearAlgebra
 
 using RData 
 using CSV 
 # using Pkg.Artifacts
 
+# TODO 
 using Revise
 using Debugger 
 
@@ -27,8 +29,8 @@ const COMMUTERM = load( COMMUTERMPATH )
 const REGKEYPATH = joinpath( @__DIR__, "..", "data", "ITL2_key2.rds" )
 const REGKEY = load( REGKEYPATH )
 
-export simbp, simgeneration, simgendist, Infection
-export transmissionrate, sampdegree #TODO 
+export simtree, simforest, sampleforest, simgendist, Infection, infectivitytoR
+export transmissionrate, sampdegree, REGKEY, COMMUTEPROB #TODO 
 include("core.jl")
 
 end 

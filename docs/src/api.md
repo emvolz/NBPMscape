@@ -7,7 +7,7 @@ CurrentModule = NBPMscape
 ## Functions
 
 ```@docs
-simbp
+simtree
 simgeneration
 simgendist
 ```

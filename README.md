@@ -15,7 +15,7 @@ Pkg.add(url="https://github.com/emvolz/NBPMscape.jl")
 using NBPMscape
 
 # Run a simulation
-results = simbp(NBPMscape.P; 
+results = simtree(NBPMscape.P; 
     initialtime=1990.0, 
     maxtime=2020.0, 
     maxgenerations=100, 
@@ -35,7 +35,7 @@ The package includes default parameters in `NBPMscape.P`. You can modify these p
 
 ```julia
 my_params = merge(NBPMscape.P, (μ = 0.002, ω = 0.7))
-results = simbp(my_params)
+results = simtree(my_params)
 ```
 
 ## License

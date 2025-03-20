@@ -1,6 +1,46 @@
 using NBPMscape
 using Test
 
+if false 
+
+	using NBPMscape
+	using Debugger
+	using Revise
+	using Test
+	using StatsBase
+	using Distributions
+
+	tr = simtree(NBPMscape.P; initialtime=1.0, maxtime=50.0, maxgenerations=100)
+
+	# ~ 2.25 sec
+	fo = simforest(NBPMscape.P; initialtime=0.0, maxtime=60.0, maxgenerations=100) ;
+
+	G = fo.G[ isfinite.(fo.G.ticu), : ]
+	psample = .05 
+	n = rand( Binomial( size(G,1), psample ))
+	G1 = G[sample( 1:size(G,1), n, replace=false ), :]
+
+end 
+
+
+
+
+if false 
+
+	using NBPMscape
+	using Debugger
+	using Revise
+	infection = Infection(NBPMscape.P; pid="test", tinf=1.2, contacttype=:G)
+
+	infectivitytoR( 5.0, nsims = 10 ) isa Union{Missing,Real}
+
+	result = simtree(NBPMscape.P; initialtime=1.0, maxtime=50.0, maxgenerations=2)
+
+
+	ch = simtree(NBPMscape.P; initialtime=1.0, maxtime=50.0, maxgenerations=100)
+
+end 
+
 if false
 	using Revise
 	using Debugger
@@ -44,6 +84,9 @@ if false
 
 end
 
+
+
+
 @testset "NBPMscape.jl" begin
 	# Test infection creation
 	infection = Infection(NBPMscape.P; pid="test", tinf=1.2, contacttype=:G)
@@ -51,11 +94,13 @@ end
 	@test infection.tinf == 1.2
 	@test infection.contacttype == :G
 	
-	# # Test simulation
-	# result = simbp(NBPMscape.P; initialtime=2000.0, maxtime=2001.0, maxgenerations=2)
-	# @test result.G isa DataFrame
-	# @test result.D isa DataFrame
-	# @test !isempty(result.infections)
+	@test  infectivitytoR( 5.0, nsims = 10 ) isa Union{Missing,Real}
+
+	# Test simulation of single seed 
+	result = simtree(NBPMscape.P; initialtime=1.0, maxtime=50.0, maxgenerations=2)
+	@test result.G isa DataFrame
+	@test result.D isa DataFrame
+	@test !isempty(result.infections)
 
 end
 

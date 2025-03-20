@@ -3,7 +3,7 @@ using Plots
 using DataFrames
 
 # Run a simulation using default parameters
-results = simbp(NBPMscape.P
+results = simtree(NBPMscape.P
 	, initialtime=2000.0
 	, maxtime=2010.0
 	, maxgenerations=10

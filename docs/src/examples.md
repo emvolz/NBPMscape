@@ -7,7 +7,7 @@ using NBPMscape
 using Plots
 
 # Run a simulation using default parameters
-results = simbp(NBPMscape.P; 
+results = simtree(NBPMscape.P; 
     initialtime=2000.0, 
     maxtime=2010.0, 
     maxgenerations=10, 
@@ -37,7 +37,7 @@ my_params = merge(NBPMscape.P, (
 ))
 
 # Run simulation with custom parameters
-results = simbp(my_params; 
+results = simtree(my_params; 
     initialtime=2000.0, 
     maxtime=2020.0, 
     maxgenerations=15
@@ -52,7 +52,7 @@ using DataFrames
 using Plots
 
 # Run simulation
-results = simbp(NBPMscape.P)
+results = simtree(NBPMscape.P)
 
 # Get information about infections
 infections_df = results.G
