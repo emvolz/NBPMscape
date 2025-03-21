@@ -50,8 +50,14 @@ P = (
 	, gcont = .50 #.25 # contact rate for glinks (work)
 	, oocont = .50 #.05 # contact rate stranger 
 
-	, dowcont = (.2, .75, 1.0, 1.0, 1.0, .8, .3) # day of week scale Sun-Sat 
-
+	, dowcont =(0.1043502
+		,0.1402675
+		,0.1735913
+		,0.1437642
+		,0.1596205
+		,0.1445298
+		,0.1338766
+	) #(.2, .75, 1.0, 1.0, 1.0, .8, .3) # day of week scale Sun-Sat  (polymod )
 	, infectivity = 1.0 # scales transmission rate 
 	, infectivity_shape = 2.2 # Metcalf Nat Comm 2021 
 	, infectivity_scale = 2.5 
