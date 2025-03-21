@@ -15,14 +15,38 @@ if false
 	# ~ 2.25 sec
 	fo = simforest(NBPMscape.P; initialtime=0.0, maxtime=60.0, maxgenerations=100) ;
 
+	fo = simforest(NBPMscape.P; initialtime=0.0, maxtime=120.0, maxgenerations=100); [ fo.nimports , size(fo.G ,1)]
+
+	P = merge( NBPMscape.P, (;nimports = 1000))
+	fo = simforest(P; initialtime=0.0, maxtime=60.0, maxgenerations=100); [ fo.nimports , size(fo.G ,1)]
+
 	G = fo.G[ isfinite.(fo.G.ticu), : ]
 	psample = .05 
 	n = rand( Binomial( size(G,1), psample ))
 	G1 = G[sample( 1:size(G,1), n, replace=false ), :]
 
+	
 end 
 
 
+if false 
+
+	using NBPMscape
+	using Debugger
+	using Revise
+	using Test
+	using StatsBase
+	using Distributions
+
+	d = NBPMscape.CAAIMPORTS
+	region = wsample( d.ITL225CD, d.pax_2024_per_day )
+	prd = deepcopy( NBPMscape.COMMUTEINPROB[region] )
+	("na" in prd.index2name) && (delete!( prd, "na" ))
+	wsample( prd.index2name, prd.data )
+
+	sampleimportregion( P)
+
+end 
 
 
 if false 
@@ -102,5 +126,10 @@ end
 	@test result.D isa DataFrame
 	@test !isempty(result.infections)
 
+	# test multiple imports 
+	forest = simforest(NBPMscape.P; initialtime=0.0, maxtime=60.0, maxgenerations=2); 
+	@test forest.G isa DataFrame
+	@test forest.D isa DataFrame
+	@test forest.nimports > 0
 end
 

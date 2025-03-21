@@ -58,7 +58,7 @@ P = (
 		,0.1445298
 		,0.1338766
 	) #(.2, .75, 1.0, 1.0, 1.0, .8, .3) # day of week scale Sun-Sat  (polymod )
-	, infectivity = 1.0 # scales transmission rate 
+	, infectivity = 6.0 # scales transmission rate 
 	, infectivity_shape = 2.2 # Metcalf Nat Comm 2021 
 	, infectivity_scale = 2.5 
 
@@ -93,7 +93,13 @@ P = (
 
 	, commuterate = 2.0
 
-	, importrate= .5 # TODO 
+	, importrate = .5 # if using constant rate 
+	, nimports = 1000 
+	, import_t_df = 2.48 # personal analysis of lineages studied in Volz et al. Cell 2020 
+	, import_t_s = 8.75
+ #      df           m           s    
+ #   2.482146   -1.074888    8.749736 
+ # ( 1.226155) ( 1.608095) ( 1.978287)
 
 	, μ = 0.001 # mean clock rate -- additive relaxed clock
 	, ω = 0.5 # variance inflation
@@ -490,14 +496,38 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 	)
 end
 
+sampleimportregion() = begin 
+	region = wsample( CAAIMPORTS.ITL225CD, CAAIMPORTS.pax_2024_per_day )
+	prd = deepcopy( COMMUTEINPROB[region] )
+	("na" in prd.index2name) && (delete!( prd, "na" ))
+	delete!( prd, region )
+	homeregion = wsample( prd.index2name, prd.data )
+	(; region = homeregion , regionentry = region )
+end
+
 # simulate continuous importation 
-function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H)
-	# TODO realistic distribution
-	nimports = rand(Poisson((maxtime-initialtime)*p.importrate))
-	nimports = max(1, nimports )
-	timports = map(_->rand(Uniform(initialtime,maxtime)), 1:nimports)
+function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, importmodel=:TDist)
+	if importmodel == :Poisson # for testing  
+		nimports = rand(Poisson((maxtime-initialtime)*p.importrate))
+		nimports = max(1, nimports )
+		timports = map(_->rand(Uniform(initialtime,maxtime)), 1:nimports)
+	elseif importmodel == :TDist  # based on 1st wave covid 
+		nimports = 0
+		while nimports == 0 
+			timports = map(_->rand(TDist(p.import_t_df))*p.import_t_s, 1:p.nimports)
+			# use theoretical quantiles to prohibit outliers messing things up 
+			tlb = quantile( TDist( p.import_t_df ), 1/p.nimports )*p.import_t_s 
+			timports = timports[ (timports .> tlb) .& (timports .< (tlb+maxtime) ) ]
+			nimports = length( timports )
+		end
+	end
 	sort!(timports)
-	trs = map(t->simtree(p; initialtime=t,maxtime=maxtime,maxgenerations=maxgenerations,initialcontact=:H ), timports)
+	timports .-= minimum( timports )
+	importregions = map(_->sampleimportregion(),1:nimports)
+	# trs = map(t->simtree(p; initialtime=t,maxtime=maxtime,maxgenerations=maxgenerations,initialcontact=:H ), timports)
+	trs = map(zip(timports, importregions)) do (t, r)
+		simtree(p; region=r.region, initialtime=t, maxtime=maxtime, maxgenerations=maxgenerations, initialcontact=:H)
+	end
 	G = reduce( vcat, map(x-> x.G,trs))
 	D = reduce( vcat, map(x-> x.D,trs))
 	(; G = G, D = D, nimports = nimports, timports = timports  )
@@ -524,12 +554,11 @@ infectivitytoR(ν::Real; nsims = 1000) = begin
 	maximum(evs)
 end
 
-sampleforest(fo) = begin 
+sampleforest(fo, p) = begin 
 	# icu cases 
 	G = fo.G[ isfinite.(fo.G.ticu), : ]
-	psample = .05 # TODO 
 	# sample size 
-	n = rand( Binomial( size(G,1), psample ))
+	n = rand( Binomial( size(G,1), p.psampled ))
 	# subforest 
 	G1 = G[sample( 1:size(G,1), n, replace=false ), :]
 
