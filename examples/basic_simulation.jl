@@ -4,9 +4,9 @@ using DataFrames
 
 # Run a simulation using default parameters
 results = simtree(NBPMscape.P
-	, initialtime=2000.0
-	, maxtime=2010.0
-	, maxgenerations=10
+	, initialtime=0.0
+	, maxtime=100.0
+	, maxgenerations=100
 	, initialcontact=:G
 )
 
@@ -16,7 +16,7 @@ println("Transmission events: ", nrow(results.D))
 
 # Plot the infection timeline
 scatter(results.G.timeinfected, results.G.generation
-	, xlabel="Year"
+	, xlabel="Day"
 	, ylabel="Generation"
 	, title="Infection Timeline"
 	, legend=false

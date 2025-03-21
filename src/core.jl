@@ -497,6 +497,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 end
 
 sampleimportregion() = begin 
+	# TODO should weight by pop density 
 	region = wsample( CAAIMPORTS.ITL225CD, CAAIMPORTS.pax_2024_per_day )
 	prd = deepcopy( COMMUTEINPROB[region] )
 	("na" in prd.index2name) && (delete!( prd, "na" ))
