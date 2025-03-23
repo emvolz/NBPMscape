@@ -48,7 +48,7 @@ const REGIONS = ( :TODO )
 P = ( 
 	fcont = 1.0 # relative contact rate for flinks  (household) # TODO get from contact tracing studies 
 	, gcont = .50 #.25 # contact rate for glinks (work)
-	, oocont = .50 #.05 # contact rate stranger 
+	, oocont = .50 #.05 # contact rate other
 
 	, dowcont =(0.1043502
 		,0.1402675
@@ -62,18 +62,18 @@ P = (
 	, infectivity_shape = 2.2 # Metcalf Nat Comm 2021 
 	, infectivity_scale = 2.5 
 
-	, latent_shape = 2.3 # Casey 2021 ?
-	, latent_scale = 1.2
-	, infectious_shape = 2.1 # Verity 2020 , mean 22 d ?
-	, infectious_scale = 10.57 
+	, latent_shape = 4.24 # Galmiche Lancet Microbe 2023, mean ~ 5d
+	, latent_scale = 1.08 
+	, infectious_shape = 8.16 # Verity 2020 , mean 24d 
+	, infectious_scale = 3.03 
 
 	, ρ = 0.250 #  transmission reduction 
 	
 	, frate = 0.0 # rate of gaining & losing flinks
 	, grate = 1/30.0 # rate of gaining and losing
 
-	, fnegbinomr = 2.38e6# ONS # TODO should replace with Poisson #  8.1 Approximate household size distribution  
-	, fnegbinomp =  0.999999 # 0.86 
+	, fnegbinomr = 2.38e6# ONS # TODO should replace with Poisson(2.36) #   Approximate household size distribution  
+	, fnegbinomp =  0.999999 #  
 	, gnegbinomr =  1.44 # polymod # 3 # Approximate workplace size distribution 
 	, gnegbinomp = 0.1366 # 0.25 
 	, oorateshape = 1.42 # polymod  # Approximate other contacts (e.g. public transport) 
@@ -87,8 +87,8 @@ P = (
 	, propsevere = 0.05
 
 	, gprate = 1/3 
-	, hospadmitrate = 1/3
-	, icurate = 1/5 
+	, hospadmitrate = 1/4 # Docherty 2020 
+	, icurate = 1/2.5 # Knock 2021 
 	, psampled = .05  # prop sampled form icu 
 
 	, commuterate = 2.0
