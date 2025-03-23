@@ -7,7 +7,7 @@ mutable struct Infection
 	dpid::Union{String,Missing}
 	H::DataFrame # transmission linelist 
 	R::Int64 # number transmissions 
-	sol::ODESolution
+	sol::Union{ODESolution,Nothing}
 	tinf::Float64 # time infected 
 	tgp::Float64 # time 
 	thospital::Float64 # time 
@@ -88,13 +88,16 @@ P = (
 
 	, gprate = 1/3 
 	, hospadmitrate = 1/4 # Docherty 2020 
-	, icurate = 1/2.5 # Knock 2021 
+	, icurate = 1/2.5 # Knock 2021
+
 	, psampled = .05  # prop sampled form icu 
+	, turnaroundtime = 3 #days
 
 	, commuterate = 2.0
 
 	, importrate = .5 # if using constant rate 
-	, nimports = 1000 
+	, nimports = 1000 # du plessis 2020
+	# t distribution
 	, import_t_df = 2.48 # personal analysis of lineages studied in Volz et al. Cell 2020 
 	, import_t_s = 8.75
  #      df           m           s    
@@ -411,7 +414,7 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		, isnothing(donor) ? missing : donor.pid 
 		, H 
 		, R
-		, sol
+		, nothing #sol #nothing to save on memory 
 		, tinf
 		, tgp
 		, thospital
@@ -566,8 +569,10 @@ sampleforest(fo, p) = begin
 	tsample = map( g -> rand(Uniform(g.ticu,g.trecovered)) , eachrow(G1) )
 	G1.tsample = tsample 
 
+
 	(; 
 		tsample = sort( tsample  )
+		, treport = sort( tsample .+ p.turnaroundtime )
 		, G = G1 
 		, n = n 
 		, firstsample = minimum(tsample)
