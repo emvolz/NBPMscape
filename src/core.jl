@@ -177,7 +177,7 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : region # 
 	elseif contacttype == :import 
 		importedinfection=true
-		homeregion = wsample( ITL2SIZE.Code, ITL2SIZE.Population )
+		homeregion = wsample( ITL2SIZE.ITL225CD, ITL2SIZE.total_population_2022 )
 		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
 		("na" in prd.index2name) && (delete!( prd, "na" ))
