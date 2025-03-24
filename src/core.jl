@@ -164,9 +164,10 @@ function simgendist(tuv, p; s = 1000)
 	simgendist(0., tuv, p; s = s)
 end
 
-function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :nothing, donor::Union{Nothing,Infection} = nothing)
+function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :import, donor::Union{Nothing,Infection} = nothing)
 	# initial migration status 
 	# iregion = findfirst(REGKEY.code .== region) 
+	importedinfection=false
 	initialregion = region
 	if contacttype == :F 
 		homeregion = region 
@@ -176,7 +177,13 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
 		("na" in prd.index2name) && (delete!( prd, "na" ))
-		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : region # TODO 
+		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : region # 
+	elseif contacttype == :import 
+		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
+		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : region # 
+		contacttype = :H
+		importedinfection=true
+		homeregion = wsample( ITL2SIZE.Code, ITL2SIZE.Population )
 	else 
 		iscommuter = true 
 		prd = deepcopy( COMMUTEINPROB[region] )
@@ -184,7 +191,6 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		homeregion  = wsample( prd.index2name, prd.data )
 		commuteregion = region 
 	end
-	# TODO elif contact is H vs G 
 	
 	# transmission line list 
 	H = DataFrame(pid1 = String[]
@@ -390,6 +396,8 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		# , j_migration
 		, j_commute
 	]
+	# include imported related jump (port-of-entry to home) TODO 
+	importedinfection && append!(jumps, j_import )
 	# jdep complete graph works, but is probably slower 
 	jdep = repeat([collect(1:length(jumps))],length(jumps)) # complete graph 
 	simgenprob1 = JumpProblem(simgenprob0, Coevolve(), jumps...; dep_graph=jdep)
@@ -530,7 +538,7 @@ function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, i
 	importregions = map(_->sampleimportregion(),1:nimports)
 	# trs = map(t->simtree(p; initialtime=t,maxtime=maxtime,maxgenerations=maxgenerations,initialcontact=:H ), timports)
 	trs = map(zip(timports, importregions)) do (t, r)
-		simtree(p; region=r.region, initialtime=t, maxtime=maxtime, maxgenerations=maxgenerations, initialcontact=:H)
+		simtree(p; region=r.region, initialtime=t, maxtime=maxtime, maxgenerations=maxgenerations, initialcontact=:import)
 	end
 	G = reduce( vcat, map(x-> x.G,trs))
 	D = reduce( vcat, map(x-> x.D,trs))

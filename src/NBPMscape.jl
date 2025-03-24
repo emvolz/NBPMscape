@@ -30,6 +30,8 @@ const REGKEYPATH = joinpath( @__DIR__, "..", "data", "ITL2_key2.rds" )
 const REGKEY = load( REGKEYPATH )
 const CAAPATH = joinpath( @__DIR__, "..", "data", "CAA_pax_2024_ITL2.rds" )
 const CAAIMPORTS = load(CAAPATH)
+itl2size = CSV.read(joinpath( @__DIR__, "..", "data", "itl2_regions_england.csv"), DataFrame)
+const ITL2SIZE = filter( r->r.Code in REGKEY.code, itl2size )
 
 export simtree, simforest, sampleforest, simgendist, Infection, infectivitytoR
 export transmissionrate, sampdegree, REGKEY, COMMUTEPROB #TODO 

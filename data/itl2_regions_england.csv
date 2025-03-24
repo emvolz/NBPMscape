@@ -1,0 +1,34 @@
+ITL2 Region,Code,Population
+Tees Valley and Durham,TLC1,1970000
+Northumberland and Tyne and Wear,TLC2,1480000
+Cumbria,TLD1,500000
+Greater Manchester,TLD3,2800000
+Lancashire,TLD4,1500000
+Cheshire,TLD6,1060000
+Merseyside,TLD7,1430000
+East Yorkshire and Northern Lincolnshire,TLE1,1340000
+North Yorkshire,TLE2,820000
+South Yorkshire,TLE3,1400000
+West Yorkshire,TLE4,2320000
+Derbyshire and Nottinghamshire,TLF1,2200000
+"Leicestershire, Rutland and Northamptonshire",TLF2,2160000
+Lincolnshire,TLF3,1080000
+"Herefordshire, Worcestershire and Warwickshire",TLG1,1760000
+Shropshire and Staffordshire,TLG2,1450000
+West Midlands,TLG3,2930000
+East Anglia,TLH1,2430000
+Bedfordshire and Hertfordshire,TLH2,1850000
+Essex,TLH3,1830000
+Inner London – West,TLI3,1060000
+Inner London – East,TLI4,1600000
+Outer London – East and North East,TLI5,1430000
+Outer London – South,TLI6,1330000
+Outer London – West and North West,TLI7,1830000
+"Berkshire, Buckinghamshire and Oxfordshire",TLJ1,2330000
+"Surrey, East and West Sussex",TLJ2,3030000
+Hampshire and Isle of Wight,TLJ3,2020000
+Kent,TLJ4,1860000
+"Gloucestershire, Wiltshire and Bath/Bristol area",TLK1,2670000
+Dorset and Somerset,TLK2,1660000
+Cornwall and Isles of Scilly,TLK3,570000
+Devon,TLK4,1200000
