@@ -32,9 +32,6 @@ const STAGE = (:latent, :infectious, :recovered)
 
 const CONTACTTYPES = (:F, :G, :H)
 
-const NREGIONS = 50
-const REGIONS = ( :TODO )
-
 # # temporary migration matrix 
 # MIGMATRIX = fill( 1.0, NREGIONS, NREGIONS )
 # for i in 1:NREGIONS
@@ -179,12 +176,14 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		("na" in prd.index2name) && (delete!( prd, "na" ))
 		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : region # 
 	elseif contacttype == :import 
-		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
-		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : region # 
-		contacttype = :H
 		importedinfection=true
 		homeregion = wsample( ITL2SIZE.Code, ITL2SIZE.Population )
-	else 
+		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
+		prd = deepcopy( COMMUTEPROB[region] ) 
+		("na" in prd.index2name) && (delete!( prd, "na" ))
+		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : homeregion 
+		contacttype = :H
+	else # G or H 
 		iscommuter = true 
 		prd = deepcopy( COMMUTEINPROB[region] )
 		("na" in prd.index2name) && (delete!( prd, "na" ))
@@ -369,6 +368,12 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	end 
 	j_commute = ConstantRateJump( ratecommute, aff_commute! )
 
+	rateimporthome(u,p,t) = (importedinfection & (region!=homeregion)) ? p.commuterate : 0.0 
+	aff_importhome!(int) = begin 
+		region = homeregion 
+	end 
+	j_importhome = ConstantRateJump( rateimporthome, aff_importhome! )
+
 	## TODO long distance occasional travel 
 	
 	# ratemigration(u,p,t) = MIGRATES[region] 
@@ -383,6 +388,7 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	## set to infectious; tspan starts from this point 
 	infstage = :infectious
 	simgenprob0 = DiscreteProblem([], tspan, p)
+	## define jumps 
 	jumps = [ j_gainf
 		, j_gaing
 		, j_losef
@@ -396,17 +402,14 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		# , j_migration
 		, j_commute
 	]
-	# include imported related jump (port-of-entry to home) TODO 
-	importedinfection && append!(jumps, j_import )
-	# jdep complete graph works, but is probably slower 
+	### include imported related jump (port-of-entry to home) 
+	importedinfection && push!(jumps, j_importhome  )
+	## jdep complete graph works, but is probably slower 
 	jdep = repeat([collect(1:length(jumps))],length(jumps)) # complete graph 
+	
 	simgenprob1 = JumpProblem(simgenprob0, Coevolve(), jumps...; dep_graph=jdep)
 	sol = solve(simgenprob1, SSAStepper())
 
-	# # check if sampled and generate tseqdeposition
-	# sampled && (tsampled = rand(Uniform(ticu, tfin)) ) # TODO should have icu discharge distinct from recovery
-	# sampled && ( tseqdeposition = tsampled + rand( Uniform( p.lagseqdblb , p.lagsseqdbub)) )
-	
 	# evo distance   
 	# if isnothing(donor) || isinf(tseq)
 	# 	d = Inf 
