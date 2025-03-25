@@ -20,9 +20,13 @@ Finally increase size logarathmically with outdegree
 library(igraph)
 library(readr)
 
+# # Read the CSV files
+# nodes_data <- read_csv("defaultforest-fo2-gen4-G.csv")
+# edges_data <- read_csv("defaultforest-fo2-gen4-D.csv")
+
 # Read the CSV files
-nodes_data <- read_csv("../defaultforest-gen4-G.csv")
-edges_data <- read_csv("../defaultforest-gen4-D.csv")
+nodes_data <- read_csv("defaultforest-fo3-G.csv")
+edges_data <- read_csv("defaultforest-fo3-D.csv")
 
 # Create the graph structure
 # First, create an empty graph
@@ -58,31 +62,25 @@ outdegree[is.na(outdegree)] <- 0  # Set NA values to 0
 # Apply logarithm for sizing, adding 1 to avoid log(0)
 v_size <- log(outdegree + 1) * 3 + 3  # Scale for visibility
 
-# Set node attributes based on hospital and ICU status
-V(g)$shape <- "circle"  # Default shape
+# Set node attributes based on severity
+V(g)$shape <- "circle"  # Default shape for all nodes
 V(g)$color <- "black"   # Default color for outline
 V(g)$fill <- "white"    # Default fill color (open circle)
 
-# Create a function to check if a value is finite (not "Inf")
-is_finite_val <- function(x) {
-  return(!is.na(x) && x != "Inf" && !is.infinite(as.numeric(x)))
-}
-
-# Set attributes for nodes based on hospital and ICU status
+# Set attributes for nodes based on severity
 for (i in 1:length(all_nodes)) {
   node_id <- all_nodes[i]
   node_row <- nodes_data[nodes_data$pid == node_id, ]
   
   if (nrow(node_row) > 0) {
-    # Check ICU status first (red triangle)
-    if (is_finite_val(node_row$ticu)) {
-      V(g)[i]$shape <- "circle"  # Changed from triangle to circle with filled red
+    # Set color based on severity
+    if (node_row$severity == "severe") {
       V(g)[i]$fill <- "red"
-    }
-    # Then check hospital status (red square) - only if not already set by ICU
-    else if (is_finite_val(node_row$thospital)) {
-      V(g)[i]$shape <- "square"
-      V(g)[i]$fill <- "red"
+    } else if (node_row$severity == "mildorasymptomatic") {
+      V(g)[i]$fill <- "orange"
+    } else {
+      # "moderate" gets the default open circle (white fill)
+      V(g)[i]$fill <- "white"
     }
   }
 }
@@ -93,11 +91,11 @@ edge_types <- E(g)$contact_type
 
 for (i in 1:length(E(g))) {
   if (edge_types[i] == "F") {
-    E(g)[i]$lty <- 1  # Solid line for F
+    E(g)[i]$lty <- 1  # Solid line for F (Home)
   } else if (edge_types[i] == "G") {
-    E(g)[i]$lty <- 2  # Dashed line for G
+    E(g)[i]$lty <- 2  # Dashed line for G (Work)
   } else if (edge_types[i] == "H") {
-    E(g)[i]$lty <- 3  # Dotted line for H (as squiggly is not available)
+    E(g)[i]$lty <- 3  # Dotted line for H (Other)
   }
 }
 
@@ -111,7 +109,7 @@ tryCatch({
 })
 
 # Create a PDF file
-pdf("network_plot.pdf", width = 12, height = 10)
+pdf("defaultforest-graph.pdf", width = 12, height = 10)
 
 # Plot the graph
 par(mar = c(1, 1, 1, 1))
@@ -128,40 +126,16 @@ plot(g,
 
 # Add a legend
 legend("bottomleft", 
-       legend = c("Default (open circle)", "Hospital (red square)", "ICU (red circle)", "F contact", "G contact", "H contact"),
-       pch = c(1, 0, 1, NA, NA, NA),
+       legend = c("Moderate (open circle)", "Mild/Asymptomatic (orange)", "Severe (red)", 
+                 "Home contact (F)", "Work contact (G)", "Other contact (H)"),
+       pch = c(1, 16, 16, NA, NA, NA),
        lty = c(NA, NA, NA, 1, 2, 3),
-       col = c("black", "red", "red", "black", "black", "black"),
-       pt.bg = c("white", "red", "red", NA, NA, NA),
+       col = c("black", "orange", "red", "black", "black", "black"),
+       pt.bg = c("white", "orange", "red", NA, NA, NA),
        bty = "n")
 
 # Close the PDF device
 dev.off()
 
-# Also create a PNG version
-png("network_plot.png", width = 1200, height = 1000)
-par(mar = c(1, 1, 1, 1))
-
-plot(g,
-     layout = tree_layout,
-     vertex.size = v_size,
-     vertex.shape = V(g)$shape,
-     vertex.color = V(g)$fill,
-     vertex.frame.color = V(g)$color,
-     edge.lty = E(g)$lty,
-     edge.arrow.size = 0.5,
-     vertex.label = NA
-)
-
-legend("bottomleft", 
-       legend = c("Default", "Hospital", "ICU", "F contact", "G contact", "H contact"),
-       pch = c(1, 0, 2, NA, NA, NA),
-       lty = c(NA, NA, NA, 1, 2, 3),
-       col = c("black", "red", "red", "black", "black", "black"),
-       pt.bg = c("white", "red", "red", NA, NA, NA),
-       bty = "n")
-
-dev.off()
-
 # Print a message when done
-cat("Network plot created as 'network_plot.pdf' and 'network_plot.png'\n")
+cat("Network plot created as 'defaultforest-graph.pdf'\n")

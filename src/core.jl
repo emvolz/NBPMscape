@@ -22,6 +22,7 @@ mutable struct Infection
 	homeregion::String
 	commuteregion::String
 	initialdayofweek::Int # day 1-7 when infection ocurred 
+	severity::Symbol
 	generation::Int64
 end
 
@@ -440,6 +441,7 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		, homeregion
 		, commuteregion
 		, initialdow # day 1-7 when infection ocurred 
+		, severity
 		, isnothing(donor) ? 0 : donor.generation+1 # generation 
 	)
 end
@@ -492,10 +494,10 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 		DataFrame(dfargs, [:donor, :recipient, :timetransmission, :contacttype, :region]) :  
 		DataFrame([:donor => nothing, :recipient => nothing, :timetransmission => nothing, :contacttype => nothing, :region => nothing])
 		
-	dfargs1 = [(u.pid, u.tinf, u.tgp, u.thospital, u.ticu, u.trecovered, u.iscommuter, u.homeregion, u.commuteregion, u.generation,
+	dfargs1 = [(u.pid, u.tinf, u.tgp, u.thospital, u.ticu, u.trecovered, u.severity, u.iscommuter, u.homeregion, u.commuteregion, u.generation,
 				u.degree...) for u in G]
 	Gdf = DataFrame(dfargs1
-		, [:pid, :tinf, :tgp, :thospital, :ticu, :trecovered, :iscommuter, :homeregion, :commuteregion, :generation, :F, :G, :H ]
+		, [:pid, :tinf, :tgp, :thospital, :ticu, :trecovered, :severity, :iscommuter, :homeregion, :commuteregion, :generation, :F, :G, :H ]
 	)
 	
 	H.simid .= simid 
@@ -568,7 +570,7 @@ infectivitytoR(ν::Real; nsims = 1000) = begin
 	maximum(evs)
 end
 
-sampleforest(fo, p) = begin 
+sampleforest(fo::NamedTuple, p::NamedTuple) = begin 
 	# icu cases 
 	G = fo.G[ isfinite.(fo.G.ticu), : ]
 	# sample size 
@@ -576,7 +578,7 @@ sampleforest(fo, p) = begin
 	# subforest 
 	G1 = G[sample( 1:size(G,1), n, replace=false ), :]
 
-	tsample = map( g -> rand(Uniform(g.ticu,g.trecovered)) , eachrow(G1) )
+	tsample = (size(G1,1)>0) ? map( g -> rand(Uniform(g.ticu,g.trecovered)) , eachrow(G1) ) : []
 	G1.tsample = tsample 
 
 
@@ -585,6 +587,7 @@ sampleforest(fo, p) = begin
 		, treport = sort( tsample .+ p.turnaroundtime )
 		, G = G1 
 		, n = n 
-		, firstsample = minimum(tsample)
+		, firstsample = (n>0) ? minimum(tsample) : missing
 	)
 end
+sampleforest(fo, psampled::Real) = begin  P = merge(NBPMscape.P,(;psampled=psampled)); sampleforest(fo,P) end 
