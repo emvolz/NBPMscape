@@ -6,6 +6,8 @@ using CairoMakie
 using CMPlot 
 using PlotlyJS
 using DataFrames
+using GLM, Statistics
+using KernelDensity
 
 
 @load "covidlike-1.0-sims.jld2" 
@@ -87,3 +89,47 @@ Median:         751.000000
 Maximum:        7761.000000 =#
 
 
+
+
+# t & i ~ p 
+
+st0 = time() 
+sps = range(.05, .5, length=20) |> collect 
+Y = map(sps) do sp 
+	y = map(sims)  do s 
+		ss = sampleforest( s , sp )
+		t0 = ss.firstsample
+		t3 = (ss.n>2) ? ss.tsample[3] : missing
+		i0 = (ss.n>0) ? sum( s.G.tinf .<= t0  ) : missing 
+		[ t0, t3, i0 ]
+	end
+	reduce( hcat, y )
+end 
+st1 = time() 
+@show st1 - st0
+Y = cat( Y..., dims = 3 )
+
+f = Figure(size=(350,600));
+rowtits = ["Day 1st detection", "Day 3rd detection", "Cumulative infections at detection"] 
+for ri in 1:3 
+	a = Axis( f[ri,1] , title = rowtits[ri], xlabel = "ICU sample proportion", ylabel="", yscale=(ri == 3 ? log10 : identity)) ;
+	x = repeat(sps,inner=1000)
+	y = vec(Y[ri,:,:]) 
+	y1 = filter(z->!ismissing(z), y )
+	ylims!( a, quantile(y1, .01), quantile(y1,.99))
+	bw = diff( sps[1:2] )[1]/2
+	scatter!(a, x .+ bw.*(rand(length(x)).-.5), y, color = :blue, alpha = .3, markersize=1 );
+	if ri==3  
+		m = lm(@formula(y ~ x), DataFrame(x = x, y = log.(y)))
+		py = exp.( predict( m, DataFrame(x=sps)) )
+		lines!(a, sps, py , color=:red, linewidth=2);
+	else 
+		m = lm(@formula(y ~ x), DataFrame(x = x, y = y))
+		py = predict( m, DataFrame(x=sps)) 
+		lines!(a, sps, py , color=:red, linewidth=2);
+	end
+	@show rowtits[ri] 
+	@show DataFrame( sprop = sps, var = py)
+end 
+f
+save( "covidlike-1.0-sampleplots-ti_p.pdf", f )
