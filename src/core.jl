@@ -56,12 +56,17 @@ P = (
 		,0.1445298
 		,0.1338766
 	) #(.2, .75, 1.0, 1.0, 1.0, .8, .3) # day of week scale Sun-Sat  (polymod )
-	, infectivity = 6.0 # scales transmission rate 
-	, infectivity_shape = 2.2 # Metcalf Nat Comm 2021 
-	, infectivity_scale = 2.5 
+	# TODO introduce population variation in infectiousness 
+	, infectivity = 1.25 # scales transmission rate 
+	, infectivity_shape = 2.2 * 0.75 # TODO 
+	, infectivity_scale = 2.5 * 0.75
+	# , infectivity_shape = 1.72 # Jones & Drosten, Science 2021 
+	# , infectivity_scale = 5.95
 
-	, latent_shape = 4.24 # Galmiche Lancet Microbe 2023, mean ~ 5d
-	, latent_scale = 1.08 
+	# , latent_shape = 4.24 # Galmiche Lancet Microbe 2023, mean ~ 5d
+	# , latent_scale = 1.08 
+	, latent_shape = 3.26 # Zhao 2021 
+	, latent_scale = 0.979
 	, infectious_shape = 8.16 # Verity 2020 , mean 24d 
 	, infectious_scale = 3.03 
 
@@ -70,8 +75,8 @@ P = (
 	, frate = 0.0 # rate of gaining & losing flinks
 	, grate = 1/30.0 # rate of gaining and losing
 
-	, fnegbinomr = 2.38e6# ONS # TODO should replace with Poisson(2.36) #   Approximate household size distribution  
-	, fnegbinomp =  0.999999 #  
+	, fnegbinomr = 4.45 # ONS #    Approximate household size distribution  
+	, fnegbinomp =  0.77 #  
 	, gnegbinomr =  1.44 # polymod # 3 # Approximate workplace size distribution 
 	, gnegbinomp = 0.1366 # 0.25 
 	, oorateshape = 1.42 # polymod  # Approximate other contacts (e.g. public transport) 
@@ -131,7 +136,7 @@ end
 
 function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious, initialdow, p) 
 	dow = dayofweek(t,tinf,initialdow) 
-	ρ = 0.250 
+	ρ = 1.0 # 0.250 
 	if carestage in (:admittedhospital,:admittedicu)
 		ρ *= p.ρ
 	end
@@ -146,7 +151,8 @@ function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious
 		ρ *= p.oocont
 	end
 
-	ρ * p.dowcont[dow] * p.infectivity * pdf( Gamma(p.infectivity_shape, p.infectivity_scale), t-tinfectious )
+	return ρ * p.dowcont[dow] * p.infectivity * pdf( Gamma(p.infectivity_shape, p.infectivity_scale), t-tinfectious )
+	# ρ * p.dowcont[dow] * p.infectivity * pdf( Gamma(p.infectivity_shape, p.infectivity_scale), t-tinf) # TODO clarify if this is docked to tinf or tinfectious
 end
 
 function simgendist(t0, t1, p; s = 1000)

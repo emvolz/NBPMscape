@@ -78,9 +78,10 @@ if false
 	transmissionrate(:undiagnosed, :infectious, :G, 3.0, 2.0, 1, P) 
 
 	P = NBPMscape.P
-	infs = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:G), 1:1000);
+	infs = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:H), 1:1000);
 	H = reduce(vcat, [x.H for x in infs] )
 	H.timetransmission |> summarystats
+
 	[ x.R for x in infs ] |> summarystats
 
 	reduce( .+ , map( i->sampdegree(P;contacttype = :G), 1:1000)) ./ 1e3
