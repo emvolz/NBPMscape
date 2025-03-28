@@ -35,17 +35,12 @@ save( "covidlike-1.0-fband.pdf", fband )
 
 
 # time to detect  
-using Debugger
 sp = .1 
 spstats = map(sims)  do s 
-	# try 
 		ss = sampleforest( s , sp )
 		t0 = ss.firstsample
 		t3 = (ss.n>2) ? ss.tsample[3] : missing
 		i0 = (ss.n>0) ? sum( s.G.tinf .<= t0  ) : missing 
-	# catch 
-# @bp 
-	# end
 	[ t0, t3, i0 ]
 end
 spstats = reduce( hcat, spstats )
@@ -77,19 +72,17 @@ spdf = vcat( spdf1, spdf2 )
 PlotlyJS.plot( cmplot(spdf;xcol=[:Count,:p],ycol=:Days,colorshift=1)... )
 
 @show summarystats( spstats[3,:] )
-#= Summary Stats:
-Length:         1000
-Missing Count:  96
-Mean:           997.555310
-Std. Deviation: 938.815997
-Minimum:        1.000000
-1st Quartile:   330.500000
-Median:         751.000000
-3rd Quartile:   1382.500000
-Maximum:        7761.000000 =#
 
-
-
+#= Length:         1000
+Missing Count:  94
+Mean:           1012.248344
+Std. Deviation: 984.907957
+Minimum:        6.000000
+1st Quartile:   321.750000
+Median:         723.000000
+3rd Quartile:   1403.750000
+Maximum:        9760.000000
+=#
 
 # t & i ~ p 
 
