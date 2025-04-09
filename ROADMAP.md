@@ -2,14 +2,26 @@
 
 ## Age structure 
 
-- Polymod mixing matrix
-    * distinct mixing for work and home 
+- Polymod (or Warwick Uni Social Contact Survey) mixing matrix
+    * distinct mixing for work/school, home, other, (and possibly travel) 
 - Scale rates of :severe infection with age 
+- Stratify hospital and ICU admission rates, and death rates
+
+## Update model compartments
+- Split 'Removed' compartments into 'Death' and 'Recovered'
+- 'Death' compartment to be used as pathway for detections in non-metagenomic surveillance model
+
+## International travel
+- Incorporate imported cases as potential trigger for detection in non-metagenomic surveillance model
+
+
+
+# Version 0.3.0 
 
 ## More realistic importation dynamics 
 
 - Short-duration contacts at port-of-entry (similar to commuter dynamics)
-- Home region should be drawn prop-to population density
+- Home region should be drawn prop-to population density (or possibly derived from ONS International Passenger Survey)
     * simulate 1-way migration from port-of-entry to home region
 
 ## Long distance migration 
@@ -18,7 +30,7 @@
 
 
 
-# Version 0.3.0 
+# Version 0.4.0 
 
 ## Sample parameters 
 
@@ -28,7 +40,7 @@
 
 
 
-# Version 0.4.0 
+# Version 0.5.0 
 
 ## Phylogenetic tree simulation 
 
