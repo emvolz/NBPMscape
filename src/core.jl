@@ -1,4 +1,4 @@
-default(;lw = 4)
+Plots.default(;lw = 4)
 
 const MAXDURATION = 180.0
 
@@ -14,9 +14,10 @@ mutable struct Infection
 	ticu::Float64 # time 
 	# tsampled::Float64 # time
 	# tseqdeposition::Float64 # time for sequencing + qc + bioninf 
-	trecovered::Float64 
+	trecovered::Float64
+	# tdeceased::Float64 # time infected individual died TODO
 	contacttype::Symbol # cause of infection
-	degree::Tuple{Int64,Int64,Float64}
+	degree::Tuple{Int64,Int64,Float64} # TODO add a 4th type if change the number of contact types
 	iscommuter::Bool
 	initialregion::String
 	homeregion::String
@@ -24,17 +25,18 @@ mutable struct Infection
 	initialdayofweek::Int # day 1-7 when infection ocurred 
 	severity::Symbol
 	generation::Int64
-	isdeceased::Bool # TODO whether individual has died (default = FALSE). Assume all individuals that die have been admitted to ICU. 
-	agegroup::Symbol # TODO age group - aligns with contact data and severity stratification age groups
-	isimport::Bool # TODO record whether individual was infected when arrived in UK - if they are admitted to ICU, this would trigger investigation
+	#isdeceased::Bool # TODO whether individual has died (default = FALSE). Assume all individuals that die have been admitted to ICU. 
+	donor_age::Union{Int8,Missing} # Age of infector
+	infectee_age::Union{Int8,Missing} # using single year age so can incorporate different age groupings for different data inputs, e.g. contact number distributions may have different age groups to the number of ICU admissions
+	#importedinfection::Bool # TODO record whether individual was infected when arrived in UK - if they are admitted to ICU, this may prompt further investigation
 end
 
-const AGEGROUPS = (:youth, :youngadult, :adult, :old, :elderly) # TODO POSSIBLY CHANGE BASED ON SC2
+#const AGEGROUPS = (:youth, :youngadult, :adult, :old, :elderly) # TODO POSSIBLY CHANGE BASED ON SC2 / NO LONGER NEEDED AS USING SINGLE YEAR AGES
 const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :discharged) # :deceased) # TODO ADD DECEASED HERE??
 const SEVERITY = [:mildorasymptomatic, :moderate, :severe ] # TODO POSSIBLY CHANGE BASED ON SC2
 const STAGE = (:latent, :infectious, :recovered) # :deceased) # TODO ADD DECEASED HERE??
 
-const CONTACTTYPES = (:F, :G, :H) # TODO POSSIBLY SPLIT INTO 4 CONTACT TYPES: HOME, WORK/SCHOOL, TRAVEL, OTHER
+const CONTACTTYPES = (:F, :G, :H) # TODO POSSIBLY SPLIT INTO 4 (OR MORE) CONTACT TYPES: HOME, WORK/SCHOOL, TRAVEL, OTHER
 
 # # temporary migration matrix 
 # MIGMATRIX = fill( 1.0, NREGIONS, NREGIONS )
@@ -44,69 +46,85 @@ const CONTACTTYPES = (:F, :G, :H) # TODO POSSIBLY SPLIT INTO 4 CONTACT TYPES: HO
 # end
 # MIGRATES = [ sum(MIGRATES[i,:])-MIGRATES[i,i] for i in 1:NREGIONS ]
 
-# Define contact number distributions, stratified by age of individual and contact type
+## Function to convert age range strings (e.g. "0-18") to Range type (e.g. 0:18)
+function parse_range(str::String)
+	parts = parse.(Int, split(str, ':'))
+	return parts[1]:parts[2]
+end							 
+
+## Define contact number distributions, stratified by age of individual and contact type
+contact_age_groups = replace.( sort( unique( CONTACT_DISTRIBUTIONS.age_group ) , rev = false )
+							 , "_" => ":", "plus" => ":100")  # amend the format of the age group descriptions (i.e. separator and "75plus" -> 75:100)
+contact_age_groups_range = parse_range.( contact_age_groups )  # Convert from String to Range type
+
+# Build dataframe containing contact number distributions by age group
+#=
+TODO
+Currently includes contact types: home, work/school, and other
+Potentially change to: home, work, school, leisure, transport, other as per POLYMOD
+If split work and school, may need to account for profession, i.e. teachers would have a high contact number with children 
+at work everyone else would be low so would not make sense to use the average of these which would still be quite low
+=#
 contact_rate_dist_par_age_groups = DataFrame(
-    						   			   age_group_start = [1,    5, 11] # TODO CHECK AGE = 0
-										 , age_group_end   = [4,    10, 20]
-    									 , fnegbinomr      = [4.45, 4.45, 4.45]
-										 , fnegbinomp      = [0.77, 0.77, 0.77]										 
-										 , gnegbinomr      = [1.44, 1.44, 1.44]
-										 , gnegbinomp	   = [0.1366, 0.1366, 0.1366]
-										 , oorateshape     = [1.42, 1.42, 1.42]
-										 , ooratescale     = [6.27746, 6.27746, 6.27746]
-										 , oorateshape1    = [ 2.42, 2.42, 2.42]
-										 , ooratescale1    = [ 6.27746, 6.27746, 6.27746 ]
+    age_group    = contact_age_groups_range
+	# f is household size distribution 
+	# TODO Could replace distribution derived from POLYMOD UK with that derived from ONS 
+	# TODO disaggregate ONS by age
+    ,fnegbinomr   = sort( filter( row -> row.contact_setting =="home", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+    ,fnegbinomp   = sort( filter( row -> row.contact_setting =="home", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+	# g is Work / School contact number distribution
+	# POLYMOD approximate work or school contact number distribution
+	# TODO disaggregate work and school because very different when disaggregated by age
+    ,gnegbinomr   = sort( filter( row -> row.contact_setting =="work_school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+    ,gnegbinomp   = sort( filter( row -> row.contact_setting =="work_school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+	# TODO Consider splitting out School contacts in rest of model
+	#,srateshape  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
+    #,sratescale  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
+	#,snegbinomr  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+    #,snegbinomp  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+	# TODO Consider splitting out Work contacts in rest of model
+	#,wrateshape  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
+    #,wratescale  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
+	#,wnegbinomr  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+    #,wnegbinomp  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+	# Other contact number distribution
+	# POLYMOD approximate contact number distributions for combined settings: transport, leisure, otherplace
+    ,oorateshape  = sort( filter( row -> row.contact_setting =="other_t_l_o", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
+    ,ooratescale  = sort( filter( row -> row.contact_setting =="other_t_l_o", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
+    # excess rate distribution (also gamma) oorateshape1 = oorateshape + 1 and ooratescale1 = ooratescale
+	,oorateshape1 = sort( filter( row -> row.contact_setting =="other_t_l_o", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape .+ 1
+	,ooratescale1 = sort( filter( row -> row.contact_setting =="other_t_l_o", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
+	# TODO Possibly add more contact types
+	# TODO Need to choose distribution
+	## Transport contact number distribution (POLYMOD)
+    #,trateshape  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
+    #,tratescale  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
+	#,tnegbinomr  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+    #,tnegbinomp  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+	## Leisure contact number distribution (POLYMOD)
+    #,lrateshape  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
+    #,lratescale  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
+	#,lnegbinomr  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+    #,lnegbinomp  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+	## Otherplace contact number distribution (POLYMOD)
+    #,lrateshape  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
+    #,lratescale  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
+	#,lnegbinomr  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+    #,lnegbinomp  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+		
 )
 
-# Create vectors of contact number distribution parameters for each single year age up to maximum age
-# Initialize vectors
-max_age = maximum(contact_rate_dist_par_age_groups.age_group_end)
-fnegbinomr_all_ages = Vector{Float64}(undef, max_age)
-fnegbinomp_all_ages = Vector{Float64}(undef, max_age)
-gnegbinomr_all_ages = Vector{Float64}(undef, max_age)
-gnegbinomp_all_ages = Vector{Float64}(undef, max_age)
-oorateshape_all_ages = Vector{Float64}(undef, max_age)
-ooratescale_all_ages = Vector{Float64}(undef, max_age)
-oorateshape1_all_ages = Vector{Float64}(undef, max_age)
-ooratescale1_all_ages = Vector{Float64}(undef, max_age)
-
-# Fill vectors using age ranges
-for row in eachrow(contact_rate_dist_par_age_groups)
-    age_range = row.age_group_start:row.age_group_end
-    
-    fnegbinomr_all_ages[age_range] .= row.fnegbinomr
-    fnegbinomp_all_ages[age_range] .= row.fnegbinomp
-    gnegbinomr_all_ages[age_range] .= row.gnegbinomr
-    gnegbinomp_all_ages[age_range] .= row.gnegbinomp
-    oorateshape_all_ages[age_range] .= row.oorateshape
-    ooratescale_all_ages[age_range] .= row.ooratescale
-    oorateshape1_all_ages[age_range] .= row.oorateshape1
-    ooratescale1_all_ages[age_range] .= row.ooratescale1
-end
-
-######
-# Alternative method...
-# Define contact number distributions, stratified by age of individual and contact type
-contact_rate_dist_par_age_groups = DataFrame(
-    age_group = [0:4, 5:10, 11:20],
-    fnegbinomr = [4.45, 4.45, 5.45],
-    fnegbinomp = [0.77, 0.77, 0.77],
-    gnegbinomr = [1.44, 1.44, 1.44],
-    gnegbinomp = [0.1366, 0.1366, 0.1366],
-    oorateshape = [1.42, 1.42, 1.42],
-    ooratescale = [6.27746, 6.27746, 6.27746],
-    oorateshape1 = [2.42, 2.42, 2.42],
-    ooratescale1 = [6.27746, 6.27746, 6.27746]
-)
-
-# Create expanded parameter vectors
+# Create expanded contact number distribution parameter vectors
 max_age = maximum(last.(contact_rate_dist_par_age_groups.age_group))
-contact_dist_params = [:fnegbinomr, :fnegbinomp, :gnegbinomr, :gnegbinomp, 
-          :oorateshape, :ooratescale, :oorateshape1, :ooratescale1]
+contact_dist_params = [:fnegbinomr, :fnegbinomp
+					 , :gnegbinomr, :gnegbinomp
+					 #, :trateshape, :tratescale
+					 , :oorateshape, :ooratescale, :oorateshape1, :ooratescale1]
 
-# Generate all vectors in one loop
-contact_rate_dist_par_all_ages = Dict(param => Vector{Float64}(undef, max_age + 1) for param in contact_dist_params)
-
+# Generate vectors of contact number distribution parameters for each single year age up to maximum age
+# and store in dictionary
+contact_rate_dist_par_all_ages = Dict( param => Vector{Float64}(undef, max_age + 1) for param in contact_dist_params)
+# Assign distribution parameter values to single age elements
 for row in eachrow( contact_rate_dist_par_age_groups )
     age_range = row.age_group
     for param in contact_dist_params
@@ -115,25 +133,43 @@ for row in eachrow( contact_rate_dist_par_age_groups )
     end
 end
 
-# Access results like:
-# fnegbinomr_all_ages = result[:fnegbinomr]
-# fnegbinomp_all_ages = result[:fnegbinomp]
-# etc...
-########
+# TODO Note that some of these distribution parameters may not yield sensible numbers of contacts when sampled
+# e.g. work/school contacts for 75plus age group
+# Need way to deal with this
 
-# Household contacts
-fnegbinomr_all_ages = [ 4.45 ] # ONS # Approximate household size distribution  
-fnegbinomp_all_ages = [ 0.77 ] #  
-# School / Work contacts
-gnegbinomr_all_ages = [ 1.44 ]   # POLYMOD # 3 # Approximate workplace size distribution 
-gnegbinomp_all_ages = [ 0.1366 ] # 0.25 
-# Travel
-# TODO
-# Other
-oorateshape_all_ages = [ 1.42 ] # POLYMOD # Approximate other contacts (e.g. public transport) 
-ooratescale_all_ages = [ 6.27746 ] # 
-oorateshape1_all_ages = [ 2.42 ] # excess rate distribution (also gamma)
-ooratescale1_all_ages = [ 6.27746 ]
+### Define assortativity for contact ages
+
+# Function to convert contact matrix by age group to single year age
+function cont_matrix_age_group_to_single_yr(; contact_matrix_by_age_group = :nothing
+											, single_year_ages = :nothing)
+
+	# Initialise single year age contact matrix
+	contact_matrix_age = NamedArray( zeros( maximum(single_year_ages)+1, maximum(single_year_ages)+1)
+									,( single_year_ages, single_year_ages)
+									)
+	# Fill elements of single year age contact matrix
+	for (row_idx, age_range_row) in enumerate(names(contact_matrix_by_age_group, 1)),
+		(col_idx, age_range_column) in enumerate(names(contact_matrix_by_age_group, 2))
+
+		value = contact_matrix_by_age_group[row_idx, col_idx]
+		row_range = parse_range(age_range_row)
+		col_range = parse_range(age_range_column)
+		
+		for r in row_range, c in col_range
+			contact_matrix_age[r+1, c+1] = value
+		end
+	end
+	return( contact_matrix_age )
+end
+
+single_year_ages = 0:100
+
+const CONTACT_MATRIX_HOME_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( contact_matrix_by_age_group = CONTACT_MATRIX_HOME
+																			, single_year_ages = single_year_ages )
+const CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( contact_matrix_by_age_group = CONTACT_MATRIX_SCHOOL_WORK
+																			, single_year_ages = single_year_ages )
+const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( contact_matrix_by_age_group = CONTACT_MATRIX_OTHER
+																			, single_year_ages = single_year_ages )
 
 # default parameters 
 global P
@@ -147,9 +183,9 @@ P = (
 	# TODO POSSIBLY ADD 4TH CONTACT TYPE (TRAVEL) AS PER WARWICK UNI SOCIAL CONTACT SURVEY (Danon et al (2013))
 	#, tcont = 0.45 / 10.76  # for travel links
 
-	# TODO UPDATE OTHER PARAMETER VALUES FROM POLYMOD TO Danon et al (2013) SURVEY
 	# Scale adjustment for contact rates by day of the week (Sun-Sat)
-	# Sourced from POLYMOD - Mossong et al (2008)
+	# Sourced from POLYMOD - Mossong et al (2008), PLOS Medicine, 5(3)
+	# TODO COULD DISAGGREGATE THIS BY CONTACT TYPE, E.G. SCHOOL/WORK WOULD BE VERY DIFFERENT FROM LEISURE
 	#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
 	, dowcont = (0.1043502, 0.1402675, 0.1735913, 0.1437642, 0.1596205, 0.1445298, 0.1338766) 
 	# Sourced from 'Social Contact Survey' 
@@ -171,6 +207,7 @@ P = (
 	# , infectivity_shape = 1.72 # Jones & Drosten, Science 2021 
 	# , infectivity_scale = 5.95
 
+	# TODO STRATIFY BY AGE?
 	# , latent_shape = 4.24 # Galmiche Lancet Microbe 2023, mean ~ 5d
 	# , latent_scale = 1.08 
 	, latent_shape = 3.26 # Zhao 2021 
@@ -187,20 +224,32 @@ P = (
 	#, trate = TODO
 
 	# Contact rate distributions stratified by age of individual and contact type
+	# Based on POLYMOD UK - Mossong et al (2008), PLOS Medicine, 5(3)
 	# Note that element 1 is for age = 0 years
-	, fnegbinomr   = contact_rate_dist_par_all_ages[:fnegbinomr] #fnegbinomr_all_ages
-	, fnegbinomp   = contact_rate_dist_par_all_ages[:fnegbinomp] #fnegbinomp_all_ages 
-	, gnegbinomr   = contact_rate_dist_par_all_ages[:gnegbinomr] #gnegbinomr_all_ages  
-	, gnegbinomp   = contact_rate_dist_par_all_ages[:gnegbinomp] #gnegbinomp_all_ages
-	, oorateshape  = contact_rate_dist_par_all_ages[:oorateshape] #oorateshape_all_ages
-	, ooratescale  = contact_rate_dist_par_all_ages[:ooratescale] #ooratescale_all_ages
-	, oorateshape1 = contact_rate_dist_par_all_ages[:oorateshape1] #oorateshape1_all_ages
-	, ooratescale1 = contact_rate_dist_par_all_ages[:ooratescale1] #ooratescale1_all_ages
+	, fnegbinomr   = contact_rate_dist_par_all_ages[:fnegbinomr]
+	, fnegbinomp   = contact_rate_dist_par_all_ages[:fnegbinomp]
+	, gnegbinomr   = contact_rate_dist_par_all_ages[:gnegbinomr]
+	, gnegbinomp   = contact_rate_dist_par_all_ages[:gnegbinomp]
+	#, trateshape  = contact_rate_dist_par_all_ages[:trateshape]
+	#, tratescale  = contact_rate_dist_par_all_ages[:tratescale]
+	, oorateshape  = contact_rate_dist_par_all_ages[:oorateshape]
+	, ooratescale  = contact_rate_dist_par_all_ages[:ooratescale]
+	, oorateshape1 = contact_rate_dist_par_all_ages[:oorateshape1]
+	, ooratescale1 = contact_rate_dist_par_all_ages[:ooratescale1]
 
-	, lagseqdblb = 3 # Uniform delay from sampling to sequencing+bioinformatics+database
-	, lagsseqdbub = 7
+	# Contact rate matrix by age
+	# Based on POLYMOD UK - Mossong et al (2008), PLOS Medicine, 5(3)
+	# TODO COULD SPLIT INTO MORE CONTACT TYPES
+	, f_contact_matrix_age = CONTACT_MATRIX_HOME_SINGLE_YEAR
+	, g_contact_matrix_age = CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR
+	, o_contact_matrix_age = CONTACT_MATRIX_OTHER_SINGLE_YEAR
+
+	# Estimated uniform delay from sampling to sequencing+bioinformatics+database
+	# TODO SEARCH FOR SOURCE
+	, lagseqdblb  = 3 # lower bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
+	, lagsseqdbub = 7 # upper bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
 	
-	# TODO STRATIFY BY AGE GROUP - SEARCH FOR ANALYSIS FOR SC2 1ST WAVE
+	# TODO STRATIFY BY AGE GROUP - SEE KNOCK ET AL (2021)
 	, propmild = 0.60 
 	, propsevere = 0.05
 
@@ -208,12 +257,13 @@ P = (
 	, gprate = 1/3 
 	, hospadmitrate = 1/4 # Docherty 2020 
 	, icurate = 1/2.5 # Knock 2021
-	# TODO ADD RATE FOR DEATHS
+	#, hosp_disch_rate # TODO - SEE KNOCK ET AL (2021)
+	#, icu_disch_rate # TODO - SEE KNOCK ET AL (2021)
+	#, death_rate =  TODO ADD RATE FOR DEATHS - POSSIBLY DIFFERENT RATES DEPENDING ON CARE STAGE - SEE KNOCK ET AL (2021)
 
-	, psampled = .05  # prop sampled form icu 
-	, turnaroundtime = 3 #days
+	, psampled = .05  # prop sampled from icu 
+	, turnaroundtime = 3 # days TODO HOW DOES THIS LINK TO lagseqdblb and lagsseqdbub?
 
-	# TODO STRATIFY BY AGE GROUP (EVEN IF ONLY EXCLUDE CHILDREN?)
 	, commuterate = 2.0
 
 	, importrate = .5 # if using constant rate 
@@ -227,7 +277,60 @@ P = (
 
 	, μ = 0.001 # mean clock rate -- additive relaxed clock
 	, ω = 0.5 # variance inflation
+
+	## Assumptions regarding current non-metagenomic surveillance
+	# Proportion of ICU admissions with history of international travel that would be 
+	# further investigated (with non-metagenomic surveillance)
+	, non_mg_inv_prob_int_travel = 0.8 # ESTIMATE TODO ADD SOURCE. HOW RECENT MUST INT'L TRAVEL BE. NEED DATA ON INT'L TRAVEL FOR POPULATION.
+	# How recent must the international travel have been to prompt further investigation?
+	, int_travel_history_threshold_time = 30 # days DUMMY VALUE TODO ADD SOURCE
+	# Probability of prompting further investigation upon death
+	# TODO ANY DEATH OR ONLY IF COMBINED WITH YOUNGER AGE AND/OR INT'L TRAVEL
+	, non_mg_inv_prob_death = 0.8 # ESTIMATE TODO ADD SOURCE
+	# Probability of prompting further investigation based on age of individual in ICU
+	# TODO PERHAPS USE A SLIDING SCALE - YOUNGER THE INDIVIDUAL, HIGHER THE PROBABILITY OF INVESTIGATION
+	# E.G. all respiratory admissions to ICU aged 40 and under prompt investigation of pathogenesis
+	# and 60+ do not, with 80% probability of investigation linear decline in probability between the two ages
+	# FIND SOURCE FOR ICU ARI AGES - CAN THEN DEFINE VALUE FOR UNUSUAL AGE, E.G. X% QUANTILE OR X SDs FROM MEAN
+	, non_mg_inv_prob_icu_age = vcat( fill(1,40), collect(1.0:-0.01:0.8), fill(0,40))# DUMMY VALUE TODO ADD SOURCE 
+	# TODO NEED TIMINGS AROUND TESTING AND RESULTS FOR NON-METAGENOMIC SURVEILLANCE - WILL BE LONGER - AND DIFFERENTIATE BETWEEN CURRENT ICU AND DECEASED
+
 )
+
+# Function to sample age of infectee, which is conditional on the age of the infector
+function samp_infectee_age(p; contacttype, donor_age)# = :nothing, donor_age = :nothing)
+	# Sample from distribution of contact ages for individual of age = x
+	if isnothing( donor_age ) || (contacttype == :import)
+		# i.e. this is an import and we don't know anything about the infector of this infection
+		# Then we sample the infectee age from the distribution of international traveller ages
+		infectee_age = Int8( wsample( INT_TRAVELLERS_AGE_SINGLE_YR[:,"age"] 
+							 , INT_TRAVELLERS_AGE_SINGLE_YR[:,"intl_travel_prop_adj"] ) )
+	elseif !isnothing( donor_age )
+		# If there is a donor_age (infector age) for this infection then we sample the infectee age
+		# according to the contact type specific contact matrix by age
+		if contacttype == :F
+			infectee_age = Int8( wsample( 0:(dim(p.f_contact_matrix_age) - 1) 
+								  , p.f_contact_matrix_age[ donor_age + 1,:] ) )
+		elseif contacttype == :G
+			infectee_age = Int8( wsample( 0:(dim(p.g_contact_matrix_age) - 1) 
+								  , p.g_contact_matrix_age[ donor_age + 1,:] ) )
+		elseif contacttype == :H
+			infectee_age = Int8( wsample( 0:(dim(P.o_contact_matrix_age) - 1)
+								  , p.o_contact_matrix_age[ donor_age + 1,:] ) )
+		elseif isnothing( contacttype )
+			infectee_age = nothing #Int8( usample )
+			#TODO DO WE WANT TO RETURN SOMETHING IF CONTACT TYPE NOT DEFINED
+			# E.G. SAMPLE FROM CONTACT MATRIX INCLUDING ALL CONTACT TYPES? 
+		end
+	end
+	return (infectee_age)
+end
+# Test
+# samp_infectee_age(P; contacttype = :nothing, donor_age = 1) # TODO CURRENTLY RETURNS AN ERROR
+#samp_infectee_age(P; contacttype = :G, donor_age = 1)
+#samp_infectee_age(P; contacttype = :H, donor_age = 1)
+#samp_infectee_age(P; contacttype = :F, donor_age = 1)
+#samp_infectee_age(P; contacttype = :F, donor_age = nothing)
 
 function sampdegree(p; contacttype = :nothing, age = :nothing)
 	# gnegbinomr = p.gnegbinomr*p.gnegbinomp
@@ -237,29 +340,32 @@ function sampdegree(p; contacttype = :nothing, age = :nothing)
 		println("No contact distribution parameters are available for individuals of this age: ", age, " years")
 		return
 	end
+	#Test
+	#age=1
 	r  = Gamma( p.oorateshape[age+1], p.ooratescale[age+1] ) |> Base.rand 
 	kf = rand( NegativeBinomial(p.fnegbinomr[age+1], p.fnegbinomp[age+1]) )
 	kg = rand( NegativeBinomial(p.gnegbinomr[age+1], p.gnegbinomp[age+1]) )
 	if contacttype == :F # note this counts the link that transmitted infection
-		kf = rand( NegativeBinomial(p.fnegbinomr[age+1]+1, p.fnegbinomp[age+1]) ) + 1 
+		kf = rand( NegativeBinomial(p.fnegbinomr[age+1]+1, p.fnegbinomp[age+1]) ) + 1
 	elseif contacttype == :G
-		# kg = rand( NegativeBinomial(gnegbinomr+1, gnegbinomp) ) + 1 
-		kg = rand( NegativeBinomial(p.gnegbinomr[age+1]+1, p.gnegbinomp[age+1]) ) + 1 
+		kg = rand( NegativeBinomial(p.gnegbinomr[age+1]+1, p.gnegbinomp[age+1]) ) + 1
 	elseif contacttype == :H 
 		r = Gamma( p.oorateshape1[age+1], p.ooratescale1[age+1]) |> Base.rand 
 	end 
 	[ kf, kg, r ]	
 end
-# Test
-println( sampdegree(P, contacttype=:G, age = 0) )
+#Test
+#println( sampdegree(P, contacttype=:H, age = 0) )
 
 function dayofweek(t, tinf, initialdow)
 	d = Int( floor( (initialdow-1) + t-tinf ) % 7  ) + 1
 	d
 end
+#Test
+#println( dayofweek( 7, 1, 1) )
 
-# TODO NEED TO STRATIFY BY AGE GROUP
-function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious, initialdow, p, agegroup) 
+# TODO POSSIBLY STRATIFY BY AGE GROUP / SINGLE YEAR AGE
+function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious, initialdow, p, age)
 	dow = dayofweek(t,tinf,initialdow) 
 	ρ = 1.0 # 0.250 
 	if carestage in (:admittedhospital,:admittedicu)
@@ -293,30 +399,64 @@ function simgendist(tuv, p; s = 1000)
 	simgendist(0., tuv, p; s = s)
 end
 
-function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :import, donor::Union{Nothing,Infection} = nothing)
+function Infection(p; pid = "0"
+					, region="TLI3"
+					, tinf = 0.0
+					, initialdow = 1
+					, contacttype = :import
+					, donor::Union{Nothing,Infection} = nothing) #, age = nothing)
 	# initial migration status 
 	# iregion = findfirst(REGKEY.code .== region) 
-	importedinfection=false
+	importedinfection = false
 	initialregion = region
 	if contacttype == :F 
 		homeregion = region 
 # @show homeregion
 # @show keys(COMMUTEPROB[homeregion] )
 # ("na" ∉ keys(COMMUTEPROB[homeregion])) && ( @bp  )
-		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
+		infectee_age = samp_infectee_age( P; contacttype = contacttype
+										   , donor_age = isnothing(donor) ? nothing : donor.infectee_age )
+		# ONS Commuting data only for ages 16 and above 
+		# TODO COULD TRY TO FURTHER STRATIFY COMMUTING BY AGE IF REQUIRED
+		iscommuter = infectee_age < 16 ? false : rand() < COMMUTEPROB[homeregion]["na"] 
+		#iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
 		("na" in prd.index2name) && (delete!( prd, "na" ))
-		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : region # 
+		commuteregion = iscommuter ? wsample( prd.index2name, prd.data ) : region
 	elseif contacttype == :import 
-		importedinfection=true
-		homeregion = wsample( ITL2SIZE.ITL225CD, ITL2SIZE.total_population_2022 )
-		iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
+		importedinfection = true
+		homeregion = wsample( ITL2SIZE.ITL225CD, ITL2SIZE.total_population_2022 ) # TODO COULD STRATIFY BY AGE BUT PERHAPS NOT WORTHWHILE
+		
+		# Age of individual in imported infection is determined by age distribution of international travellers
+		# entering the UK. Two possible methods: TODO CHOOSE ONE
+		# (1) Weighted sample of single year age weighted by age group and adjusted by single year in 
+		# line with UK ONS population data for that age group
+		infectee_age = Int8( StatsBase.wsample( INT_TRAVELLERS_AGE_SINGLE_YR[:,"age"]
+				  							  , INT_TRAVELLERS_AGE_SINGLE_YR[:,"intl_travel_prop_adj"] ) )
+		# OR
+		# (2) Weighted sample of age group... 
+		#age_group = StatsBase.wsample( INT_TRAVELLERS_AGE_GROUP[:,"Age"], INT_TRAVELLERS_AGE_GROUP[:,"percent"] ) 
+		# ... then uniform sample of single year age from age group range
+		#if age_group == "65 & over"
+		#	age = Int8( rand(65:100) )
+		#else
+		#	age = Int8( rand( parse_range( age_group ) ) )# Returns error for oldest age group "65 & over"
+		#end
+
+		# ONS Commuting data only for ages 16 and above 
+		# TODO COULD TRY TO FURTHER STRATIFY COMMUTING BY AGE IF REQUIRED (categories in ONS data: 16-24, 25-34, 35-44, 45-54, 55-64, 65+)
+		iscommuter = infectee_age < 16 ? false : rand() < COMMUTEPROB[homeregion]["na"] 
+		#iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
 		("na" in prd.index2name) && (delete!( prd, "na" ))
 		commuteregion = iscommuter ? wsample( prd.index2name, prd.data )  : homeregion 
 		contacttype = :H
 	else # G or H 
-		iscommuter = true 
+		infectee_age = samp_infectee_age(P; contacttype = contacttype, donor_age = isnothing(donor) ? nothing : donor.infectee_age )
+		# ONS Commuting data only for ages 16 and above 
+		# TODO COULD TRY TO FURTHER STRATIFY COMMUTING BY AGE IF REQUIRED
+		iscommuter = infectee_age < 16 ? false : true 
+		#iscommuter = true 
 		prd = deepcopy( COMMUTEINPROB[region] )
 		("na" in prd.index2name) && (delete!( prd, "na" ))
 		homeregion  = wsample( prd.index2name, prd.data )
@@ -335,10 +475,19 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	       , degreeg = Int64[] 
 	       , oorate = Float64[] 
 	       , carestage = Symbol[]
+		   #, donor_age = Int8[]    # Caused issues when added here, so only recorded in D and G
+		   #, infectee_age = Int8[] # Caused issues when added here, so only recorded in D and G
 	)
 
+	# initial state of infection 
+	sampled = false 
+	carestage = :undiagnosed 
+	infstage = :latent # jump process will actually start with this :infectious
+	isdeceased = false # TODO NEED TO ADD DECEASED COMPARTMENT IN MODEL
+	#isrecovered = false # TODO IS THIS REQUIRED?
+	
 	# initial contact network 
-	flinks, glinks, hr = sampdegree(p; contacttype = contacttype , agegroup = agegroup )
+	flinks, glinks, hr = sampdegree(p; contacttype = contacttype , age = infectee_age )
 	Kf = rand( Poisson( flinks ) )
 	Kg = rand( Poisson( glinks ) )
 	if contacttype == :F 
@@ -354,17 +503,12 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	thospital = Inf # hospital admit 
 	tsampled = Inf # sampled 
 	tseqdeposition = Inf # sequence db 
-	trecovered = Inf # recovered/deceased/removed
+	trecovered = Inf # recovered/deceased/removed # TODO ONCE DECEASED COMPARTMENT ADDED, REMOVE DECEASED
+	#tdeceased = Inf # deceased TODO ADD ONCE DECEASED COMPARTMENT INCLUDED
 
-	# initial state of infection 
-	sampled = false 
-	carestage = :undiagnosed 
-	infstage = :latent # jump process will actually start with this :infectious
-	agegroup = :adult # TODO sample 
+	# TODO AGE STRATIFY SEE KNOCK ET AL (2021)
 	severity = StatsBase.wsample( SEVERITY, [p.propmild, 1-p.propmild-p.propsevere , p.propsevere]  )
-	#isdead = false
-	#agegroup = StatsBase.wsample( ) # SAMPLE FROM ONS POPULATION OR FROM POPULATION OF INTERNATIONAL TRAVELLERS
-
+	
 	#cumulative transm 
 	R = 0 
 
@@ -372,6 +516,7 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	latenthazard(t) = pdf(gammalatent,t) / (1 - cdf(gammalatent,t))
 	gammarecovery = Gamma(p.infectious_shape, p.infectious_scale)
 	recoveryhazard(t) = pdf(gammarecovery ,t) / (1 - cdf(gammarecovery,t)) 
+	# TODO ADD ANOTHER FUNCTION HERE ONCE DECEASED COMPARTMENT ADDED?
 
 	laglatent = rand( gammalatent )
 	lagrecovery = rand( gammarecovery ) 
@@ -401,40 +546,49 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	j_loseg = ConstantRateJump(rate_loseg, aff_loseg!) 
 
 	# transmissions 
-	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t,tinf,  tinfectious, initialdow, p) : 0.0 
-	hrate_transmf(u,p,t) = max(1.2*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p) )
-	lrate_transmf(u,p,t) = min(0.8*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p) )
+	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t,tinf,  tinfectious, initialdow, p, infectee_age) : 0.0 
+	hrate_transmf(u,p,t) = max(1.2*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age) )
+	lrate_transmf(u,p,t) = min(0.8*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age) )
 	aff_transmf!(int) = begin 
 		Kf -= 1
 		R += 1
 		nextpid = pid * ".$(R)"
+		# TODO this method is not correctly recording the donor/infector and recipient/infectee ages - it is one step behind
+		#donor_age = isnothing(donor) ? -1 : donor.infectee_age
+		#infectee_age = isnothing(infectee_age) ? -2 : infectee_age
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :F, flinks, glinks, hr, carestage)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :F, flinks, glinks, hr, carestage)#, donor_age, infectee_age)
 		)
 	end
 	j_transmf = VariableRateJump(rate_transmf, aff_transmf!; lrate=lrate_transmf, urate=hrate_transmf, rateinterval=rint) # 
 	
-	rate_transmg(u,p,t) = (region==commuteregion) ? Kg*transmissionrate(carestage, infstage, :G, t,tinf,  tinfectious, initialdow, p) : 0.0 
-	hrate_transmg(u,p,t) = max(1.2*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3, tinf, tinfectious, initialdow, p) )
-	lrate_transmg(u,p,t) = min(0.8*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3,tinf,  tinfectious, initialdow, p) )
+	rate_transmg(u,p,t) = (region==commuteregion) ? Kg*transmissionrate(carestage, infstage, :G, t,tinf,  tinfectious, initialdow, p, infectee_age) : 0.0 
+	hrate_transmg(u,p,t) = max(1.2*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3, tinf, tinfectious, initialdow, p, infectee_age) )
+	lrate_transmg(u,p,t) = min(0.8*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3,tinf,  tinfectious, initialdow, p, infectee_age) )
 	aff_transmg!(int) = begin 
 		Kg -= 1
 		R += 1
 		nextpid = pid * ".$(R)"
+		# TODO this method is not correctly recording the donor/infector and recipient/infectee ages - it is one step behind
+		#donor_age = isnothing(donor) ? -1 : donor.infectee_age
+		#infectee_age = isnothing(infectee_age) ? -2 : infectee_age
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :G, flinks, glinks, hr, carestage)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :G, flinks, glinks, hr, carestage)#,  donor_age, infectee_age)
 		)
 	end
 	j_transmg = VariableRateJump(rate_transmg, aff_transmg!; lrate=lrate_transmg, urate=hrate_transmg, rateinterval=rint)
 
-	rate_transmh(u,p,t) = hr*transmissionrate(carestage, infstage, :H, t, tinf, tinfectious, initialdow, p) 
-	hrate_transmh(u,p,t) = max(1.2*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p) )
-	lrate_transmh(u,p,t) = min(0.8*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p) )
+	rate_transmh(u,p,t) = hr*transmissionrate(carestage, infstage, :H, t, tinf, tinfectious, initialdow, p, infectee_age) 
+	hrate_transmh(u,p,t) = max(1.2*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p, infectee_age) )
+	lrate_transmh(u,p,t) = min(0.8*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p, infectee_age) )
 	aff_transmh!(int) = begin 
 		R += 1
 		nextpid = pid * ".$(R)"
+		# TODO this method is not correctly recording the donor/infector and recipient/infectee ages - it is one step behind
+		#donor_age = isnothing(donor) ? -1 : donor.infectee_age
+		#infectee_age = isnothing(infectee_age) ? -2 : infectee_age
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :H, flinks, glinks, hr, carestage)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :H, flinks, glinks, hr, carestage)#,  donor_age, infectee_age)
 		)
 	end
 	j_transmh = VariableRateJump(rate_transmh, aff_transmh!; lrate=lrate_transmh, urate=hrate_transmh, rateinterval=rint)
@@ -460,7 +614,7 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	end
 	j_gp = ConstantRateJump(rategp, aff_gp!)
 
-	## hospital TODO add hospital -> discharged rate 
+	## hospital
 	ratehospital(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity in (:severe,)) )) ? p.hospadmitrate : 0.0 
 	aff_hosp!(int) = begin 
 		carestage = :admittedhospital  
@@ -468,7 +622,16 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	end 
 	j_hospital = ConstantRateJump( ratehospital, aff_hosp! )
 
-	## icu TODO add icu -> hosp rate  
+	##TODO add hospital -> discharged rate 
+	#ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital)) & (severity in (:severe,)) )) ? p.hosp_disch_rate : 0.0 
+	#aff_hosp_disch!(int) = begin 
+	#	carestage = :dischargedhospital  
+	#	thospital = int.t # TODO
+	#end 
+	#j_hospital_discharge = ConstantRateJump( ratehospitaldischarge, aff_hosp_disch! )
+
+
+	## icu
 	rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:severe,)) )) ? p.icurate : 0.0 
 	aff_icu!(int) = begin 
 		carestage = :icu  
@@ -477,6 +640,13 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	end 
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
+	## TODO icu discharge to hospital ward 
+	#rate_icu_discharge(u,p,t) = (( (carestage in (:icu)) & (severity in (:severe,)) )) ? p.icu_disch_rate : 0.0 
+	#aff_icu_disch!(int) = begin 
+	#	carestage = :hospital_stepdown  
+	#	ticu = int.t 
+	#end 
+	#j_icu_discharge = ConstantRateJump( rate_icu_discharge, aff_icu_disch! )
 
 	# # sampling 
 	# ratesample(u,p,t) = (carestage == :icu & sampled=false) ? p.samplerate : 0.0 
@@ -491,13 +661,13 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 	## model commuter traffic and return journeys 
 	ratecommute(u,p,t) = iscommuter ? p.commuterate : 0.0 
 	aff_commute!(int) = begin 
-		# @show homeregion 
-		# @show commuteregion 
-		# @show region
-		# @show setdiff( [homeregion, commuteregion], [region] ) 
+		 #@show homeregion 
+		 #@show commuteregion 
+		 #@show region
+		 #@show setdiff( [homeregion, commuteregion], [region] ) 
 		# (homeregion!=commuteregion) && (region= setdiff( [homeregion, commuteregion], [region] )[1] )
 		if (homeregion!=commuteregion) & ( region in [homeregion, commuteregion] )
-			region= setdiff( [homeregion, commuteregion], [region] )[1]
+			region = setdiff( [homeregion, commuteregion], [region] )[1]
 		end
 	end 
 	j_commute = ConstantRateJump( ratecommute, aff_commute! )
@@ -534,11 +704,13 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 		    , j_transmg
 		    , j_transmh 
 		    , j_gp 
-		    , j_hospital 
+		    , j_hospital
+			#, j_hospital_discharge TODO
 		    , j_icu
-		  # , j_migration
+			#, j_icu_discharge TODO THIS IS REQUIRED BECAUSE SOME INDIVIDUALS STEPDOWN FROM ICU TO GENERAL WARD BEFORE DYING AND WE WANT TO USE DEATH AS A PROMPT FOR SAMPLING
+		    #, j_migration
 		    , j_commute
-		  # ,j_death TODO
+		   #, j_death TODO
 	]
 	### include imported related jump (port-of-entry to home) 
 	importedinfection && push!(jumps, j_importhome  )
@@ -559,40 +731,43 @@ function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, cont
 
 
 	Infection(
-		pid
-		, isnothing(donor) ? missing : donor.pid 
-		, H 
-		, R
-		, nothing #sol #nothing to save on memory 
-		, tinf
-		, tgp
-		, thospital
-		, ticu 
-		# , tsampled 
-		# , tseqdeposition 
-		, trecovered 
-		, contacttype
-		, (flinks,glinks,hr)
-		, iscommuter 
-		, initialregion
-		, homeregion
-		, commuteregion
-		, initialdow # day 1-7 when infection ocurred 
-		, severity
-		, isnothing(donor) ? 0 : donor.generation+1 # generation 
-		#, isdead # TODO
-		#, agegroup # TODO
-		#, isimport # TODO
-	)
+				pid
+				, isnothing(donor) ? missing : donor.pid 
+				, H 
+				, R
+				, nothing #sol #nothing to save on memory 
+				, tinf
+				, tgp
+				, thospital
+				, ticu 
+				# , tsampled 
+				# , tseqdeposition 
+				, trecovered
+				#, tdeceased # TODO
+				, contacttype
+				, (flinks,glinks,hr)
+				, iscommuter 
+				, initialregion
+				, homeregion
+				, commuteregion
+				, initialdow # day 1-7 when infection ocurred 
+				, severity
+				, isnothing(donor) ? 0 : donor.generation+1 # Determine generation 
+				#, isdeceased # TODO
+				, isnothing(donor) ? missing : donor.infectee_age
+				, isnothing(infectee_age) ? missing : infectee_age
+				#, importedinfection # TODO
+				)
 end
 
-Infection(p, h::DataFrameRow, donor::Infection) = Infection(p; pid=h["pid2"]
-							    , region=h["region"]
-							, tinf=h["timetransmission"]
-							, initialdow = h["dayofweek"]
-							, contacttype=h["transmissiontype"]
-							, donor=donor
-)
+# Construct Infection object from row in h and donor Infection object
+Infection(p, h::DataFrameRow, donor::Infection) = Infection(p; pid = h["pid2"]
+							    							, region = h["region"]
+															, tinf = h["timetransmission"]
+															, initialdow = h["dayofweek"]
+															, contacttype = h["transmissiontype"]
+															, donor = donor #h["donor"] # donor
+															)
 
 # function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :nothing, donor::Union{Nothing,Infection} = nothing)
 
@@ -603,7 +778,8 @@ function simgeneration(p, prevgen::Array{Infection}; maxtime = Inf)
 	)
 end
 
-# TODO IN SIMTREE NEED TO RECORD IF INFECTION IS AN IMPORTATION OR NOT BECAUSE IMPORTATION WILL TRIGGER INVESTIGATION UNDER NON-METAGENOMIC SURVEILLANCE X% OF THE TIME
+# TODO IN SIMTREE NEED TO RECORD IF INFECTION IS AN IMPORTATION OR NOT BECAUSE IMPORTATION MAY PROMPT
+# INVESTIGATION UNDER NON-METAGENOMIC SURVEILLANCE X% OF THE TIME
 function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H)
 	# clustthreshold::Float64 = 0.005,
 	
@@ -612,13 +788,15 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 
 	simid = UUIDs.uuid1() |> string 
 
+	# Define initial infection
 	g = Array{Infection}([ 
- 	 	Infection(p; pid = "$(simid)-0", region=region, tinf = initialtime, contacttype= initialcontact) 
-# function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :nothing, donor::Union{Nothing,Infection} = nothing)
-	])
-
+	 	 					Infection(p; pid = "$(simid)-0", region = region, tinf = initialtime, contacttype = initialcontact)#, donor = nothing ) 
+	# function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :nothing, donor::Union{Nothing,Infection} = nothing)
+						])
+	
 	G = g 
 	H = g[1].H 
+	
 	for igen in 2:maxgenerations
 		g = simgeneration(p, g, maxtime = maxtime)
 		# g = [infection for infection in g if infection.tinf < maxtime]
@@ -630,15 +808,29 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 		end
 	end
 	
-	dfargs = [(u.dpid, u.pid, u.tinf, u.contacttype, u.initialregion) for u in G if !ismissing(u.dpid)] # 
+	# removed the if statement at the end because it was stopping simforest() working after age disaggregation added
+	dfargs = [(u.dpid, u.pid, u.tinf, u.contacttype, u.initialregion, u.donor_age, u.infectee_age) for u in G]# if !ismissing(u.dpid)]
 	D = length(dfargs) > 0 ? 
-		DataFrame(dfargs, [:donor, :recipient, :timetransmission, :contacttype, :region]) :  
-		DataFrame([:donor => nothing, :recipient => nothing, :timetransmission => nothing, :contacttype => nothing, :region => nothing])
-		
-	dfargs1 = [(u.pid, u.tinf, u.tgp, u.thospital, u.ticu, u.trecovered, u.severity, u.iscommuter, u.homeregion, u.commuteregion, u.generation,
-				u.degree...) for u in G]
+		DataFrame(dfargs, [:donor, :recipient
+							, :timetransmission, :contacttype, :region
+							, :donor_age, :recipient_age]) :  
+		DataFrame([:donor => nothing, :recipient => nothing
+					, :timetransmission => nothing, :contacttype => nothing, :region => nothing
+					, :infector_age => nothing, :infectee_age => nothing])
+	
+	dfargs1 = [(u.pid, u.tinf, u.tgp, u.thospital, u.ticu, u.trecovered
+				, u.severity
+				, u.iscommuter, u.homeregion, u.commuteregion
+				, u.generation,
+				u.degree...
+				, u.donor_age, u.infectee_age) for u in G]
 	Gdf = DataFrame(dfargs1
-		, [:pid, :tinf, :tgp, :thospital, :ticu, :trecovered, :severity, :iscommuter, :homeregion, :commuteregion, :generation, :F, :G, :H ]
+		, [:pid, :tinf, :tgp, :thospital, :ticu, :trecovered
+			, :severity
+			, :iscommuter, :homeregion, :commuteregion
+			, :generation
+			, :F, :G, :H
+			, :infector_age, :infectee_age ]
 	)
 	
 	H.simid .= simid 
@@ -651,6 +843,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 		, infections = G 
 		, H = H 
 	)
+	
 end
 
 sampleimportregion() = begin 
@@ -692,9 +885,9 @@ end
 
 infectivitytoR(ν::Real; nsims = 1000) = begin
 	P = merge(NBPMscape.P, (;infectivity=ν))
-	infsF = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:F), 1:nsims);
-	infsG = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:G), 1:nsims);
-	infsH = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:H), 1:nsims);
+	infsF = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:F), 1:nsims); # TODO add donor = nothing?
+	infsG = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:G), 1:nsims); # TODO add donor = nothing?
+	infsH = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:H), 1:nsims); # TODO add donor = nothing?
 	inftoR(inf) = begin 
 		cmh = StatsBase.countmap( inf.H.transmissiontype )
 		map( k-> (k in keys(cmh)) ? cmh[k] : 0, [:F, :G, :H] )
