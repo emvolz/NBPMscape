@@ -1089,7 +1089,7 @@ function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, i
 	importregions = map(_->sampleimportregion(),1:nimports)
 	# trs = map(t->simtree(p; initialtime=t,maxtime=maxtime,maxgenerations=maxgenerations,initialcontact=:H ), timports)
 	trs = map(zip(timports, importregions)) do (t, r)
-		simtree(p; region=r.region
+		simtree(p; region=r.regionentry #r.region
 				 , initialtime=t
 				 , maxtime=maxtime, maxgenerations=maxgenerations, initialcontact=:import)
 	end
