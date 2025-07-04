@@ -1,0 +1,42 @@
+Row │ ITL2_code  ITL2_name                          tinf_median  tinf_median_fit  treport_median  treport_median_fit 
+     │ String     String                             Float64      Float64          Float64         Float64
+─────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   1 │ TLC3       Tees Valley                            50.3557        49.4012           64.0497             64.3692
+   2 │ TLC4       Northumberland, Durham and Tyne …      50.9368         0.693147         65.2978             16.0692
+   3 │ TLD1       Cumbria                                53.1758        48.9666           67.504              63.9713
+   4 │ TLD3       Greater Manchester                     48.1931         0.693147         63.7795             15.904
+   5 │ TLD4       Lancashire                             49.1449         0.693147         62.9473             15.5716
+   6 │ TLD6       Cheshire                               50.1533        48.3495           64.1489             63.1819
+   7 │ TLD7       Merseyside                             48.3521         0.693147         61.9342             15.3006
+   8 │ TLE1       East Yorkshire and Northern Linc…      53.7776         0.693147         67.642              16.167
+   9 │ TLE2       North Yorkshire                        51.3896        49.4055           64.9416             64.6517
+  10 │ TLE3       South Yorkshire                        50.1409        47.1516           64.2419             62.0295
+  11 │ TLE4       West Yorkshire                         50.0412         0.693147         64.058              15.3266
+  12 │ TLF1       Derbyshire and Nottinghamshire         48.3599         0.693147         62.0114             15.1031
+  13 │ TLF2       Leicestershire, Rutland and Nort…      49.8684        48.6269           62.9672             62.8913
+  14 │ TLF3       Lincolnshire                           51.913         50.3529           66.0315             65.6727
+  15 │ TLG1       Herefordshire, Worcestershire an…      49.0954         0.693147         63.785              15.3621
+  16 │ TLG2       Shropshire and Staffordshire           49.9355        47.5116           63.4141             62.0691
+  17 │ TLG3       West Midlands                          49.3992         0.693147         62.5475             15.0528
+  18 │ TLH2       Bedfordshire and Hertfordshire         47.2485         0.693147         61.2816             15.4557
+  19 │ TLH3       Essex                                  48.2684         0.693147         60.8411             14.7789
+  20 │ TLH4       Cambridgeshire and Peterborough        51.5914        49.97             66.1277             65.0214
+  21 │ TLH5       Norfolk                                51.941          0.693147         65.997              16.7203
+  22 │ TLH6       Suffolk                                51.6591         0.693147         63.9958             16.2451
+  23 │ TLI3       Inner London - West                    52.0833         0.693147         65.3369             15.9856
+  24 │ TLI4       Inner London - East                    47.2855         0.693147         60.7366             14.8723
+  25 │ TLI5       Outer London - East and North Ea…      47.0592        46.0139           60.4591             59.6716
+  26 │ TLI6       Outer London - South                   47.779          0.693147         61.1612             15.0805
+  27 │ TLI7       Outer London - West and North We…      48.5018         0.693147         61.5383             15.2529
+  28 │ TLJ1       Berkshire, Buckinghamshire and O…      48.6397        46.1835           61.8188             60.5283
+  29 │ TLJ2       Surrey, East and West Sussex           45.5313         0.693147         60.1393             15.1679
+  30 │ TLJ3       Hampshire and Isle of Wight            48.1305        47.2358           61.7231             61.6661
+  31 │ TLJ4       Kent                                   50.1441         0.693147         62.6395             15.1871
+  32 │ TLK3       Cornwall and Isles of Scilly           49.8635         0.693147         61.4367             15.6918
+  33 │ TLK4       Devon                                  50.4762         0.693147         65.3998             15.8016
+  34 │ TLK5       West of England                        51.9901        48.4214           66.2755             63.6808
+  35 │ TLK6       North Somerset, Somerset and Dor…      50.9311        48.3596           63.8629             62.5296
+  36 │ TLK7       Gloucestershire and Wiltshire          51.9983         0.693147         64.8706             15.5606
+  37 │ TLL3       North Wales                            52.0623        49.6144           65.8526             64.7155
+  38 │ TLL4       Mid and South West Wales               52.1788         0.693147         68.0205             16.8719
+  39 │ TLL5       South East Wales                       51.2237         0.693147         64.6223             16.1469
