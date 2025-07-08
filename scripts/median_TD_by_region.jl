@@ -21,7 +21,6 @@ Description
 
 using JLD2
 using NBPMscape
-#using StatsBase
 using GLM, Statistics
 using Distributions
 using JumpProcesses 
@@ -36,12 +35,12 @@ import SpecialFunctions as SF
 using Plots 
 using LinearAlgebra
 using Optim
-
 using RData 
 using CSV 
 
 # Load simulation
-sims = load("covidlike-1.0-sims.jld2" , "sims")
+sims = load("covidlike-1.0-sims.jld2" , "sims") # preliminary simulation
+#sims = load("covidlike-1.0-sims-regionentry.jld2" , "sims") # preliminary simulation re-run with regionentry adjusted
 
 # ITL2 region list
 REGKEY.code
@@ -75,8 +74,6 @@ treport_by_region_dict = Dict(name => Float64[] for name in REGKEY.code)
 
 # Loop through each simulation
 for s in 1:length(sims)
-    #Test
-    #s=1
     
     fo = sims[s]
     
@@ -150,21 +147,245 @@ end
 
 # Function to compute the negative log-likelihood of a gamma distribution.
 # This can then be optimised to fit truncated data (the tinf times which are truncated at the simulation maxtime).
-function negloglik_gamma(params)
+
+function nll_trunc_gamma(params)
     shape, scale = params
     if shape <= 0 || scale <= 0
-        return Inf
+        return 1e10 #Inf
     end
     d0 = Gamma(shape, scale)
-
     #norm = cdf(d0, upper) # Only upper truncation
     #ll = sum(logpdf(d0, t) for t in times) - length(times) * log(norm)
+    d = truncated( d0, lower, upper)
+    #if any(x -> x < lower || x > upper, sort(times))
+    #    return 1e100 #Inf
+    #end
 
-    d = truncated( d0, 0, upper)
-    ll = sum(logpdf.(d, times))
-
-    return -ll
+    # Filter for finite values
+    #logpdf_vec = sort(logpdf.(d, times))
+    #logpdf_finite_vec = filter(isfinite, logpdf_vec)
+    #ll = sum( logpdf_finite_vec )
+    
+    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
+    times_no_zeros = sort( filter(x -> x != 0, times) )
+    # Compute log-likelihood
+    ll = sum( sort(logpdf.(d, times_no_zeros)) ) #ll = sum( sort(logpdf.(d, times)) ) 
+          
+    return isfinite(-ll) ? -ll : 1e10 #return -ll
 end
+
+#TEST
+#test_d=rand(d,10000)
+#histogram(test_d,alpha=0.5, normalize=:pdf)
+#test_d0=rand(d0,10000)
+    #histogram!(test_d0,alpha=0.5, normalize=:pdf, color=:green)
+    #histogram!(times, normalize=:pdf, color=:red, alpha=0.5)
+    
+    # Overlay fitted (truncated) gamma PDF
+    #xs = range(0, upper; length=300)
+    #norm = cdf(d, upper) # normalization for truncation
+    #tinf_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
+
+    # Plot tinf fit
+    #plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:blue, lw=2)
+    #plot!(xs, pdf.(Gamma(18,3),xs); label="tinf truncated gamma fit", color=:blue, lw=2)
+
+
+function nll_trunc_nbinom(params)
+    r, p = params
+    if r <= 0 || p <= 0
+        return 1e10 #Inf
+    end
+    d0 = NegativeBinomial(r, p)
+
+    d = truncated( d0, lower, upper)
+    
+    #if any(x -> x < lower || x > upper, sort(times))
+    #    return 1e100 #Inf
+    #end
+    
+    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
+    times_no_zeros = sort( filter(x -> x != 0, times) )
+    # Compute log-likelihood
+    #ll = sum( sort(logpdf.(d, times)) )
+    ll = sum( sort(logpdf.(d, times_no_zeros)) ) 
+    
+    return isfinite(-ll) ? -ll : 1e10
+end
+
+# Negative log-likelihood for truncated log-normal
+function nll_trunc_lognorm(params)
+    μ, σ = params
+    lower = 0
+    if σ <= 0
+        return 1e10 #Inf
+    end
+    d0 = LogNormal(μ, σ)
+    d = truncated(d0, lower, upper)
+    if any(x -> x < lower || x > upper, times)
+        return 1e10 #Inf
+    end
+    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
+    times_no_zeros = sort( filter(x -> x != 0, times) )
+    # Compute log-likelihood
+    ll = sum(logpdf.(d, times_no_zeros)) #ll = sum(logpdf.(d, times))
+    return isfinite(-ll) ? -ll : 1e10
+end
+
+# Negative log-likelihood for truncated Weibull
+function nll_trunc_weibull(params)
+    α, θ = params
+    lower = 0
+    if α <= 0 || θ <= 0
+        return 1e10 #Inf
+    end
+    d0 = Weibull(α, θ)
+    d = truncated(d0, lower, upper)
+    if any(x -> x < lower || x > upper, times)
+        return 1e10 #Inf
+    end
+    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
+    times_no_zeros = sort( filter(x -> x != 0, times) )
+    # Compute log-likelihood
+    ll = sum(logpdf.(d, times_no_zeros)) #ll = sum(logpdf.(d, times))
+    return isfinite(-ll) ? -ll : 1e10 #return -ll
+end
+
+histogram(times)
+
+# Function to compare distribution fits
+function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_weibull, lower, upper)
+    
+    # Fit all distributions and record results in a dictionary
+    fit_results = Dict()
+
+    # Gamma
+    res_gamma = optimize(nll_trunc_gamma, init_gamma, NelderMead() #GoldenSection()) #Brent()) #AcceleratedGradientDescent()) #MomentumGradientDescent()) #GradientDescent()) #ConjugateGradient()) #LBFGS()) #SimulatedAnnealing()) #NelderMead())
+                        , Optim.Options( iterations = 1000    # maximum number of iterations
+                                         , g_tol = 1e-8         # gradient tolerance
+                                         , store_trace = true   # store the optimization trace
+                                         , show_trace = true    # print progress to stdout
+                                         , show_warnings = true  # show warnings
+                                        )
+                        ) 
+    
+    #TEST
+    #params
+    #init_gamma
+    #res_gamma.minimizer
+    #d0 = Gamma( res_gamma.minimizer[1],res_gamma.minimizer[2]) #(shape, scale)
+    #d = truncated( d0, lower, upper)
+    #test_d=rand(d,10000)
+    #histogram(test_d,alpha=0.5, normalize=:pdf)
+    #test_d0=rand(d0,10000)
+    #histogram!(test_d0,alpha=0.5, normalize=:pdf, color=:green)
+    #histogram!(times, normalize=:pdf, color=:red, alpha=0.5)
+    # Overlay fitted (truncated) gamma PDF
+    #xs = range(0, upper; length=300)
+    #norm = cdf(d, upper) # normalization for truncation
+    #tinf_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
+    # Plot tinf fit
+    #plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:blue, lw=2)
+    #plot!(xs, pdf.(Gamma(18,3),xs); label="tinf truncated gamma fit", color=:blue, lw=2)
+
+    # Check if optimisation of negative log-likelihood has converged
+    # before savings results
+    #if Optim.converged( res_gamma )
+        nll_g = nll_trunc_gamma( Optim.minimizer( res_gamma ) )
+        k = length( Optim.minimizer( res_gamma ) ) # Number of parameters estimated
+        aic_g = 2*k + 2*nll_g 
+        fit_results["Gamma"] = ( nll_g, aic_g, Optim.minimizer( res_gamma ) )
+    #else
+    #    fit_results["Gamma"] = ("NA", "NA", "NA")
+    #end
+
+    # Log-normal
+    res_lognorm = optimize(nll_trunc_lognorm, init_lognorm, NelderMead()
+                            , Optim.Options(
+                                              iterations = 2000    # maximum number of iterations
+                                            , g_tol = 1e-8         # gradient tolerance
+                                            , store_trace = true   # store the optimization trace
+                                            , show_trace = true    # print progress to stdout
+                                            , show_warnings = true  # show warnings
+                                            )
+                            )
+    
+    # Check if optimisation of negative log-likelihood has converged
+    # before savings results
+    #if Optim.converged( res_lognorm ) #res_lognorm.exitflag == :Success
+        nll_ln = nll_trunc_lognorm( Optim.minimizer( res_lognorm ) )
+        k = length( Optim.minimizer( res_lognorm ) ) # Number of parameters estimated
+        aic_ln = 2*k + 2*nll_ln
+        fit_results["LogNormal"] = ( nll_ln, aic_ln, Optim.minimizer( res_lognorm ) )
+    #else
+    #    fit_results["LogNormal"] = ("NA", "NA", "NA")
+    #end
+
+    # Weibull
+    res_weibull = optimize(nll_trunc_weibull, init_weibull, NelderMead()
+                            , Optim.Options(
+                                              iterations = 2000    # maximum number of iterations
+                                            , g_tol = 1e-8         # gradient tolerance
+                                            , store_trace = true   # store the optimization trace
+                                            , show_trace = true    # print progress to stdout
+                                            , show_warnings = true  # show warnings
+                                            )
+    )
+    
+    # Check if optimisation of negative log-likelihood has converged
+    # before savings results
+    #if Optim.converge( res_weibull ) #res_weibull.exitflag == :Success
+        nll_w = nll_trunc_weibull(Optim.minimizer(res_weibull))
+        k = length(Optim.minimizer(res_weibull)) # Number of parameters estimated
+        aic_w = 2*k + 2*nll_w
+        fit_results["Weibull"] = (nll_w, aic_w, Optim.minimizer(res_weibull))
+    #else
+    #   fit_results["Weibull"] = ("NA", "NA", "NA")
+    #end
+
+    # Negative Binomial
+    res_nbinom = optimize(nll_trunc_nbinom, init_nbinom, NelderMead()
+                            , Optim.Options(
+                                              iterations = 2000    # maximum number of iterations
+                                            , g_tol = 1e-8         # gradient tolerance
+                                            , store_trace = true   # store the optimization trace
+                                            , show_trace = true    # print progress to stdout
+                                            , show_warnings = true  # show warnings
+                                            )
+    )
+
+    # Check if optimisation of negative log-likelihood has converged
+    # before savings results
+    #if Optim.converge( res_nbinom ) #res_weibull.exitflag == :Success
+        nll_nb = nll_trunc_nbinom( Optim.minimizer(res_nbinom) )
+        k = length(Optim.minimizer(res_nbinom)) # Number of parameters estimated
+        aic_nb = 2*k + 2*nll_nb
+        fit_results["NegativeBinomial"] = (nll_nb, aic_nb, Optim.minimizer(res_nbinom))
+    #else
+    #    fit_results["NegativeBinomial"] = ("NA", "NA", "NA")
+    #end
+
+
+    # Report results
+    #if isempty(fit_results)
+    #    println("All fits failed.")
+    #else
+    #    println("Goodness-of-fit (AIC) for each distribution:")
+    #    for (dist, (_nll, aic, params)) in results
+    #        println("  $dist: AIC = $aic, parameters = $params")
+    #    end
+        # Select best distribution
+    #    best_dist = findmin([(aic, dist) for (dist, (_nll, aic, _params)) in results])[2]
+    #    println("Best-fitting distribution: $best_dist")
+    #end
+    return( [fit_results] )
+end
+
+
+#Testing gamma parameters so set initial params close to final params
+#data = rand(truncated(Gamma(12.0, 100.0), 0, 60), 1000)
+#data = rand(truncated(Weibull(20.0, 80.0), 0, 60), 1000)
+#histogram(data)
 
 # Simulation maxtime
 maxtime = 60.0
@@ -182,28 +403,45 @@ median_times_by_region = DataFrame(
 
 for r in REGKEY.code #icu_regions
 #TEST
-#r = "TLE3"
+#r = "TLI7"
 #r = icu_regions[2]
 
     # Times to fit truncated gamma distribution to
     times = tinf_by_region_dict[ r ]
     #Test
-    histogram(times)
+    #histogram(times)
 
-    # Define truncation time
+    # Define truncation range
+    lower = 0 #0.00001
     upper = maxtime
 
-    # Fit truncated gamma distribution to tinf from earliest treport
-    init_params = [1.0, 1.0]
-    result = optimize(negloglik_gamma, init_params, BFGS())
-    shape_hat, scale_hat = Optim.minimizer(result)
+    # Initial guesses
+    #init_gamma = [10.0, 5.0] # shape*scale = mean. Median is ~50 for the tinf data # [1.0, 1.0]
+    init_gamma = [mean(times)^2 / var(times), var(times)/mean(times)] # shape*scale = median. Mean is ~50 for the tinf data # [1.0, 1.0]
+    init_nbinom = [20.0, 0.5]
+    init_lognorm = [mean(log.(times.+1)), std(log.(times.+1))]
+    init_weibull = [20.0, 80.0]
 
+    fit_tinf_results = fit_multi_dist(; times
+                                    , init_gamma, init_nbinom, init_lognorm, init_weibull
+                                    , lower, upper)
+    println(fit_tinf_results)
+
+    # Fit truncated gamma distribution to tinf from earliest treport
+    #init_params = [12.0, 6.0] #[1.0, 1.0]
+    #res_gamma = optimize(negloglik_gamma, init_params, BFGS())
+    #res_gamma = optimize(nll_trunc_gamma, init_params, BFGS())
+    #shape_hat, scale_hat = Optim.minimizer(res_gamma)
+
+    shape_hat, scale_hat = fit_tinf_results[1]["Gamma"][3]
     tinf_fitted_gamma = Gamma(shape_hat, scale_hat)
     tinf_trunc_gamma = truncated(tinf_fitted_gamma, 0.0, upper)
 
     # Plot histogram (normalized to probability density)
-    p1 = histogram(times; bins=30, normalize=:pdf, label="tinf"
-             , color=:lightblue, alpha=0.5, legend=:topright
+    p1 = histogram(times; bins=30
+             , normalize=:pdf
+             , label="tinf"
+             , color=:lightblue, alpha=0.5, legend=:topleft
              , title="$(r) $(REGKEY[REGKEY.code .== r, :name][1])" 
              , xlabel="Days", ylabel = "Density"
              )
@@ -217,7 +455,8 @@ for r in REGKEY.code #icu_regions
     p1 = plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:blue, lw=2)
 
     # Add median for tinf
-    tinf_median = quantile(times, 0.5)
+    tinf_median = quantile(times, 0.5) # TODO Includes zero values which were removed for stat dist fitting
+    #tinf_median = median(times)
     p1 = vline!([tinf_median], color=:blue
             , label="tinf median")
 
@@ -227,7 +466,8 @@ for r in REGKEY.code #icu_regions
             , label="tinf median truncated gamma fit")
 
     # Add histogram for treport
-    p1 = histogram!(treport_by_region_dict[ r ]; bins=30, normalize=true
+    p1 = histogram!(treport_by_region_dict[ r ]; bins=30
+                , normalize=true
                 , label="treport", color=:pink, alpha=0.5)
 
     # Add median for treport
@@ -236,12 +476,26 @@ for r in REGKEY.code #icu_regions
     
     # Fit gamma distribution to (treport - tinf) from earliest treport
     times = tinf_treport_by_region_dict[ r ]
-    init_params = [1.0, 1.0]
-    result = optimize(negloglik_gamma, init_params, BFGS())
-    shape_hat, scale_hat = Optim.minimizer(result)
-
-    tinf_treport_fitted_gamma = Gamma(shape_hat, scale_hat)
     
+    # Initial guesses
+    #init_params = [1.0, 1.0]
+    init_gamma = [mean(times)^2 / var(times), var(times)/mean(times)] # shape*scale = median. Mean is ~50 for the tinf data # [1.0, 1.0]
+    init_nbinom = [20.0, 0.5]
+    init_lognorm = [mean(log.(times.+1)), std(log.(times.+1))]
+    init_weibull = [20.0, 80.0]
+
+    fit_tinf_treport_results = fit_multi_dist(; times
+                                               , init_gamma, init_nbinom, init_lognorm, init_weibull
+                                               , lower, upper)
+    println(fit_tinf_treport_results)
+
+    #result = optimize(negloglik_gamma, init_params, BFGS())
+    
+    #shape_hat, scale_hat = Optim.minimizer(result)
+    shape_hat, scale_hat = fit_tinf_treport_results[1]["Gamma"][3]
+    tinf_treport_fitted_gamma = Gamma(shape_hat, scale_hat)
+    tinf_treport_median_fit = median( tinf_treport_fitted_gamma )
+
     # Add median for fitted truncated gamma tinf + fitted gamma (treport-tinf) = fitted treport
     p1 = vline!([tinf_treport_median_fit + tinf_median_fit], color=:red, linestyle=:dash
             , label="treport median fit")
@@ -287,12 +541,14 @@ for r in REGKEY.code #icu_regions
 end
 
 println( median_times_by_region )
-println( sort( median_times_by_region , :treport_median_fit )  )
+median_times_by_region_sorted = sort( median_times_by_region , :treport_median_fit )
+println( median_times_by_region_sorted )
+CSV.write("scripts/median_TD_by_region_plots/TD_by_region_sorted.csv", median_times_by_region_sorted)
 
 # TODO possibly resimulate
-### Apply this fitted gamma distribution to the minimum report time (treport / TD)
+### Apply fitted statistical distribution to the minimum report time (treport / TD)
 
-# Resimulate tsample and treport based on trunacated gamma fit to tinf
+# Resimulate tsample and treport based on truncated fit to tinf
 
 # Draw 1000 tinf from fitted distribution
 tinf_fit_samples = rand(tinf_trunc_gamma, 1000)
