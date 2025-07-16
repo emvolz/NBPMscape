@@ -471,16 +471,20 @@ println(results)
 #params = init_gamma
 
 # Negative log-likelihood for truncated Gamma
-function nll_trunc_gamma(params)
-#function nll_trunc_gamma(; params, times, trunc)
+#function nll_trunc_gamma(params)
+function nll_trunc_gamma(; params, times, trunc)
     shape, scale = params
     if shape <= 0 || scale <= 0
         return 1e10 #Inf
     end
+    
+    # Define distribution
     d0 = Gamma(shape, scale)
     #norm = cdf(d0, upper) # Only upper truncation
     #ll = sum(logpdf(d0, t) for t in times) - length(times) * log(norm)
-    #lower, upper = trunc
+    
+    # Define truncated distribution
+    lower, upper = trunc
     d = truncated( d0, lower, upper)
     
     # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
@@ -493,21 +497,30 @@ end
 
 
 # Negative log-likelihood for truncated Weibull
-function nll_trunc_weibull(params)
+#function nll_trunc_weibull(params)
+function nll_trunc_weibull(; params, times, trunc)
     α, θ = params
-    lower = 0
     if α <= 0 || θ <= 0
         return 1e10 #Inf
     end
+    
+    # Define distribution
     d0 = Weibull(α, θ)
+    
+    # Define truncated distribution
+    lower, upper = trunc
     d = truncated(d0, lower, upper)
-    if any(x -> x < lower || x > upper, times)
-        return 1e10 #Inf
-    end
+    
+    #if any(x -> x < lower || x > upper, times)
+    #    return 1e10 #Inf
+    #end
+    
     # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
     times_no_zeros = sort( filter(x -> x != 0, times) )
+    
     # Compute log-likelihood
     ll = sum(logpdf.(d, times_no_zeros)) #ll = sum(logpdf.(d, times))
+    
     return isfinite(-ll) ? -ll : 1e10 #return -ll
 end
 
@@ -551,9 +564,10 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
     fit_results = Dict()
 
     # Gamma
-    #obj = init_gamma -> nll_trunc_gamma(;params = init_gamma, times = times, trunc = [0, 60])
-    res_gamma = optimize(nll_trunc_gamma, init_gamma, NelderMead() #GoldenSection()) #Brent()) #AcceleratedGradientDescent()) #MomentumGradientDescent()) #GradientDescent()) #ConjugateGradient()) #LBFGS()) #SimulatedAnnealing()) #NelderMead())
-    #res_gamma = optimize(obj, init_gamma=[16.466863607650694,2.8170337707969924], NelderMead() #GoldenSection()) #Brent()) #AcceleratedGradientDescent()) #MomentumGradientDescent()) #GradientDescent()) #ConjugateGradient()) #LBFGS()) #SimulatedAnnealing()) #NelderMead())
+    obj_f_gamma = init_gamma -> nll_trunc_gamma(;params = init_gamma, times = times, trunc = [0, 60])
+    #init_gamma=[16.466863607650694,2.8170337707969924]
+    #res_gamma = optimize(nll_trunc_gamma, init_gamma, NelderMead() #GoldenSection()) #Brent()) #AcceleratedGradientDescent()) #MomentumGradientDescent()) #GradientDescent()) #ConjugateGradient()) #LBFGS()) #SimulatedAnnealing()) #NelderMead())
+    res_gamma = optimize(obj_f_gamma, init_gamma, NelderMead() #GoldenSection()) #Brent()) #AcceleratedGradientDescent()) #MomentumGradientDescent()) #GradientDescent()) #ConjugateGradient()) #LBFGS()) #SimulatedAnnealing()) #NelderMead())
                         , Optim.Options( iterations = 2000    # maximum number of iterations
                                          , g_tol = 1e-8         # gradient tolerance
                                          , store_trace = true   # store the optimization trace
@@ -565,7 +579,8 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
     # Check if optimisation of negative log-likelihood has converged
     # before savings results
     #if Optim.converged( res_gamma )
-        nll_g = nll_trunc_gamma( Optim.minimizer( res_gamma ) )
+        #nll_g = nll_trunc_gamma( Optim.minimizer( res_gamma ) )
+        nll_g = nll_trunc_gamma( params = Optim.minimizer( res_gamma ), times = times, trunc = [lower, upper] )
         k = length( Optim.minimizer( res_gamma ) ) # Number of parameters estimated
         aic_g = 2*k + 2*nll_g 
         fit_results["Gamma"] = ( nll_g, aic_g, Optim.minimizer( res_gamma ) )
@@ -577,7 +592,9 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
     # dist_fit_plot(; d0 = Gamma( res_gamma.minimizer[1], res_gamma.minimizer[2]), lower = 0.0, upper = 60.0, data_to_fit = times, data_type = "tinf")
     
     # Weibull
-    res_weibull = optimize(nll_trunc_weibull, init_weibull, NelderMead()
+    obj_f_weibull = init_weibull -> nll_trunc_weibull(;params = init_weibull, times = times, trunc = [lower, upper])
+    #res_weibull = optimize(nll_trunc_weibull, init_weibull, NelderMead()
+    res_weibull = optimize(obj_f_weibull, init_weibull, NelderMead() 
                             , Optim.Options(
                                               iterations = 2000    # maximum number of iterations
                                             , g_tol = 1e-8         # gradient tolerance
@@ -590,7 +607,8 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
     # Check if optimisation of negative log-likelihood has converged
     # before savings results
     #if Optim.converge( res_weibull ) #res_weibull.exitflag == :Success
-        nll_w = nll_trunc_weibull(Optim.minimizer(res_weibull))
+        #nll_w = nll_trunc_weibull(Optim.minimizer(res_weibull))
+        nll_w = nll_trunc_weibull( params = Optim.minimizer( res_weibull ), times = times, trunc = [lower, upper] )
         k = length(Optim.minimizer(res_weibull)) # Number of parameters estimated
         aic_w = 2*k + 2*nll_w
         fit_results["Weibull"] = (nll_w, aic_w, Optim.minimizer(res_weibull))
@@ -830,28 +848,38 @@ maximum(median_times_by_region_sorted.perc_simreps_have_icu_cases )
 
 # For each region find the top 3 regions with the highest correlations and add name and correlation value
 # Add columns
-median_times_by_region_sorted[!,:high_cor_1_region]      = fill("",nrow(median_times_by_region_sorted))
-median_times_by_region_sorted[!,:high_cor_1_correlation] = zeros(nrow(median_times_by_region_sorted))
-median_times_by_region_sorted[!,:high_cor_2_region]      = fill("",nrow(median_times_by_region_sorted))
-median_times_by_region_sorted[!,:high_cor_2_correlation] = zeros(nrow(median_times_by_region_sorted))
-median_times_by_region_sorted[!,:high_cor_3_region]      = fill("",nrow(median_times_by_region_sorted))
-median_times_by_region_sorted[!,:high_cor_3_correlation] = zeros(nrow(median_times_by_region_sorted))
+for i in 1:3
+    median_times_by_region_sorted[!, Symbol("high_cor_$(i)_region")] = fill("", nrow(median_times_by_region_sorted))
+    median_times_by_region_sorted[!, Symbol("high_cor_$(i)_correlation")] = zeros(nrow(median_times_by_region_sorted))
+end
 # Fill columns
 for i in 1:length(median_times_by_region_sorted.ITL2_code)
-    # Find regions with the top 3 highest correlations with region of interest
-    region_correls = corr_df_w_names[:,median_times_by_region_sorted.ITL2_code[i]]
-    region_correls_filtered = filter(!ismissing, region_correls)
-    top_3 = sort( region_correls_filtered , rev=true)[2:4]
-    top_3_indices = findall(x -> x in top_3, region_correls_filtered)
-    # Fill data for region 1
-    median_times_by_region_sorted.high_cor_1_region[i] = corr_df_w_names[top_3_indices[1],1]
-    median_times_by_region_sorted.high_cor_1_correlation[i] = round(region_correls_filtered[top_3_indices[1]], digits=2)
-    # Fill data for region 2
-    median_times_by_region_sorted.high_cor_2_region[i] = corr_df_w_names[top_3_indices[2],1]
-    median_times_by_region_sorted.high_cor_2_correlation[i] = round(region_correls_filtered[top_3_indices[2]], digits=2)
-    # Fill data for region 3
-    median_times_by_region_sorted.high_cor_3_region[i] = corr_df_w_names[top_3_indices[3],1]
-    median_times_by_region_sorted.high_cor_3_correlation[i] = round(region_correls_filtered[top_3_indices[2]], digits=2)
+    ## Find regions with the top 3 highest correlations with region of interest
+    # Region correlations with region i
+    region_correls = DataFrame( ITL2_region = corr_df_w_names[:,1]
+                                , correlation = corr_df_w_names[:,median_times_by_region_sorted.ITL2_code[i]]
+                              )
+    # Remove correlation with self
+    region_i = median_times_by_region_sorted.ITL2_code[i]
+    self_index = findfirst(j -> first(region_correls.ITL2_region[j], 4) == first(region_i, 4)
+                            , 1:nrow(region_correls))
+    # Remove self-index row
+    if self_index !== nothing
+        region_correls_ex_self = filter(row -> row !== self_index, eachindex(eachrow(region_correls))) .|> x -> region_correls[x, :]
+        region_correls_ex_self = DataFrame(region_correls_ex_self)  # Reconstruct df2 from filtered rows
+        #println(region_correls_ex_self)
+    end
+    #println(region_correls_ex_self.ITL2_region )
+    # Filter out regions with missing correlation (i.e. no overlapping simulation replicates with region i)
+    region_correls_filtered = region_correls_ex_self[ findall(!ismissing, region_correls_ex_self[:,2] ), : ]
+    # Select top 3 correlations with region i
+    top_3 = sort( region_correls_filtered , :correlation , rev=true)[1:3,1:2]
+    # Fill data in median_times_by_region_sorted df
+    for k in 1:3
+        median_times_by_region_sorted[!, Symbol("high_cor_$(k)_region")][i]      = top_3[k,1]
+        median_times_by_region_sorted[!, Symbol("high_cor_$(k)_correlation")][i] = top_3[k,2]
+    end
+       
 end
 
 println(median_times_by_region_sorted)
