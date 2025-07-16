@@ -60,7 +60,7 @@ REGKEY.code
 #fo = sims[1]
 
 # Sampling proportion within region
-psampled = 0.1 #1.0 #0.1
+psampled = 1.0#0.1 #1.0 #0.1
 # Time to process sample and report results / declare detection
 turnaroundtime = 3
 
@@ -204,7 +204,11 @@ maximum( tinf_treport_zero_perc_by_region[1,:] )
 
 # Compute % of simulation replicates that include an ICU case by region
 println( n_icu_by_region_by_simrep )
-#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/n_icu_cases_by_region_by_simrep.csv", n_icu_by_region_by_simrep)
+if psampled == 0.1
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/n_icu_cases_by_region_by_simrep_p10.csv", n_icu_by_region_by_simrep)
+elseif psampled == 1.0
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/n_icu_cases_by_region_by_simrep_p100.csv", n_icu_by_region_by_simrep)
+end
 perc_simreps_icu_by_region = DataFrame( zeros(1,39), REGKEY.code)
 for i in 1:ncol( n_icu_by_region_by_simrep )
     perc_simreps_icu_by_region[1,i] = 100 * sum( n_icu_by_region_by_simrep[:,i] .> 0 ) / nrow(n_icu_by_region_by_simrep)
@@ -361,7 +365,7 @@ for i in 1:n
 end
 # Plot heatmap
 heatmap(  x_names # x-tick labels (columns)
-        , xmirror = true # move x-asix labels to the top
+        , xmirror = true # move x-axis labels to the top
         , xrotation = 90 # Rotate x-axis labels
         #, xticks = (1:n, names(td_by_simrep_by_region))
         , xticks = (collect(1:n) .- 0.5, x_names) #names(td_by_simrep_by_region)) # centers of each cell
@@ -384,8 +388,55 @@ corr_df_w_names = insertcols!(corr_df, 1, :ITL2_region => y_names )
 println(corr_df_w_names)
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/regional_TD_correlation_matrix_p_0.1.csv", corr_df_w_names)
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/regional_TD_correlation_matrix_p_1.csv", corr_df_w_names)
-# for psampled = 0.1
-CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/regional_TD_correlation_matrix_p_10.csv", corr_df_w_names)
+if psampled == 0.1
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/regional_TD_correlation_matrix_p_10.csv", corr_df_w_names)
+elseif psampled == 1.0
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/regional_TD_correlation_matrix_p_100.csv", corr_df_w_names)
+end
+
+## Plot a correlation matrix with a reduced number of ITL2 regions
+
+#region_names = popfirst!( names(corr_df) ) 
+region_names = names(corr_df)
+subset_regions = ["TLI4","TLI3","TLI6","TLH4","TLG3","TLF2","TLF1","TLC2","TLE3","TLE4","TLD3","TLD7","TLJ3","TLJ1","TLK1","TLL2","TLM1","TLN0"]
+subset_regions = sort(subset_regions)
+#println(subset_regions)
+#["TLC2", "TLD3", "TLD7", "TLE3", "TLE4", "TLF1", "TLF2", "TLG3", "TLH4"
+#, "TLI3", "TLI4", "TLI6", "TLJ1", "TLJ3", "TLK1", "TLL2", "TLM1", "TLN0"]
+# Subset regions not currently in region names - due to change of code/region
+missing_regions = subset_regions[ findall(i -> isnothing(i), indexin(subset_regions, region_names)) ]
+# TLC2 changed in 2025 - replace with TLC4
+# TLK1 changed in 2025 - replace with TLK5
+# TLL2 changed in 2025 - replace with TLL5
+subset_regions = [["TLC4","TLK5","TLL5"];subset_regions]
+subset_regions = sort(subset_regions)
+# Find indices of the subset regions in full list of region names
+subset_idx = findall(x -> x in subset_regions, region_names)
+#println( region_names )
+#println(subset_regions)
+#println( region_names[subset_idx] )
+#println(subset_idx)
+# Subset the correlation matrix
+filtered_corr = corr_df_w_names[subset_idx.-1, [1;subset_idx]]
+# Plot heatmap
+subset_x_names = names(filtered_corr)[2:end]
+subset_y_names = filtered_corr[:,1]
+heatmap(  subset_x_names # x-tick labels (columns)
+        , xmirror = true # move x-axis labels to the top
+        , xrotation = 90 # Rotate x-axis labels
+        , xticks = (collect(1:n) .- 0.5, subset_x_names) # centers of each cell
+        , subset_y_names # y-tick labels (rows)
+        , yticks = (collect(1:n) .- 0.5, subset_y_names) #names(td_by_simrep_by_region))# centers of each cell
+        , Matrix( filtered_corr[:,2:end] ) ;#corrmat;              # the correlation matrix
+          color = :RdBu        # diverging color map, blue to red
+        , clim = (-1, 1)       # color limits for correlation coefficients
+        , xlabel = "ITL2 region"
+        , ylabel = "ITL2 region"
+        , title = "Correlation Matrix for subset of regional TD across 1000 simulation replicates"
+        , yflip = true         # flips y-axis to match matrix layout
+        , size = (1100, 800)
+        #, annotations = anns
+)
 
 
 #println(countmap(corr_df_w_names[:,2:size(corr_df_w_names,2)])) 
@@ -810,10 +861,11 @@ for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
     
     #savefig("scripts/median_TD_by_region_plots/$r.png")
     #savefig("scripts/median_TD_by_region_plots/sim_regionentry/$r.png")
-    # For psampled = 1
-    #savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/$r.png")
-    # For psampled = 1
-    savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/$r.png")
+    if psampled == 1.0
+        savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/$r.png")
+    elseif psampled == 0.1
+        savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/$r.png")
+    end
 
     # Add row to df to record the median value by region
     new_row = ( ITL2_code = r
@@ -832,10 +884,11 @@ median_times_by_region_sorted = sort( median_times_by_region , :treport_median_f
 println( median_times_by_region_sorted )
 #CSV.write("scripts/median_TD_by_region_plots/TD_by_region_sorted.csv", median_times_by_region_sorted)
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/TD_by_region_sorted.csv", median_times_by_region_sorted)
-# For psampled = 1
-#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
-# For psampled = 0.1
-CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
+if psampled == 1
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
+elseif psampled == 0.1
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
+end
 
 # Add the percent of simulation replicates that include ICU cases for each region
 median_times_by_region_sorted[!,:perc_simreps_have_icu_cases] = zeros(nrow(median_times_by_region_sorted))
@@ -885,10 +938,11 @@ end
 println(median_times_by_region_sorted)
 
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/TD_by_region_sorted.csv", median_times_by_region_sorted)
-# For psampled = 1 #=100%
-#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
-# For psampled = 0.1 #=10%
-CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
+if psampled == 1.0 
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
+elseif psampled == 0.1 
+    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
+end
 
 
 
