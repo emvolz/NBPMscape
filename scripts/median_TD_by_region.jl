@@ -60,7 +60,7 @@ REGKEY.code
 #fo = sims[1]
 
 # Sampling proportion within region
-psampled = 1.0 #0.1
+psampled = 0.1 #1.0 #0.1
 # Time to process sample and report results / declare detection
 turnaroundtime = 3
 
@@ -204,7 +204,7 @@ maximum( tinf_treport_zero_perc_by_region[1,:] )
 
 # Compute % of simulation replicates that include an ICU case by region
 println( n_icu_by_region_by_simrep )
-CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/n_icu_cases_by_region_by_simrep.csv", n_icu_by_region_by_simrep)
+#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/n_icu_cases_by_region_by_simrep.csv", n_icu_by_region_by_simrep)
 perc_simreps_icu_by_region = DataFrame( zeros(1,39), REGKEY.code)
 for i in 1:ncol( n_icu_by_region_by_simrep )
     perc_simreps_icu_by_region[1,i] = 100 * sum( n_icu_by_region_by_simrep[:,i] .> 0 ) / nrow(n_icu_by_region_by_simrep)
@@ -250,12 +250,14 @@ histogram( median_td_by_region; #bins=30
              , size = (800, 400)
              , xlimit = [0,100]
              , ylimit = 0.2
+             , bins = 0:2:100
 )
 #median_td_by_simrep = [getindex( td_median_by_simrep, 1, i) for i in 1:size( td_median_by_simrep, 1)] 
 histogram!( td_median_by_simrep; #bins=50
               normalize=:pdf
              , label="median TDs by sim rep (all regions)"
              , color=:red, alpha=0.5#, legend=:topleft
+             , bins = 0:2:100
              )
 vline!( [median(median_td_by_region)], color=:blue
             , label="median of median TDs by region (all sim reps)"
@@ -268,17 +270,20 @@ histogram!( td_min_by_simrep; #bins=50
               normalize=:pdf
              , label="minimum of regional TDs by sim rep"
              , color=:green, alpha=0.5 #, legend=:topleft
+             , bins = 0:2:60
              )
 vline!( [median(skipmissing(td_min_by_simrep))], color=:green
         , label="median of minimum of regional TDs by sim rep", linewidth = 3  )
-vline!( [quantile( skipmissing(td_min_by_simrep) ,0.025)], color=:green
-        , label="95% CI: minimum of regional TDs by sim rep"
-        , linewidth = 3  , linestyle = :dash)
-vline!( [quantile( skipmissing(td_min_by_simrep) ,0.975)], color=:green
-        , linewidth = 3  , linestyle = :dash)
+#vline!( [quantile( skipmissing(td_min_by_simrep) ,0.025)], color=:green
+#        , label="95% CI: minimum of regional TDs by sim rep"
+#        , linewidth = 3  , linestyle = :dash)
+#vline!( [quantile( skipmissing(td_min_by_simrep) ,0.975)], color=:green
+#        , linewidth = 3  , linestyle = :dash)
 
-println("Median of the median TD by region = ",median(median_td_by_region))
-println("Median of the minimum of regional TDs by sim rep = ",median(skipmissing(td_min_by_simrep)))
+println("Median of the median TD by region = ", round(median(median_td_by_region), digits=1))
+println("Median of the minimum of regional TDs by sim rep = ", round( median(skipmissing(td_min_by_simrep)), digits=1))
+println("with 95% CI: ",round(quantile( skipmissing(td_min_by_simrep) ,0.025), digits = 1)
+        ," to ", round(quantile( skipmissing(td_min_by_simrep) ,0.975), digits=1))
 
 ### Computing correlation between ITL2 regions for TDs (for all simulation replicates)
 n = size(td_by_simrep_by_region, 2)
@@ -377,50 +382,24 @@ heatmap(  x_names # x-tick labels (columns)
 # Save correlation matrix to a file
 corr_df_w_names = insertcols!(corr_df, 1, :ITL2_region => y_names )
 println(corr_df_w_names)
-CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/regional_TD_correlation_matrix_p_0.1.csv", corr_df_w_names)
+#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/regional_TD_correlation_matrix_p_0.1.csv", corr_df_w_names)
+#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/regional_TD_correlation_matrix_p_1.csv", corr_df_w_names)
+# for psampled = 0.1
+CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/regional_TD_correlation_matrix_p_10.csv", corr_df_w_names)
+
+
 #println(countmap(corr_df_w_names[:,2:size(corr_df_w_names,2)])) 
 #sort( countmap( corrmat ) )
-
-### Compute statistical power for correlation values between region pairs
-
-# Function to compute:
-# (1) the statistical power of the correlation value between TD for region pairs (to support a certain correlation level at certain significance level)
-# (2) the number of data points required for a certain significance at a certain correlation level
-#TODO NEED TO UPDATE STAT TEST HERE - POSSIBLY CHANGE TO pwr.jl or MANUAL FISHER z-transformation
-function corr_power(; actual_data_points_n, corr_coeff_threshold, alpha, desired_power)
-    # Compute power for a correlation test
-    power = get_power(OneSampleTTest(two_tails); n = actual_data_points_n, es=corr_coeff_threshold, alpha)
-    
-    # Compute required number of datapoints for desired power
-    required_n = get_n(OneSampleTTest(two_tails); es=corr_coeff_threshold, alpha, power=desired_power)
-
-    return( [ power, required_n ] )
-end
-
-# Initialise matrices to fill with correlation power computations
-corr_power_region_pair = Matrix{Union{Missing, Float64}}(undef, size(corrmat_idx,1), size(corrmat_idx,2))
-required_n_region_pair = Matrix{Union{Missing, Float64}}(undef, size(corrmat_idx,1), size(corrmat_idx,2))
-
-# Define parameter values
-corr_coeff_threshold = 0.3 # Expected correlation coefficient (effect size)
-alpha = 0.05               # Significance level
-desired_power = 0.8        # Desired statistical power for correlation between region pairs
-
-for i in 1:size(corrmat_idx,1)
-    for j in 1:size(corrmat_idx,2)
-        actual_data_points_n = corrmat_idx[i,j] # Number of data points (simulation replicates with ICU cases for both regions in pair) in each region pair
-        cp_result = corr_power(; actual_data_points_n, corr_coeff_threshold, alpha, desired_power)
-        corr_power_region_pair[i,j] = cp_result[1]
-        required_n_region_pair[i,j] = cp_result[2]
-    end
-end
-
 
 # List region pairs with a correlation above a specified threshold
 #corr_matrix = cor(Matrix(df))
 varnames = names(td_by_simrep_by_region)
 n = length(varnames)
-threshold = 0.25 #0.75
+if psampled == 0.1
+    threshold = 0.75
+elseif psampled == 1.0
+    threshold = 0.25
+end
 
 results = DataFrame(Row = String[], Col = String[], Correlation = Float64[])
 
@@ -447,7 +426,8 @@ region_lookup = Dict(REGKEY.code .=> REGKEY.name)
 results = DataFrame(Region_1 = String[], Region_2 = String[]
                     , Region_1_name = String[], Region_2_name = String[]
                     , Correlation = Float64[]
-                    #, Stat_Power = Float64[], data_points_n = Int[], required_n = Int[] 
+                    , sim_replicates_n = Int[]
+                    #, Stat_Power = Float64[], required_n = Int[] 
                     )
 
 for i in 1:n-1
@@ -461,11 +441,12 @@ for i in 1:n-1
                 col_key = varnames[j]
                 row_val = get(region_lookup, row_key, missing)
                 col_val = get(region_lookup, col_key, missing)
-                stat_power = round( corr_power_region_pair[i,j], digits = 2) #TODO link this to the actual correlation value between region pairs rather than set value for all pairs
-                dp_n = Int( ceil( corrmat_idx[i,j] ) )
-                req_n = Int( ceil( required_n_region_pair[i,j] ) ) #TODO link this to the actual correlation value between region pairs rather than set value for all pairs
+                #stat_power = round( corr_power_region_pair[i,j], digits = 2) #TODO link this to the actual correlation value between region pairs rather than set value for all pairs
+                sim_replicates_n = Int( ceil( corrmat_idx[i,j] ) )
+                #req_n = Int( ceil( required_n_region_pair[i,j] ) ) #TODO link this to the actual correlation value between region pairs rather than set value for all pairs
                 push!(results, (row_key, col_key, row_val, col_val, val
-                                #, stat_power, dp_n, req_n 
+                                , sim_replicates_n
+                                #, stat_power, , req_n 
                                 )
                      )
             end
@@ -489,7 +470,9 @@ println(results)
 
 #params = init_gamma
 
+# Negative log-likelihood for truncated Gamma
 function nll_trunc_gamma(params)
+#function nll_trunc_gamma(; params, times, trunc)
     shape, scale = params
     if shape <= 0 || scale <= 0
         return 1e10 #Inf
@@ -497,15 +480,8 @@ function nll_trunc_gamma(params)
     d0 = Gamma(shape, scale)
     #norm = cdf(d0, upper) # Only upper truncation
     #ll = sum(logpdf(d0, t) for t in times) - length(times) * log(norm)
+    #lower, upper = trunc
     d = truncated( d0, lower, upper)
-    #if any(x -> x < lower || x > upper, sort(times))
-    #    return 1e100 #Inf
-    #end
-
-    # Filter for finite values
-    #logpdf_vec = sort(logpdf.(d, times))
-    #logpdf_finite_vec = filter(isfinite, logpdf_vec)
-    #ll = sum( logpdf_finite_vec )
     
     # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
     times_no_zeros = sort( filter(x -> x != 0, times) )
@@ -515,67 +491,6 @@ function nll_trunc_gamma(params)
     return isfinite(-ll) ? -ll : 1e10 #return -ll
 end
 
-#TEST
-# d = fit(Gamma, times_no_zeros)
-# d_trunc = Truncated(d,0.0,60.0)
-#test_d=rand(d,10000)
-#test_d_trunc=rand(d_trunc,10000)
-#histogram(test_d,alpha=0.5, normalize=:pdf)
-#test_d0=rand(d0,10000)
-    #histogram!(test_d0,alpha=0.5, normalize=:pdf, color=:green)
-    #histogram!(times, normalize=:pdf, color=:red, alpha=0.5)
-    #histogram!(times_no_zeros, normalize=:pdf, color=:red, alpha=0.5)
-    #histogram!(test_d_trunc, normalize=:pdf, color=:green, alpha=0.5)
-    
-    # Overlay fitted (truncated) gamma PDF
-    #xs = range(0, upper; length=300)
-    #norm = cdf(d, upper) # normalization for truncation
-    #tinf_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
-
-    # Plot tinf fit
-    #plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:blue, lw=2)
-    #plot!(xs, pdf.(Gamma(18,3),xs); label="tinf truncated gamma fit", color=:blue, lw=2)
-
-function nll_trunc_nbinom(params)
-    r, p = params
-    if r <= 0 || p <= 0
-        return 1e10 #Inf
-    end
-    d0 = NegativeBinomial(r, p)
-
-    d = truncated( d0, lower, upper)
-    
-    #if any(x -> x < lower || x > upper, sort(times))
-    #    return 1e100 #Inf
-    #end
-    
-    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
-    times_no_zeros = sort( filter(x -> x != 0, times) )
-    # Compute log-likelihood
-    #ll = sum( sort(logpdf.(d, times)) )
-    ll = sum( sort(logpdf.(d, times_no_zeros)) ) 
-    
-    return isfinite(-ll) ? -ll : 1e10
-end
-
-# Negative log-likelihood for truncated log-normal
-function nll_trunc_lognorm(params)
-    μ, σ = params
-    lower = 0
-    if σ <= 0
-        return 1e10 #Inf
-    end
-    d0 = LogNormal(μ, σ)
-    d = truncated(d0, lower, upper)
-    if any(x -> x < lower || x > upper, times)
-        return 1e10 #Inf
-    end
-    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
-    times_no_zeros = sort( filter(x -> x != 0, times) )
-    # Compute log-likelihood
-    ll = sum(logpdf.(d, times_no_zeros)) #ll = sum(logpdf.(d, times))
-    return isfinite(-ll) ? -ll : 1e10
-end
 
 # Negative log-likelihood for truncated Weibull
 function nll_trunc_weibull(params)
@@ -598,6 +513,37 @@ end
 
 #histogram(times)
 
+# TEST function to plot data and fitted distribution
+function dist_fit_plot(; d0 = Gamma( res_gamma.minimizer[1], res_gamma.minimizer[2])
+                        , lower = 0.0, upper = 60.0
+                        , data_to_fit = times
+                        , data_type = "tinf" #"(treport-tinf)
+                        )
+    # Convert distribution to truncated version
+    d = truncated( d0, lower, upper)
+    # sample data points from fitted truncated distribution
+    #d0_sample=rand(d0,10000)
+    d_sample=rand(d,1000000)
+        
+    # Plot histogram of sampled data
+    histogram( d_sample, alpha=0.5, normalize=:pdf, label="samples drawn from fitted dist")
+    #histogram!(d0_sample,alpha=0.5, normalize=:pdf, color=:yellow)
+    
+    # Add simulated outbreak data to histogram
+    histogram!(data_to_fit, normalize=:pdf, color=:red, alpha=0.5, label=data_type*" data")#" tinf or (treport-tinf) data")
+    
+    # Add simulated outbreak data with zero values removed to histogram
+    data_to_fit_no_zeros = sort( filter(x -> x != 0, data_to_fit) )
+    histogram!(data_to_fit_no_zeros, normalize=:pdf, color=:green, alpha=0.5, label=data_type*" data")#" tinf or (treport-tinf) data")
+    
+    # Overlay fitted (truncated) distribution PDF
+    xs = range(0, upper; length=300)
+    norm = cdf(d, upper) # normalization for truncation
+    t_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
+    plot!(xs, t_pdf_vals; label=data_type*" truncated fit", color=:blue, lw=2)
+    
+end
+
 # Function to compare distribution fits
 function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_weibull, lower, upper)
     
@@ -605,8 +551,10 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
     fit_results = Dict()
 
     # Gamma
+    #obj = init_gamma -> nll_trunc_gamma(;params = init_gamma, times = times, trunc = [0, 60])
     res_gamma = optimize(nll_trunc_gamma, init_gamma, NelderMead() #GoldenSection()) #Brent()) #AcceleratedGradientDescent()) #MomentumGradientDescent()) #GradientDescent()) #ConjugateGradient()) #LBFGS()) #SimulatedAnnealing()) #NelderMead())
-                        , Optim.Options( iterations = 1000    # maximum number of iterations
+    #res_gamma = optimize(obj, init_gamma=[16.466863607650694,2.8170337707969924], NelderMead() #GoldenSection()) #Brent()) #AcceleratedGradientDescent()) #MomentumGradientDescent()) #GradientDescent()) #ConjugateGradient()) #LBFGS()) #SimulatedAnnealing()) #NelderMead())
+                        , Optim.Options( iterations = 2000    # maximum number of iterations
                                          , g_tol = 1e-8         # gradient tolerance
                                          , store_trace = true   # store the optimization trace
                                          #, show_trace = true    # print progress to stdout
@@ -614,26 +562,6 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
                                         )
                         ) 
     
-    #TEST
-    #params
-    #init_gamma
-    #res_gamma.minimizer
-    #d0 = Gamma( res_gamma.minimizer[1],res_gamma.minimizer[2]) #(shape, scale)
-    #d = truncated( d0, lower, upper)
-    #test_d=rand(d,10000)
-    #histogram(test_d,alpha=0.5, normalize=:pdf)
-    #test_d0=rand(d0,10000)
-    #histogram!(test_d0,alpha=0.5, normalize=:pdf, color=:green)
-    #histogram!(times, normalize=:pdf, color=:red, alpha=0.5)
-    # Overlay fitted (truncated) gamma PDF
-    #xs = range(0, upper; length=300)
-    #norm = cdf(d, upper) # normalization for truncation
-    #tinf_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
-    # Plot tinf fit
-    #plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:blue, lw=2)
-    #plot!(xs, pdf.(Gamma(18,3),xs); label="tinf truncated gamma fit", color=:blue, lw=2)
-    #histogram!(times, color=:green, alpha = 0.5, normalize=:pdf)
-
     # Check if optimisation of negative log-likelihood has converged
     # before savings results
     #if Optim.converged( res_gamma )
@@ -645,41 +573,8 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
     #    fit_results["Gamma"] = ("NA", "NA", "NA")
     #end
 
-    # Log-normal
-    res_lognorm = optimize(nll_trunc_lognorm, init_lognorm, NelderMead()
-                            , Optim.Options(
-                                              iterations = 2000    # maximum number of iterations
-                                            , g_tol = 1e-8         # gradient tolerance
-                                            , store_trace = true   # store the optimization trace
-                                            #, show_trace = true    # print progress to stdout
-                                            , show_warnings = true  # show warnings
-                                            )
-                            )
-    
-    # Check if optimisation of negative log-likelihood has converged
-    # before savings results
-    #if Optim.converged( res_lognorm ) #res_lognorm.exitflag == :Success
-        nll_ln = nll_trunc_lognorm( Optim.minimizer( res_lognorm ) )
-        k = length( Optim.minimizer( res_lognorm ) ) # Number of parameters estimated
-        aic_ln = 2*k + 2*nll_ln
-        fit_results["LogNormal"] = ( nll_ln, aic_ln, Optim.minimizer( res_lognorm ) )
-    #else
-    #    fit_results["LogNormal"] = ("NA", "NA", "NA")
-    #end
-
-    #d0 = LogNormal( res_lognorm.minimizer[1], res_lognorm.minimizer[2])
-    #d = truncated( d0, lower, upper)
-    #test_d=rand(d,10000)
-    #histogram!(test_d,alpha=0.5, normalize=:pdf, color = :yellow)
-    #test_d0=rand(d0,10000)
-    #histogram!(test_d0,alpha=0.5, normalize=:pdf, color=:green)
-    #histogram!(times, normalize=:pdf, color=:red, alpha=0.5)
-    # Overlay fitted (truncated) gamma PDF
-    #xs = range(0, upper; length=300)
-    #norm = cdf(d, upper) # normalization for truncation
-    #tinf_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
-    # Plot tinf fit
-    #plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:yellow, lw=2)
+    # TEST PLOT TO VIEW DATA AND FIT
+    # dist_fit_plot(; d0 = Gamma( res_gamma.minimizer[1], res_gamma.minimizer[2]), lower = 0.0, upper = 60.0, data_to_fit = times, data_type = "tinf")
     
     # Weibull
     res_weibull = optimize(nll_trunc_weibull, init_weibull, NelderMead()
@@ -703,64 +598,25 @@ function fit_multi_dist(; times, init_gamma, init_nbinom, init_lognorm, init_wei
     #   fit_results["Weibull"] = ("NA", "NA", "NA")
     #end
 
-    #d0 = Weibull( res_weibull.minimizer[1], res_weibull.minimizer[2])
-    #d = truncated( d0, lower, upper)
-    #test_d=rand(d,10000)
-    #histogram(test_d,alpha=0.5, normalize=:pdf, color = :orange, label="Weibull sample")
-    #histogram!(times, normalize=:pdf, color=:red, alpha=0.5)
-    # Overlay fitted (truncated) gamma PDF
-    #xs = range(0, upper; length=300)
-    #norm = cdf(d, upper) # normalization for truncation
-    #tinf_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
-    # Plot tinf fit
-    #plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:orange, lw=2)
-    
-
-    # Negative Binomial
-    res_nbinom = optimize(nll_trunc_nbinom, init_nbinom, NelderMead()
-                            , Optim.Options(
-                                              iterations = 2000    # maximum number of iterations
-                                            , g_tol = 1e-8         # gradient tolerance
-                                            , store_trace = true   # store the optimization trace
-                                            #, show_trace = true    # print progress to stdout
-                                            , show_warnings = true  # show warnings
-                                            )
-    )
-
-    # Check if optimisation of negative log-likelihood has converged
-    # before savings results
-    #if Optim.converge( res_nbinom ) #res_weibull.exitflag == :Success
-        nll_nb = nll_trunc_nbinom( Optim.minimizer(res_nbinom) )
-        k = length(Optim.minimizer(res_nbinom)) # Number of parameters estimated
-        aic_nb = 2*k + 2*nll_nb
-        fit_results["NegativeBinomial"] = (nll_nb, aic_nb, Optim.minimizer(res_nbinom))
-    #else
-    #    fit_results["NegativeBinomial"] = ("NA", "NA", "NA")
-    #end
-
+    # TEST PLOT TO VIEW DATA AND FIT
+    # dist_fit_plot(; d0 = Weibull( res_weibull.minimizer[1], res_weibull.minimizer[2]), lower = 0.0, upper = 60.0, data_to_fit = times, data_type = "tinf")
 
     # Report results
-    #if isempty(fit_results)
-    #    println("All fits failed.")
-    #else
-    #    println("Goodness-of-fit (AIC) for each distribution:")
-    #    for (dist, (_nll, aic, params)) in results
-    #        println("  $dist: AIC = $aic, parameters = $params")
-    #    end
-        # Select best distribution
-    #    best_dist = findmin([(aic, dist) for (dist, (_nll, aic, _params)) in results])[2]
-    #    println("Best-fitting distribution: $best_dist")
-    #end
+    if isempty(fit_results)
+        println("All fits failed.")
+    else
+        println("Goodness-of-fit (AIC) for each distribution:")
+        for (dist, (_nll, aic, params)) in fit_results
+            println("  $dist: negative log-likelihood = $_nll, AIC = $aic, parameters = $params")
+        end
+    # Select best distribution
+    best_dist = findmin([(aic, dist) for (dist, (_nll, aic, _params)) in fit_results])[1][2]
+    println("Best-fitting distribution: $best_dist ") #$fit_results[$("$best_dist")]")
+    end
+
     return( [fit_results] )
+
 end
-
-
-
-
-#Testing gamma parameters so set initial params close to final params
-#data = rand(truncated(Gamma(12.0, 100.0), 0, 60), 1000)
-#data = rand(truncated(Weibull(20.0, 80.0), 0, 60), 1000)
-#histogram(data)
 
 # Simulation maxtime
 maxtime = 60.0
@@ -776,15 +632,13 @@ median_times_by_region = DataFrame(
 )
 # Loop through all ITL2 regions
 
-for r in REGKEY.code #icu_regions
-#TEST
-#r = "TLI7"
-#r = icu_regions[2]
+for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
 
     # Times to fit truncated gamma distribution to
     times = tinf_by_region_dict[ r ]
     #Test
     #histogram(times)
+    # CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/tinf_times_TLI7.csv", DataFrame(value = times))
 
     # Define truncation range
     lower = 0 #0.00001
@@ -794,10 +648,10 @@ for r in REGKEY.code #icu_regions
     #init_gamma = [10.0, 5.0] # shape*scale = mean. Median is ~50 for the tinf data # [1.0, 1.0]
     init_gamma = [mean(times)^2 / var(times), var(times)/mean(times)] # shape*scale = median. Mean is ~50 for the tinf data # [1.0, 1.0]
     #init_gamma_mixed = [init_gamma; 0.05] # For use in a gamma mixed model with probability of zero
+    init_weibull = init_gamma #[20.0, 80.0]
     init_nbinom = [20.0, 0.5]
     init_lognorm = [mean(log.(times.+1)), std(log.(times.+1))]
-    init_weibull = [20.0, 80.0]
-
+    
     fit_tinf_results = fit_multi_dist(; times
                                     , init_gamma, init_nbinom, init_lognorm, init_weibull
                                     , lower, upper)
@@ -817,43 +671,64 @@ for r in REGKEY.code #icu_regions
                                     , [:Distribution, :Negative_log_lik, :AIC, :param1, :param2, :param3])
     println(fit_tinf_results_df)
 
-    # Fit truncated gamma distribution to tinf from earliest treport
-    #init_params = [12.0, 6.0] #[1.0, 1.0]
-    #res_gamma = optimize(negloglik_gamma, init_params, BFGS())
-    #res_gamma = optimize(nll_trunc_gamma, init_params, BFGS())
-    #shape_hat, scale_hat = Optim.minimizer(res_gamma)
-
-    shape_hat, scale_hat = fit_tinf_results[1]["Gamma"][3]
-    tinf_fitted_gamma = Gamma(shape_hat, scale_hat)
-    tinf_trunc_gamma = truncated(tinf_fitted_gamma, 0.0, upper)
-
-    # Plot histogram (normalized to probability density)
-    p1 = histogram(times; bins=30
-             , normalize=:pdf
-             , label="tinf"
-             , color=:lightblue, alpha=0.5, legend=:topleft
-             , title="$(r) $(REGKEY[REGKEY.code .== r, :name][1])" 
-             , xlabel="Days", ylabel = "Density"
-             )
-
+    ## Compute fit data for plotting
+    # Gamma
+    gamma_shape_fit, gamma_scale_fit = fit_tinf_results[1]["Gamma"][3]
+    tinf_fitted_gamma = Gamma(gamma_shape_fit, gamma_scale_fit)
+    tinf_fitted_gamma_trunc = truncated(tinf_fitted_gamma, 0.0, upper)
     # Overlay fitted (truncated) gamma PDF
     xs = range(0, upper; length=300)
-    norm = cdf(tinf_fitted_gamma, upper) # normalization for truncation
-    tinf_pdf_vals = pdf.(tinf_fitted_gamma, xs) ./ norm # truncated PDF
+    norm_gamma = cdf(tinf_fitted_gamma, upper) # normalization for truncation
+    tinf_pdf_vals_gamma = pdf.(tinf_fitted_gamma, xs) ./ norm_gamma # truncated PDF
+    tinf_pdf_vals_gamma_trunc = pdf.(tinf_fitted_gamma_trunc, xs) #./ norm_gamma # truncated PDF
+    #CHECK
+    #plot(tinf_pdf_vals_gamma)
+    #plot!(tinf_pdf_vals_gamma_trunc, col="red")
+    
+    # Weibull
+    weibull_shape_fit, weibull_scale_fit = fit_tinf_results[1]["Weibull"][3]
+    tinf_fitted_weibull = Gamma(weibull_shape_fit, weibull_scale_fit)
+    tinf_fitted_weibull_trunc = truncated(tinf_fitted_weibull, 0.0, upper)
+    # Overlay fitted (truncated) gamma PDF
+    norm_weibull = cdf(tinf_fitted_weibull, upper) # normalization for truncation
+    tinf_pdf_vals_weibull = pdf.(tinf_fitted_weibull, xs) ./ norm_weibull # truncated PDF
+    tinf_pdf_vals_weibull_trunc = pdf.(tinf_fitted_weibull_trunc, xs) #./ norm_weibull # truncated PDF
+    #CHECK
+    #plot(tinf_pdf_vals_weibull)
+    #plot!(tinf_pdf_vals_weibull_trunc, col="red")
+    
+    # Plot histogram (normalized to probability density)
+    p1 = histogram(times; bins=30
+                    , normalize=:pdf
+                    , label="tinf"
+                    , color=:lightblue, alpha=0.5, legend=:topright
+                    , title="$(r) $(REGKEY[REGKEY.code .== r, :name][1])" 
+                    , xlabel="Days", ylabel = "Density"
+                    , xlims = [0,150]
+                    , ylims = [0,0.15]
+                   )
 
     # Plot tinf fit
-    p1 = plot!(xs, tinf_pdf_vals; label="tinf truncated gamma fit", color=:blue, lw=2)
+    p1 = plot!(xs, tinf_pdf_vals_gamma; label="tinf truncated Gamma fit", color=:blue, lw=2)
+    p1 = plot!(xs, tinf_pdf_vals_weibull; label="tinf truncated Weibull fit", color=:purple, lw=2)
 
     # Add median for tinf
-    tinf_median = quantile(times, 0.5) # TODO Includes zero values which were removed for stat dist fitting
+    tinf_median = quantile(times, 0.5)
+    times_no_zeros = sort( filter(x -> x != 0, times) )
+    tinf_median_no_zeros = quantile(times_no_zeros, 0.5)
     #tinf_median = median(times)
     p1 = vline!([tinf_median], color=:blue
             , label="tinf median")
+    p1 = vline!([tinf_median_no_zeros], color=:purple
+            , label="tinf (no zeros) median")
 
     # Add median for fitted tinf
-    tinf_median_fit = quantile(tinf_trunc_gamma, 0.5)
-    p1 = vline!([tinf_median_fit], color=:blue, linestyle=:dash
-            , label="tinf median truncated gamma fit")
+    tinf_median_fit_gamma = quantile(tinf_fitted_gamma_trunc, 0.5)
+    p1 = vline!([tinf_median_fit_gamma], color=:blue, linestyle=:dash
+            , label="tinf median truncated Gamma fit")
+    tinf_median_fit_weibull = quantile(tinf_fitted_weibull_trunc, 0.5)
+    p1 = vline!([tinf_median_fit_weibull], color=:purple, linestyle=:dash
+            , label="tinf median truncated Weibull fit")
 
     # Add histogram for treport
     p1 = histogram!(treport_by_region_dict[ r ]; bins=30
@@ -870,62 +745,65 @@ for r in REGKEY.code #icu_regions
     # Initial guesses
     #init_params = [1.0, 1.0]
     init_gamma = [mean(times)^2 / var(times), var(times)/mean(times)] # shape*scale = median. Mean is ~50 for the tinf data # [1.0, 1.0]
+    init_weibull = init_gamma
     init_nbinom = [20.0, 0.5]
     init_lognorm = [mean(log.(times.+1)), std(log.(times.+1))]
-    init_weibull = [20.0, 80.0]
-
+    
     fit_tinf_treport_results = fit_multi_dist(; times
                                                , init_gamma, init_nbinom, init_lognorm, init_weibull
                                                , lower, upper)
     println(fit_tinf_treport_results)
 
-    #result = optimize(negloglik_gamma, init_params, BFGS())
+    # Gamma fit
+    tinf_treport_gamma_shape_fit, tinf_treport_gamma_scale_fit = fit_tinf_treport_results[1]["Gamma"][3]
+    tinf_treport_fitted_gamma = Gamma(tinf_treport_gamma_shape_fit, tinf_treport_gamma_scale_fit)
+    tinf_treport_median_gamma_fit = median( tinf_treport_fitted_gamma ) # Note that this distribution is not truncated
     
-    #shape_hat, scale_hat = Optim.minimizer(result)
-    shape_hat, scale_hat = fit_tinf_treport_results[1]["Gamma"][3]
-    tinf_treport_fitted_gamma = Gamma(shape_hat, scale_hat)
-    tinf_treport_median_fit = median( tinf_treport_fitted_gamma )
-
     # Add median for fitted truncated gamma tinf + fitted gamma (treport-tinf) = fitted treport
-    p1 = vline!([tinf_treport_median_fit + tinf_median_fit], color=:red, linestyle=:dash
-            , label="treport median fit")
+    p1 = vline!([tinf_treport_median_gamma_fit + tinf_median_fit_gamma], color=:red, linestyle=:dash
+            , label="treport median Gamma fit")
 
     # Add histogram for (treport - tinf)
     p2 = histogram(tinf_treport_by_region_dict[ r ]; bins=30, normalize=:pdf
                    , label="treport-tinf", color=:green, alpha=0.5, legend=:topright
-                   , xlabel="Days", ylabel="Density")
+                   , xlabel="Days", ylabel="Density"
+                   , xlims = [0,150]
+                   , ylims = [0,0.15]
+                    )
 
+    
     # Overlay fitted gamma PDF
-    xs = range(0, upper; length=300)
-    #norm = cdf(tinf_fitted_gamma, upper) # normalization for truncation
-    tinf_treport_pdf_vals = pdf.(tinf_treport_fitted_gamma, xs) #./ norm # truncated PDF
-
+    tinf_treport_pdf_vals_gamma = pdf.(tinf_treport_fitted_gamma, xs)
     # Plot (treport - tinf) fit
-    p2 = plot!(xs, tinf_treport_pdf_vals; label="treport-tinf gamma fit"
+    p2 = plot!(xs, tinf_treport_pdf_vals_gamma; label="treport-tinf gamma fit"
             , color=:green, lw=2)
 
     # Add median for (treport - tinf)
-    tinf_treport_median = quantile(tinf_treport_by_region_dict[ r ], 0.5)
+    tinf_treport_median = quantile(tinf_treport_by_region_dict[ r ], 0.5) # Note does not include any zeros
     p2 = vline!([tinf_treport_median], color=:green
             , label="treport-tinf median", lw = 2)
 
     # Add median for fitted (treport - tinf)
-    tinf_treport_median_fit = quantile(tinf_treport_fitted_gamma, 0.5)
-    p2 = vline!([tinf_treport_median_fit], color=:green, linestyle=:dash
+    tinf_treport_median_fit_gamma = quantile(tinf_treport_fitted_gamma, 0.5)
+    p2 = vline!([tinf_treport_median_fit_gamma], color=:green, linestyle=:dash
             , label="treport-tinf median gamma fit")
 
     plot( size=(800, 1200), p1, p2, layout = (2,1))
     
     #savefig("scripts/median_TD_by_region_plots/$r.png")
     #savefig("scripts/median_TD_by_region_plots/sim_regionentry/$r.png")
+    # For psampled = 1
+    #savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/$r.png")
+    # For psampled = 1
+    savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/$r.png")
 
     # Add row to df to record the median value by region
     new_row = ( ITL2_code = r
                 , ITL2_name = REGKEY[REGKEY.code .== r, :name][1]
                 , tinf_median = tinf_median
-                , tinf_median_fit = tinf_median_fit
+                , tinf_median_fit = tinf_median_fit_gamma
                 , treport_median = treport_median
-                , treport_median_fit = (tinf_treport_median_fit + tinf_median_fit)
+                , treport_median_fit = (tinf_treport_median_fit_gamma + tinf_median_fit_gamma)
                 )
     push!( median_times_by_region, new_row )
      
@@ -936,6 +814,10 @@ median_times_by_region_sorted = sort( median_times_by_region , :treport_median_f
 println( median_times_by_region_sorted )
 #CSV.write("scripts/median_TD_by_region_plots/TD_by_region_sorted.csv", median_times_by_region_sorted)
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/TD_by_region_sorted.csv", median_times_by_region_sorted)
+# For psampled = 1
+#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
+# For psampled = 0.1
+CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
 
 # Add the percent of simulation replicates that include ICU cases for each region
 median_times_by_region_sorted[!,:perc_simreps_have_icu_cases] = zeros(nrow(median_times_by_region_sorted))
@@ -945,7 +827,42 @@ end
 println(median_times_by_region_sorted)
 minimum(median_times_by_region_sorted.perc_simreps_have_icu_cases )
 maximum(median_times_by_region_sorted.perc_simreps_have_icu_cases )
-CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/TD_by_region_sorted.csv", median_times_by_region_sorted)
+
+# For each region find the top 3 regions with the highest correlations and add name and correlation value
+# Add columns
+median_times_by_region_sorted[!,:high_cor_1_region]      = fill("",nrow(median_times_by_region_sorted))
+median_times_by_region_sorted[!,:high_cor_1_correlation] = zeros(nrow(median_times_by_region_sorted))
+median_times_by_region_sorted[!,:high_cor_2_region]      = fill("",nrow(median_times_by_region_sorted))
+median_times_by_region_sorted[!,:high_cor_2_correlation] = zeros(nrow(median_times_by_region_sorted))
+median_times_by_region_sorted[!,:high_cor_3_region]      = fill("",nrow(median_times_by_region_sorted))
+median_times_by_region_sorted[!,:high_cor_3_correlation] = zeros(nrow(median_times_by_region_sorted))
+# Fill columns
+for i in 1:length(median_times_by_region_sorted.ITL2_code)
+    # Find regions with the top 3 highest correlations with region of interest
+    region_correls = corr_df_w_names[:,median_times_by_region_sorted.ITL2_code[i]]
+    region_correls_filtered = filter(!ismissing, region_correls)
+    top_3 = sort( region_correls_filtered , rev=true)[2:4]
+    top_3_indices = findall(x -> x in top_3, region_correls_filtered)
+    # Fill data for region 1
+    median_times_by_region_sorted.high_cor_1_region[i] = corr_df_w_names[top_3_indices[1],1]
+    median_times_by_region_sorted.high_cor_1_correlation[i] = round(region_correls_filtered[top_3_indices[1]], digits=2)
+    # Fill data for region 2
+    median_times_by_region_sorted.high_cor_2_region[i] = corr_df_w_names[top_3_indices[2],1]
+    median_times_by_region_sorted.high_cor_2_correlation[i] = round(region_correls_filtered[top_3_indices[2]], digits=2)
+    # Fill data for region 3
+    median_times_by_region_sorted.high_cor_3_region[i] = corr_df_w_names[top_3_indices[3],1]
+    median_times_by_region_sorted.high_cor_3_correlation[i] = round(region_correls_filtered[top_3_indices[2]], digits=2)
+end
+
+println(median_times_by_region_sorted)
+
+#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/TD_by_region_sorted.csv", median_times_by_region_sorted)
+# For psampled = 1 #=100%
+#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
+# For psampled = 0.1 #=10%
+CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
+
+
 
 # TODO possibly resimulate
 ### Apply fitted statistical distribution to the minimum report time (treport / TD)
