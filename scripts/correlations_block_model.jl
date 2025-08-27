@@ -9,10 +9,10 @@ Correlation matrices are computed using 'median_TD_by_region.jl' and saved to a 
 using CSV
 using DataFrames
 using Pkg
-Pkg.add("Clustering")
+#Pkg.add("Clustering")
 using Clustering
 using Plots
-Pkg.add("StatsPlots")
+#Pkg.add("StatsPlots")
 using StatsPlots
 using Statistics
 using LinearAlgebra
@@ -20,8 +20,8 @@ using LinearAlgebra
 
 
 # Load correlation matrix
-sim_reps = 5000
-psampled = 1#0.25
+sim_reps = 15000
+psampled = 1 #0.25#1#0.25
 corrmat_df = CSV.read("scripts/median_TD_by_region/sim_regionentry/$(sim_reps)_replicates/psampled_$(Int(psampled*100))/regional_TD_correlation_matrix_psampled_$(Int(psampled*100)).csv", DataFrame)
 corrmat = Matrix(corrmat_df[:,2:end])
 
@@ -46,9 +46,9 @@ kmc_block_allocation_df = hc_block_allocation_df
 kmc_block_allocation_abs_df = hc_block_allocation_df
 
 # (1) Hierarchical Clustering
-# Convert to distance matrix: d_ij = 1 - |corr_ij|
-distmat_abs = 1 .- abs.(corrmat) #TODO SHOULD THIS BE ABSOLUTE CORR?
-distmat = 1 .- corrmat #TODO SHOULD THIS BE ABSOLUTE CORR?
+# Convert to distance matrix: d_ij = 1 - corr_ij
+#distmat_abs = 1 .- abs.(corrmat)
+distmat = 1 .- corrmat 
 # Perform hierarchical clustering using average linkage
 hclust_result_abs = hclust(distmat_abs, linkage=:average)
 hclust_result = hclust(distmat, linkage=:average)
@@ -56,8 +56,8 @@ hclust_result = hclust(distmat, linkage=:average)
 
 # (2) K-means Clustering
 # Create feature vectors for clustering (e.g. each variable's correlation profile)
-features_abs = abs.(corrmat)  #TODO SHOULD THIS BE ABSOLUTE CORR?
-features = corrmat  #TODO SHOULD THIS BE ABSOLUTE CORR?
+#features_abs = abs.(corrmat)
+features = corrmat
 
 # Loop through the different block sizes and assign block numbers
 # using the two different methods
@@ -68,15 +68,15 @@ for i in 1:length(num_blocks_list)
 
     # (1) Hierarchical Clustering
     # block_assignments: vector giving the block for each variable
-    hc_block_allocation_abs_df[!,i+1] = cutree(hclust_result_abs, k=num_blocks)
+    #hc_block_allocation_abs_df[!,i+1] = cutree(hclust_result_abs, k=num_blocks)
     hc_block_allocation_df[!,i+1] = cutree(hclust_result, k=num_blocks)
     
     # (2) K-means Clustering
     # Cluster using K-means on the rows of features
-    kmeans_result_abs = kmeans(features_abs, num_blocks; maxiter=100, display=:none)
+    #kmeans_result_abs = kmeans(features_abs, num_blocks; maxiter=100, display=:none)
     kmeans_result = kmeans(features, num_blocks; maxiter=100, display=:none)
     # Assignments of each region to blocks
-    kmc_block_allocation_abs_df[!,i+1] = kmeans_result_abs.assignments
+    #kmc_block_allocation_abs_df[!,i+1] = kmeans_result_abs.assignments
     kmc_block_allocation_df[!,i+1] = kmeans_result.assignments
 
 end
@@ -88,6 +88,7 @@ hc_block_allocation_abs_df == hc_block_allocation_df
 kmc_block_allocation_abs_df == kmc_block_allocation_df
 # Whether we use the absolute correlation or not doesn't seem to impact the block allocation
 # (at least for 5000 sim replicates and ICU sampling of 25% and 100%)
+# Not sure why because abs(cor) loses difference between positive and negative correlations
 
 #### Perform Block correlation
 function block_model_matrix(corrmat::Matrix{Float64}, blocks::Vector{Int})
@@ -175,8 +176,11 @@ region_block_allocation_df = DataFrame( ITL2_region = corrmat_df[!,1]
                                         , Block = hc_block_allocation_df[!,n_blocks+1] 
                                       )
 
-temp = sort(region_block_allocation_df, :Block)
-println(temp)
+region_block_allocation_df = sort(region_block_allocation_df, :Block)
+println(region_block_allocation_df)
+
+CSV.write("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/regional_TD_correlation_block_allocation_psampled_$(Int(psampled*100)).csv"
+            , region_block_allocation_df)
 
 # Group the regions by allocated block number 
 gdf = groupby(region_block_allocation_df, :Block) #+1 because column 1 is the region name
