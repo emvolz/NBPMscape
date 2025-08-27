@@ -19,7 +19,9 @@ Description
  Finally report median estimates for TD (earliest treport) by region.
 =#
 
-using JLD2
+using Pkg
+#Pkg.add(PackageSpec(name="JLD2", version="1.11.2"))
+#using JLD2
 using NBPMscape
 using GLM, Statistics
 using Distributions
@@ -39,10 +41,53 @@ using Optim
 using RData 
 using CSV 
 using PowerAnalyses
+using JLD2
 
 # Load simulation
 #sims = load("covidlike-1.0-sims.jld2" , "sims") # preliminary simulation
-sims = load("covidlike-1.0-sims-regionentry.jld2" , "sims") # preliminary simulation re-run with regionentry adjusted
+#sims = load("covidlike-1.0-sims-regionentry.jld2" , "sims") # preliminary simulation re-run with regionentry adjusted
+#sims_test = load("C:/Users/kdrake/OneDrive - Imperial College London/Documents/GitHub/NBPMscape/covidlike-1.0-sims-regionentry.jld2" , "sims") # preliminary simulation re-run with regionentry adjusted
+#sims = load("covidlike-1.0-sims-regionentry-nrep5000.jld2" , "sims") # preliminary simulation re-run with regionentry adjusted
+#sims = load("covidlike-1.0-sims-regionentry-nrep15000.jld2" , "sims") # preliminary simulation re-run with regionentry adjusted
+
+# or
+# load simulation pre-filtered for G and ICU cases only using 'sim_filter_g_icu.jl'
+# or
+# compiled using 'combine_small_sim_reps.jl'
+sims_G_icu_filter = load("covidlike-1.0-sims-regionentry_filtered_G_icu_combined_nrep60000.jld2" , "sims_G_icu_filter") # preliminary simulation re-run with regionentry adjusted
+
+sims = sims_G_icu_filter
+
+# If simulations saved in multiple files
+file_list = ["covidlike-1.0-sims-regionentry-nrep15000_1.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_2.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_3.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_4.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_5.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_6.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_7.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_8.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_9.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_10.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_11.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_12.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_13.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_14.jld2"
+            ,"covidlike-1.0-sims-regionentry-nrep15000_15.jld2"
+]
+file_list = []
+for i in 1:length(file_list)
+    file_name = file_list[i]
+    sims_temp = load(file_name , "sims")
+    if i == 1
+        sims = sims_temp
+    else
+        sims = append!(sims,sims_temp)
+    end
+end
+
+# How many replicates are in this simulation
+n_replicates = length(sims_G_icu_filter) #1000 #15000 #1000 #5000 #15000
 
 # ITL2 region list
 REGKEY.code
@@ -60,7 +105,8 @@ REGKEY.code
 #fo = sims[1]
 
 # Sampling proportion within region
-psampled = 1.0#0.1 #1.0 #0.1
+psampled = 0.1 #1.0#0.1#0.25 # 0.1 #1.0 #0.1
+
 # Time to process sample and report results / declare detection
 turnaroundtime = 3
 
@@ -75,18 +121,31 @@ tinf_treport_by_region_dict = Dict(name => Float64[] for name in REGKEY.code)
 treport_by_region_dict = Dict(name => Float64[] for name in REGKEY.code)
 # Create df to hold the number of ICU cases by region in each simulation replicate
 n_icu_by_region_by_simrep = DataFrame( zeros( length(sims) , length(REGKEY.code)), REGKEY.code )
+#n_icu_by_region_by_simrep = DataFrame( zeros( length(sims_test) , length(REGKEY.code)), REGKEY.code )
 # Create df to record the TD by simulation replicate and by region
 td_by_simrep_by_region = DataFrame( [fill(Inf, length(sims)) for _ in 1:length(REGKEY.code)], REGKEY.code)
+#td_by_simrep_by_region = DataFrame( [fill(Inf, length(sims_test)) for _ in 1:length(REGKEY.code)], REGKEY.code)
 
 # Loop through each simulation replicate and compile information
+#for s in 1:length(sims_test)#(sims)
 for s in 1:length(sims)
     #s=1
-    fo = sims[s]
-    
+    #fo = sims_test[s]#sims[s]
+        
     # Filter for ICU cases 
-    G = fo.G[ isfinite.(fo.G.ticu), : ]
+    if sims[s] == sims_G_icu_filter[s]
+        G = sims[s] 
+    else
+        fo = sims[s]
+        G = fo.G[ isfinite.(fo.G.ticu), : ]
+    end
     #println( names(G) )
     
+    # Check if G contains any data
+    if size(G,1) == 0
+        continue
+    end
+
     # Record number of ICU cases by region and by simulation
     icu_count_by_region = countmap(G.homeregion)
     
@@ -159,6 +218,12 @@ for s in 1:length(sims)
 
 end
 
+# Save 
+#n_replicates = size(td_by_simrep_by_region,1)
+CSV.write("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/td_by_simrep_by_region_$(n_replicates)_$(Int(psampled*100)).csv", td_by_simrep_by_region)
+#CSV.write("C:/Users/kdrake/OneDrive - Imperial College London/Documents/GitHub/NBPMscape/scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/td_by_simrep_by_region_$(n_replicates)_$(Int(psampled*100)).csv", td_by_simrep_by_region)
+
+
 # Check how many tinf = 0 for each region (this is the tinf relating to the earliest treport)
 tinf_zero_count_by_region = DataFrame( zeros( 1, length( tinf_by_region_dict ) ), REGKEY.code )
 tinf_zero_perc_by_region = DataFrame( zeros( 1, length( tinf_by_region_dict ) ), REGKEY.code )
@@ -203,12 +268,9 @@ minimum( tinf_treport_zero_perc_by_region[1,:] )
 maximum( tinf_treport_zero_perc_by_region[1,:] )
 
 # Compute % of simulation replicates that include an ICU case by region
-println( n_icu_by_region_by_simrep )
-if psampled == 0.1
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/n_icu_cases_by_region_by_simrep_p10.csv", n_icu_by_region_by_simrep)
-elseif psampled == 1.0
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/n_icu_cases_by_region_by_simrep_p100.csv", n_icu_by_region_by_simrep)
-end
+#println( n_icu_by_region_by_simrep )
+CSV.write("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/n_icu_cases_by_region_by_simrep_psampled_$(Int(psampled*100)).csv", n_icu_by_region_by_simrep)
+
 perc_simreps_icu_by_region = DataFrame( zeros(1,39), REGKEY.code)
 for i in 1:ncol( n_icu_by_region_by_simrep )
     perc_simreps_icu_by_region[1,i] = 100 * sum( n_icu_by_region_by_simrep[:,i] .> 0 ) / nrow(n_icu_by_region_by_simrep)
@@ -223,6 +285,9 @@ scatter(Vector(perc_simreps_icu_by_region[1,:])
         , xlabel="% of sim replicates with ICU cases", ylabel = "% of TD with tinf = 0"
         , title = "By ITL2 region"
         , label = "ITL2 regions")
+
+# Save plot
+savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/perc_tinf_0_vs_perc_reps_w_ICU_samples_psampled_$(Int(psampled*100)).png")
 
 # Compute median TD by region across all simulation replicates...
 td_median_by_region = DataFrame( zeros(1,39), REGKEY.code)
@@ -243,7 +308,7 @@ end
 
 # Plot to compare the median TD values by region and by simulation replicate
 median_td_by_region = [getindex( td_median_by_region, 1, i) for i in 1:size( td_median_by_region, 2)] 
-histogram( median_td_by_region; #bins=30
+plt_h = histogram( median_td_by_region; #bins=30
               normalize=:pdf
              , label="median TDs by region (all sim reps)"
              , color=:blue
@@ -253,30 +318,30 @@ histogram( median_td_by_region; #bins=30
              , xlabel="Days", ylabel = "Density"
              , size = (800, 400)
              , xlimit = [0,100]
-             , ylimit = 0.2
+             , ylimit = [0,0.3]
              , bins = 0:2:100
 )
 #median_td_by_simrep = [getindex( td_median_by_simrep, 1, i) for i in 1:size( td_median_by_simrep, 1)] 
-histogram!( td_median_by_simrep; #bins=50
+plt_h = histogram!( td_median_by_simrep; #bins=50
               normalize=:pdf
              , label="median TDs by sim rep (all regions)"
              , color=:red, alpha=0.5#, legend=:topleft
              , bins = 0:2:100
              )
-vline!( [median(median_td_by_region)], color=:blue
+plt_h = vline!( [median(median_td_by_region)], color=:blue
             , label="median of median TDs by region (all sim reps)"
             , linewidth = 3) 
-vline!( [median(skipmissing(td_median_by_simrep))], color=:red
+plt_h = vline!( [median(skipmissing(td_median_by_simrep))], color=:red
         , label="median of median TDs by sim rep (all regions)", linewidth = 3  )
 
 # Add minimum TD values by region for each simulation replicate
-histogram!( td_min_by_simrep; #bins=50
+plt_h = histogram!( td_min_by_simrep; #bins=50
               normalize=:pdf
              , label="minimum of regional TDs by sim rep"
              , color=:green, alpha=0.5 #, legend=:topleft
-             , bins = 0:2:60
+             , bins = 0:2:100
              )
-vline!( [median(skipmissing(td_min_by_simrep))], color=:green
+plt_h = vline!( [median(skipmissing(td_min_by_simrep))], color=:green
         , label="median of minimum of regional TDs by sim rep", linewidth = 3  )
 #vline!( [quantile( skipmissing(td_min_by_simrep) ,0.025)], color=:green
 #        , label="95% CI: minimum of regional TDs by sim rep"
@@ -284,10 +349,24 @@ vline!( [median(skipmissing(td_min_by_simrep))], color=:green
 #vline!( [quantile( skipmissing(td_min_by_simrep) ,0.975)], color=:green
 #        , linewidth = 3  , linestyle = :dash)
 
+#anns = [(2, y[2], "Low"), (8, y[8], text("High", :blue, :center, 16))]
+#anns = [(80,0.15,"Median of the median TD by region = ", round(median(median_td_by_region), digits=1))
+#        ,(80,0.13,"Median of the minimum of regional TDs by sim rep = ", round( median(skipmissing(td_min_by_simrep)), digits=1))
+#        ,(80,0.11,"with 95% CI: ",round(quantile( skipmissing(td_min_by_simrep) ,0.025), digits = 1)
+#        ," to ", round(quantile( skipmissing(td_min_by_simrep) ,0.975), digits=1))
+#]
+#annotate!(plt_h, anns)
+display(plt_h)
+
 println("Median of the median TD by region = ", round(median(median_td_by_region), digits=1))
 println("Median of the minimum of regional TDs by sim rep = ", round( median(skipmissing(td_min_by_simrep)), digits=1))
 println("with 95% CI: ",round(quantile( skipmissing(td_min_by_simrep) ,0.025), digits = 1)
         ," to ", round(quantile( skipmissing(td_min_by_simrep) ,0.975), digits=1))
+
+# Save plot
+savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/median_TD_by_region_and_sim_rep_psampled_$(Int(psampled*100)).png")
+# With just two histograms
+savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/median_TD_by_region_and_sim_rep_psampled_$(Int(psampled*100))_v2.png")
 
 ### Computing correlation between ITL2 regions for TDs (for all simulation replicates)
 n = size(td_by_simrep_by_region, 2)
@@ -344,6 +423,36 @@ scatter( td_by_simrep_by_region.TLD1[idx]
 plot( td_by_simrep_by_region.TLD1[idx], xlabel = "simulation replicate", ylabel = "TD (days)", label = "TLD1: Cumbria" )
 plot!( td_by_simrep_by_region.TLK4[idx] , label = "TLK4: Devon" )
 
+# Scatter plots for the maximum and minimum correlation region pairs
+max_corr = maximum(x for x in skipmissing(corrmat) if x != 1.0)
+min_corr = minimum(skipmissing(corrmat))
+
+max_positions = [(i, name) for (i, row) in enumerate(eachrow(corr_df)),
+                        (j, name) in enumerate(names(corr_df))
+                        if row[name] == max_corr]
+
+min_positions = [(i, name) for (i, row) in enumerate(eachrow(corr_df)),
+                        (j, name) in enumerate(names(corr_df))
+                        if row[name] == min_corr]
+
+# Scatter plot for max correlation region pair
+scatter( td_by_simrep_by_region.TLI4[idx]
+        , td_by_simrep_by_region.TLI5[idx]
+        , xlimit = [0,120]
+        , ylimit = [0,120]
+        , xlabel = "TLI4: Inner London - East\n TD (days)"
+        , ylabel = "TLI5: Outer London - East & North East\n TD (days)", label = "")
+savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/TD_max_correlation_region_pair_$(n_replicates)_replicates_psampled_$(Int(psampled*100)).png")
+
+# Scatter plot for min correlation region pair
+scatter( td_by_simrep_by_region.TLK3[idx]
+        , td_by_simrep_by_region.TLK5[idx]
+        , xlimit = [0,120]
+        , ylimit = [0,120]
+        , xlabel = "TLK3: Cornwall and Isles of Scilly\n TD (days)"
+        , ylabel = "TLK5: West of England\n TD (days)", label = ""
+        , color = "red")
+savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/TD_min_correlation_region_pair_$(n_replicates)_replicates_psampled_$(Int(psampled*100)).png")
 
 # Plot correlations
 # Create region codes/names for labelling heatmap
@@ -377,25 +486,47 @@ heatmap(  x_names # x-tick labels (columns)
         , clim = (-1, 1)       # color limits for correlation coefficients
         , xlabel = "ITL2 region"
         , ylabel = "ITL2 region"
-        , title = "Correlation Matrix for regional TD across 1000 simulation replicates"
+        , title = "Correlation Matrix for regional TD across $(n_replicates) simulation replicates"
         , yflip = true         # flips y-axis to match matrix layout
         , size = (1100, 800)
         #, annotations = anns
 )
+# Save heatmap
+savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/median_TD_corr_simreps_$(n_replicates)_replicates_psampled_$(Int(psampled*100)).png")
+
+# heatmap without diagonals
+corrmat_wo_diag = corrmat
+for i in 1:size(corrmat_wo_diag, 1)
+    corrmat_wo_diag[i,i] = NaN
+end
+heatmap(  x_names # x-tick labels (columns)
+        , xmirror = true # move x-axis labels to the top
+        , xrotation = 90 # Rotate x-axis labels
+        #, xticks = (1:n, names(td_by_simrep_by_region))
+        , xticks = (collect(1:n) .- 0.5, x_names) #names(td_by_simrep_by_region)) # centers of each cell
+        , y_names #names(td_by_simrep_by_region) # y-tick labels (rows)
+        #, yticks = (1:n, names(td_by_simrep_by_region))
+        , yticks = (collect(1:n) .- 0.5, y_names) #names(td_by_simrep_by_region))# centers of each cell
+        , corrmat_wo_diag;              # the correlation matrix
+          color = :RdBu        # diverging color map, blue to red
+        #, clim = (-1, 1)       # color limits for correlation coefficients
+        , xlabel = "ITL2 region"
+        , ylabel = "ITL2 region"
+        , title = "Correlation Matrix for regional TD across $(n_replicates) simulation replicates"
+        , yflip = true         # flips y-axis to match matrix layout
+        , size = (1100, 800)
+        #, annotations = anns
+)
+
 
 # Save correlation matrix to a file
 corr_df_w_names = insertcols!(corr_df, 1, :ITL2_region => y_names )
 println(corr_df_w_names)
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/regional_TD_correlation_matrix_p_0.1.csv", corr_df_w_names)
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/regional_TD_correlation_matrix_p_1.csv", corr_df_w_names)
-if psampled == 0.1
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/regional_TD_correlation_matrix_p_10.csv", corr_df_w_names)
-elseif psampled == 1.0
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/regional_TD_correlation_matrix_p_100.csv", corr_df_w_names)
-end
+CSV.write("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/regional_TD_correlation_matrix_simreps_$(n_replicates)_psampled_$(Int(psampled*100)).csv", corr_df_w_names)
 
 ## Plot a correlation matrix with a reduced number of ITL2 regions
-
 #region_names = popfirst!( names(corr_df) ) 
 region_names = names(corr_df)
 subset_regions = ["TLI4","TLI3","TLI6","TLH4","TLG3","TLF2","TLF1","TLC2","TLE3","TLE4","TLD3","TLD7","TLJ3","TLJ1","TLK1","TLL2","TLM1","TLN0"]
@@ -432,12 +563,15 @@ heatmap(  subset_x_names # x-tick labels (columns)
         , clim = (-1, 1)       # color limits for correlation coefficients
         , xlabel = "ITL2 region"
         , ylabel = "ITL2 region"
-        , title = "Correlation Matrix for subset of regional TD across 1000 simulation replicates"
+        , title = "Correlation Matrix for subset of regional TD across $(n_replicates) simulation replicates"
         , yflip = true         # flips y-axis to match matrix layout
         , size = (1100, 800)
         #, annotations = anns
 )
 
+# Save heatmap plot and data
+savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/regional_TD_corr_simreps_$(n_replicates)_psampled_$(Int(psampled*100))_reduced.png")
+CSV.write("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/regional_TD_correlation_matrix_simreps_$(n_replicates)_psampled_$(Int(psampled*100))_reduced.csv", filtered_corr)    
 
 #println(countmap(corr_df_w_names[:,2:size(corr_df_w_names,2)])) 
 #sort( countmap( corrmat ) )
@@ -449,6 +583,8 @@ n = length(varnames)
 if psampled == 0.1
     threshold = 0.75
 elseif psampled == 1.0
+    threshold = 0.25
+else 
     threshold = 0.25
 end
 
@@ -544,6 +680,43 @@ function nll_trunc_gamma(; params, times, trunc)
     ll = sum( sort(logpdf.(d, times_no_zeros)) ) #ll = sum( sort(logpdf.(d, times)) ) 
           
     return isfinite(-ll) ? -ll : 1e10 #return -ll
+end
+
+## Discretized version of gamma distribution
+# Discretize the gamma distribution into a probability mass function (PMF) over specified bins
+function discretize_gamma_pmf(shape::Float64, scale::Float64, bins::Vector{Float64})
+    d = Gamma(shape, scale)
+    cdfs = cdf.(d, bins)
+    return diff(cdfs)
+end
+
+# Assign values to bins using searchsortedlast (faster than manual loop)
+function assign_bins(values::Vector{Float64}, bins::Vector{Float64})
+    return searchsortedlast.(Ref(bins), values) .- 1
+end
+
+# Negative log-likelihood for discretized gamma model
+function nll_disc_gamma(params::Vector{Float64}, times::Vector{Float64}, trunc::Tuple{Float64, Float64}; nbins::Int=100)
+    shape, scale = params
+    if shape <= 0 || scale <= 0
+        return 1e10
+    end
+
+    lower, upper = trunc
+    bins = range(lower, stop=upper, length=nbins+1) |> collect
+
+    pmf = discretize_gamma_pmf(shape, scale, bins)
+    if any(pmf .<= 0)
+        return 1e10
+    end
+
+    bin_indices = assign_bins(times, bins)
+    bin_indices = clamp.(bin_indices, 1, nbins)  # Ensure indices are within bounds
+
+    counts = countmap(bin_indices)
+    ll = sum(counts[i] * log(pmf[i]) for i in keys(counts))
+
+    return -ll
 end
 
 
@@ -701,8 +874,8 @@ median_times_by_region = DataFrame(
 )
 # Loop through all ITL2 regions
 
-for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
-
+for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2] ; r=REGKEY.code[1]
+    
     # Times to fit truncated gamma distribution to
     times = tinf_by_region_dict[ r ]
     #Test
@@ -738,7 +911,7 @@ for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
                                 ]
     fit_tinf_results_df = DataFrame(fit_tinf_results_df_rows
                                     , [:Distribution, :Negative_log_lik, :AIC, :param1, :param2, :param3])
-    println(fit_tinf_results_df)
+    #println(fit_tinf_results_df)
 
     ## Compute fit data for plotting
     # Gamma
@@ -769,7 +942,7 @@ for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
     # Plot histogram (normalized to probability density)
     p1 = histogram(times; bins=30
                     , normalize=:pdf
-                    , label="tinf"
+                    , label = "Time of infection"#label="tinf"
                     , color=:lightblue, alpha=0.5, legend=:topright
                     , title="$(r) $(REGKEY[REGKEY.code .== r, :name][1])" 
                     , xlabel="Days", ylabel = "Density"
@@ -778,6 +951,7 @@ for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
                    )
 
     # Plot tinf fit
+    p1 = plot!(xs, tinf_pdf_vals_gamma; label="Gamma fit", color=:blue, lw=2)
     p1 = plot!(xs, tinf_pdf_vals_gamma; label="tinf truncated Gamma fit", color=:blue, lw=2)
     p1 = plot!(xs, tinf_pdf_vals_weibull; label="tinf truncated Weibull fit", color=:purple, lw=2)
 
@@ -821,7 +995,7 @@ for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
     fit_tinf_treport_results = fit_multi_dist(; times
                                                , init_gamma, init_nbinom, init_lognorm, init_weibull
                                                , lower, upper)
-    println(fit_tinf_treport_results)
+    #println(fit_tinf_treport_results)
 
     # Gamma fit
     tinf_treport_gamma_shape_fit, tinf_treport_gamma_scale_fit = fit_tinf_treport_results[1]["Gamma"][3]
@@ -861,12 +1035,8 @@ for r in REGKEY.code # TEST: r = "TLI7"; r = icu_regions[2]
     
     #savefig("scripts/median_TD_by_region_plots/$r.png")
     #savefig("scripts/median_TD_by_region_plots/sim_regionentry/$r.png")
-    if psampled == 1.0
-        savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/$r.png")
-    elseif psampled == 0.1
-        savefig("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/$r.png")
-    end
-
+    savefig("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/fits/$r.png")
+    
     # Add row to df to record the median value by region
     new_row = ( ITL2_code = r
                 , ITL2_name = REGKEY[REGKEY.code .== r, :name][1]
@@ -882,13 +1052,6 @@ end
 println( median_times_by_region )
 median_times_by_region_sorted = sort( median_times_by_region , :treport_median_fit )
 println( median_times_by_region_sorted )
-#CSV.write("scripts/median_TD_by_region_plots/TD_by_region_sorted.csv", median_times_by_region_sorted)
-#CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/TD_by_region_sorted.csv", median_times_by_region_sorted)
-if psampled == 1
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
-elseif psampled == 0.1
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
-end
 
 # Add the percent of simulation replicates that include ICU cases for each region
 median_times_by_region_sorted[!,:perc_simreps_have_icu_cases] = zeros(nrow(median_times_by_region_sorted))
@@ -938,12 +1101,7 @@ end
 println(median_times_by_region_sorted)
 
 #CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/TD_by_region_sorted.csv", median_times_by_region_sorted)
-if psampled == 1.0 
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_100/TD_by_region_sorted_psampled_100.csv", median_times_by_region_sorted)
-elseif psampled == 0.1 
-    CSV.write("scripts/median_TD_by_region_plots/sim_regionentry/psampled_10/TD_by_region_sorted_psampled_10.csv", median_times_by_region_sorted)
-end
-
+CSV.write("scripts/median_TD_by_region/sim_regionentry/$(n_replicates)_replicates/psampled_$(Int(psampled*100))/TD_by_region_sorted_simpreps_$(n_replicates)_psampled_$(Int(psampled*100)).csv", median_times_by_region_sorted)
 
 
 # TODO possibly resimulate
