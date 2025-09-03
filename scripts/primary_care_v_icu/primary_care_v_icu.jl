@@ -479,3 +479,22 @@ sim_tds_100_200_samples_shorter_icu_tsample = icu_v_pc_td(; gp_swabs_mg = [100,2
 CSV.write("scripts/primary_care_v_icu/sim_TDs_shorter_icu_tsample_v2.csv", sim_tds_100_200_samples_shorter_icu_tsample) # using 100 and 200 metagenomic samples per week
 sim_tds_100_200_samples_shorter_icu_tsample_analysis = analyse_columns(sim_tds_100_200_samples_shorter_icu_tsample[:,2:19]) # Not essential but remove the column containing the simulation number
 println(sim_tds_100_200_samples_analysis)
+
+
+### looking at the number of ICU cases and GP cases per week
+sims_G_gp_filter = load("covidlike-1.1.1-sims_filtered_G_gp.jld2", "sims_G_gp_filter")
+sims_G_icu_filter = load("covidlike-1.1.1-sims_filtered_G_icu.jld2", "sims_G_icu_filter")
+
+n_cases_df = DataFrame([zeros(Int,1000) for _ in 1:2], [:n_ICU_cases
+                                                        , :n_GP_cases
+                                                        ])
+
+for s in 1:1000
+    n_cases_df[s,1] = size(sims_G_icu_filter[s],1)
+    n_cases_df[s,2] = size(sims_G_gp_filter[s],1)
+end
+println(n_cases_df)
+median(n_cases_df[:,1])
+median(n_cases_df[:,2])
+n_cases_mat = hcat(n_cases_df[:,1],n_cases_df[:,2])
+histogram(n_cases_mat, label=["ICU cases" "GP cases"], bins=100, alpha=0.6)
