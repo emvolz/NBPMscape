@@ -286,5 +286,22 @@ CSV.write("scripts/primary_care_v_icu/sim_TDs_v2.csv", sim_tds) # using 100 and 
 #CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p25_v2.csv", sim_tds) # metagenomic sampling of 25% of all ARI consultations
 
 ### Compute median values for each time to detection scenario
-
 ### Compute % of simulations that return a time to detection in each time to detection scenario
+
+function analyse_columns(df::DataFrame)
+    result = DataFrame(TD_description=String[], Median_TD=Float64[], Percentage_with_a_TD=Float64[])
+    for col in names(df)
+        col_data = df[!, col]
+        # Convert strings "Inf" to actual Inf (if present as string)
+        cleaned = [x == "Inf" ? Inf : x for x in col_data]
+        # Keep only finite numbers
+        finite_vals = filter(x -> isfinite(x), cleaned)
+        percent_finite = 100 * length(finite_vals) / length(col_data)
+        median_val = isempty(finite_vals) ? NaN : median(skipmissing(finite_vals))
+        push!(result, (col, median_val, percent_finite))
+    end
+    return result
+end
+
+sim_tds_analysis = analyse_columns(sim_tds[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_analysis)
