@@ -161,6 +161,8 @@ function icu_v_pc_td(; p_icu = 0.25 # Assumption TODO needs refining
             # Generate sample times
             #tsample = (size(g_region,1)>0) ? map( g -> rand( Uniform( g.ticu[1], g.trecovered[1])) , eachrow(g_region) ) : []
             icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.trecovered[1])) , eachrow(icu_cases_sub) )
+            # TODO Possible alternative
+            #icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
             icu_cases_sub.tsample = icu_tsample 
 
             # Simulate reports times
@@ -319,12 +321,161 @@ CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p25_v2.csv", sim_tds_
 sim_tds_primary_care_p25_analysis = analyse_columns(sim_tds_primary_care_p25[:,2:19]) # Not essential but remove the column containing the simulation number
 println(sim_tds_primary_care_p25_analysis)
 
-# 4 # Assume hit the targetted values for the number of GP swabs (either 1000 per week or 20 swabs per practice x 300 practices = 6000) and using all samples for metagenomic sequencing each week
-# Only meaningful results here are min_summer and max_winter, i.e. 1000 mg from 1000 swabs and 6000 from 6000    
-sim_tds_higher_gp_swab_targets = icu_v_pc_td(; gp_swabs_mg = [1000, 6000] #[100,200] # Assumed number of swabs that are metagenomic sequenced for investigating impact
-                                             , gp_ari_swabs = [1000, 6000] #[319, 747] # Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+# 3(a) # Sampling 25% of all ARI consultations but using number of swabs instead of directly defining the proportion
+# Same for all seasons - note that the differences between min and max are not meaningful in this case - it is just variance from random sampling
+sim_tds_primary_care_25_summer = icu_v_pc_td(; gp_swabs_mg = [25698, 25698] #[100,200] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                                             , gp_ari_swabs = [25698, 25698] #[319, 747] # Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                                             )
 # Save as .csv file for inspection
-CSV.write("scripts/primary_care_v_icu/sim_tds_higher_gp_swab_targets_v2.csv", sim_tds_higher_gp_swab_targets) # using 100 and 200 metagenomic samples per week
-sim_tds_higher_gp_swab_targets_analysis = analyse_columns(sim_tds_higher_gp_swab_targets[:,2:19]) # Not essential but remove the column containing the simulation number
-println(sim_tds_higher_gp_swab_targets_analysis)
+CSV.write("scripts/primary_care_v_icu/sim_tds_primary_care_25_summer_v2.csv", sim_tds_primary_care_25_summer) # using 100 and 200 metagenomic samples per week
+sim_tds_primary_care_25_summer_analysis = analyse_columns(sim_tds_primary_care_25_summer[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_primary_care_25_summer_analysis)
+
+# 4 # Assume hit the targetted values for the number of GP swabs (1000 per week or 20 swabs per practice x 300 practices = 6000) and using all samples for metagenomic sequencing each week
+# Same for all seasons - note that the differences between min and max are not meaningful in this case - it is just variance from random sampling
+sim_tds_higher_gp_swab_target_1000 = icu_v_pc_td(; gp_swabs_mg = [1000, 1000] #[100,200] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                                             , gp_ari_swabs = [1000, 1000] #[319, 747] # Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+                                            )
+# Save as .csv file for inspection
+CSV.write("scripts/primary_care_v_icu/sim_tds_higher_gp_swab_target_1000_v2.csv", sim_tds_higher_gp_swab_target_1000) # using 100 and 200 metagenomic samples per week
+sim_tds_higher_gp_swab_target_1000_analysis = analyse_columns(sim_tds_higher_gp_swab_target_1000[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_higher_gp_swab_target_1000_analysis)
+
+# 5 # Assume hit the targetted values for the number of GP swabs (20 swabs per practice x 300 practices = 6000) and using all samples for metagenomic sequencing each week
+# Same for all seasons - note that the differences between min and max are not meaningful in this case - it is just variance from random sampling
+sim_tds_higher_gp_swab_target_6000 = icu_v_pc_td(; gp_swabs_mg = [6000, 6000] #[100,200] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                                             , gp_ari_swabs = [6000, 6000] #[319, 747] # Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+                                            )
+# Save as .csv file for inspection
+CSV.write("scripts/primary_care_v_icu/sim_tds_higher_gp_swab_target_6000_v2.csv", sim_tds_higher_gp_swab_target_6000) # using 100 and 200 metagenomic samples per week
+sim_tds_higher_gp_swab_target_6000_analysis = analyse_columns(sim_tds_higher_gp_swab_target_6000[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_higher_gp_swab_target_6000_analysis)
+
+# Create compilation of data
+# Times to detection
+combined_df = DataFrame([zeros(Float64,7) for _ in 1:6], [:Number_of_PC_mg_samples
+                                                        , :ICU_only
+                                                        , :PC_only_summer
+                                                        , :Combined_summer
+                                                        , :PC_only_winter
+                                                        , :Combined_winter])
+#                    Number_of_PC_mg_samples  ICU_only                                          PC_only_summer                                      Combined_summer                                     PC_only_winter                                      Combined_winter
+combined_df[1,:] = [ 100,                     sim_tds_100_200_samples_analysis[1,2],            sim_tds_100_200_samples_analysis[3,2],              sim_tds_100_200_samples_analysis[11,2],             sim_tds_100_200_samples_analysis[7,2],              sim_tds_100_200_samples_analysis[15,2]           ]
+combined_df[2,:] = [ 200,                     sim_tds_100_200_samples_analysis[1,2],            sim_tds_100_200_samples_analysis[5,2],              sim_tds_100_200_samples_analysis[13,2],             sim_tds_100_200_samples_analysis[9,2],              sim_tds_100_200_samples_analysis[17,2]           ]                                
+combined_df[3,:] = [ 319,                     sim_tds_all_gp_samples_analysis[1,2],             sim_tds_all_gp_samples_analysis[3,2],               sim_tds_all_gp_samples_analysis[11,2],              sim_tds_all_gp_samples_analysis[7,2],               sim_tds_all_gp_samples_analysis[15,2]            ]                     
+combined_df[4,:] = [ 747,                     sim_tds_all_gp_samples_analysis[1,2],             sim_tds_all_gp_samples_analysis[5,2],               sim_tds_all_gp_samples_analysis[13,2],              sim_tds_all_gp_samples_analysis[9,2],               sim_tds_all_gp_samples_analysis[17,2]            ]
+combined_df[5,:] = [ 1000,                    sim_tds_higher_gp_swab_target_1000_analysis[1,2], sim_tds_higher_gp_swab_target_1000_analysis[3,2],   sim_tds_higher_gp_swab_target_1000_analysis[11,2],  sim_tds_higher_gp_swab_target_1000_analysis[7,2],   sim_tds_higher_gp_swab_target_1000_analysis[15,2]]
+combined_df[6,:] = [ 6000,                    sim_tds_higher_gp_swab_target_6000_analysis[1,2], sim_tds_higher_gp_swab_target_6000_analysis[3,2],   sim_tds_higher_gp_swab_target_6000_analysis[11,2],  sim_tds_higher_gp_swab_target_1000_analysis[7,2],   sim_tds_higher_gp_swab_target_6000_analysis[15,2]]
+combined_df[7,:] = [ 0.25,                    sim_tds_primary_care_p25_analysis[1,2],           sim_tds_primary_care_p25_analysis[3,2],             sim_tds_primary_care_p25_analysis[11,2],            sim_tds_primary_care_p25_analysis[7,2],             sim_tds_primary_care_p25_analysis[15,2]          ]
+combined_df[7,5] = combined_df[7,3]
+combined_df[7,6] = combined_df[7,4]
+println(combined_df)
+# Difference between combined and ICU_only for summer
+println( combined_df[:,4]-combined_df[:,2] )
+# Difference between combined and ICU_only for winter
+println( combined_df[:,6]-combined_df[:,2] )
+
+
+# % of sim reps
+combined_sim_rep_df = DataFrame([zeros(Float64,7) for _ in 1:6], [:Number_of_PC_mg_samples
+                                                        , :ICU_only
+                                                        , :PC_only_summer
+                                                        , :Combined_summer
+                                                        , :PC_only_winter
+                                                        , :Combined_winter])
+#                           Number_of_PC_mg_samples   ICU_only                                          PC_only_summer                                      Combined_summer                                     PC_only_winter                                      Combined_winter
+combined_sim_rep_df[1,:] = [ 100,                     sim_tds_100_200_samples_analysis[1,3],            sim_tds_100_200_samples_analysis[3,3],              sim_tds_100_200_samples_analysis[11,3],             sim_tds_100_200_samples_analysis[7,3],              sim_tds_100_200_samples_analysis[15,3]           ]
+combined_sim_rep_df[2,:] = [ 200,                     sim_tds_100_200_samples_analysis[1,3],            sim_tds_100_200_samples_analysis[5,3],              sim_tds_100_200_samples_analysis[13,3],             sim_tds_100_200_samples_analysis[9,3],              sim_tds_100_200_samples_analysis[17,3]           ]                                
+combined_sim_rep_df[3,:] = [ 319,                     sim_tds_all_gp_samples_analysis[1,3],             sim_tds_all_gp_samples_analysis[3,3],               sim_tds_all_gp_samples_analysis[11,3],              sim_tds_all_gp_samples_analysis[7,3],               sim_tds_all_gp_samples_analysis[15,3]            ]                     
+combined_sim_rep_df[4,:] = [ 747,                     sim_tds_all_gp_samples_analysis[1,3],             sim_tds_all_gp_samples_analysis[5,3],               sim_tds_all_gp_samples_analysis[13,3],              sim_tds_all_gp_samples_analysis[9,3],               sim_tds_all_gp_samples_analysis[17,3]            ]
+combined_sim_rep_df[5,:] = [ 1000,                    sim_tds_higher_gp_swab_target_1000_analysis[1,3], sim_tds_higher_gp_swab_target_1000_analysis[3,3],   sim_tds_higher_gp_swab_target_1000_analysis[11,3],  sim_tds_higher_gp_swab_target_1000_analysis[7,3],   sim_tds_higher_gp_swab_target_1000_analysis[15,3]]
+combined_sim_rep_df[6,:] = [ 6000,                    sim_tds_higher_gp_swab_target_6000_analysis[1,3], sim_tds_higher_gp_swab_target_6000_analysis[3,3],   sim_tds_higher_gp_swab_target_6000_analysis[11,3],  sim_tds_higher_gp_swab_target_1000_analysis[7,3],   sim_tds_higher_gp_swab_target_6000_analysis[15,3]]
+combined_sim_rep_df[7,:] = [ 0.25,                    sim_tds_primary_care_p25_analysis[1,3],           sim_tds_primary_care_p25_analysis[3,3],             sim_tds_primary_care_p25_analysis[11,3],            sim_tds_primary_care_p25_analysis[7,3],             sim_tds_primary_care_p25_analysis[15,3]          ]
+combined_sim_rep_df[7,5] = combined_sim_rep_df[7,3]
+combined_sim_rep_df[7,6] = combined_sim_rep_df[7,4]
+println(combined_sim_rep_df)
+
+
+
+using DataFrames
+using Pkg
+Pkg.add("StatsPlots")
+using StatsPlots  # This imports the @df macro for easier DataFrame plotting
+
+# Plot the DataFrame with points and lines
+# Summer
+x_replace_summer = [100,200,319,747,1000,6000,25698]
+# plot separately so coloured by y-series
+p = plot(xlabel = "Number of primary care metagenomic samples"
+        , ylabel = "Median time to detection of 1 case (TD) in days"
+        , xscale=:log10
+        , ylim=(0,70)
+        , legend = :bottomleft
+        )
+@df combined_df scatter!(x_replace_summer
+                        , :ICU_only
+                        , color=:red
+                        , marker=:circle
+                        , markersize=4
+                        , label="ICU only")
+@df combined_df scatter!(x_replace_summer
+                        , :PC_only_summer
+                        , color=:blue
+                        , marker=:circle
+                        , markersize=4
+                        , label="Primary care only (summer)")
+@df combined_df scatter!(x_replace_summer
+                        , :Combined_summer
+                        , color=:green
+                        , marker=:circle
+                        , markersize=4
+                        , label="Combined (summer)")
+@df combined_df plot!(x_replace_summer, :ICU_only, color=:red, linewidth=2, label="")
+@df combined_df plot!(x_replace_summer, :PC_only_summer, color=:blue, linewidth=2, label="")
+@df combined_df plot!(x_replace_summer, :Combined_summer, color=:green, linewidth=2, label="")
+
+# Winter
+x_replace_winter = [100,200,319,747,1000,6000,46685]
+# plot separately so coloured by y-series
+#p = plot(xlabel = "Number of primary care metagenomic samples"
+#        , ylabel = "Time to detection of 1 case (days)"
+#        , xscale=:log10
+#        , ylim=(0,70)
+#        , legend = :topright
+#        )
+@df combined_df scatter!(x_replace_winter
+                        , :ICU_only
+                        , color=:red
+                        , marker=:circle
+                        , markersize=4
+                        , label="")
+@df combined_df scatter!(x_replace_winter
+                        , :PC_only_winter
+                        , color=:lightblue
+                        , marker=:circle
+                        , markersize=4
+                        , label="Primary care only (winter)")
+@df combined_df scatter!(x_replace_winter
+                        , :Combined_winter
+                        , color=:lightgreen
+                        , marker=:circle
+                        , markersize=4
+                        , label="Combined (winter)")
+@df combined_df plot!(x_replace_winter, :ICU_only, color=:red, linewidth=2, label="")
+@df combined_df plot!(x_replace_winter, :PC_only_winter, color=:lightblue, linewidth=2, label="")
+@df combined_df plot!(x_replace_winter, :Combined_winter, color=:lightgreen, linewidth=2, label="")
+
+# Save to file
+savefig("scripts/primary_care_v_icu/TD_vs_PC_sample_size.png")
+
+
+# Analysis with altered tsample for ICU sampling
+# Currently random sample from uniform distribution between ticu and trecovered but this can be quite large
+# Try with random sample from uniform distribution between ticu and ticu+3
+
+# 1 # using 100 and 200 metagenomic samples per week
+sim_tds_100_200_samples_shorter_icu_tsample = icu_v_pc_td(; gp_swabs_mg = [100,200] ) #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+# Save as .csv file for inspection
+CSV.write("scripts/primary_care_v_icu/sim_TDs_shorter_icu_tsample_v2.csv", sim_tds_100_200_samples_shorter_icu_tsample) # using 100 and 200 metagenomic samples per week
+sim_tds_100_200_samples_shorter_icu_tsample_analysis = analyse_columns(sim_tds_100_200_samples_shorter_icu_tsample[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_100_200_samples_analysis)
