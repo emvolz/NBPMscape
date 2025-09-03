@@ -20,16 +20,16 @@ Outline:
 
 # Load packages
 using NBPMscape
-#using GLM, Statistics
+using GLM, Statistics
 #using Distributions
 #using JumpProcesses 
 #using DifferentialEquations
 #using Random
-#using Distributions
+using Distributions
 using DataFrames
 #import UUIDs 
 #import StatsBase
-#using StatsBase
+using StatsBase
 #using Interpolations
 #import SpecialFunctions as SF 
 #using Plots 
@@ -64,7 +64,7 @@ using JLD2
 #using KernelDensity
 
 
-@load "covidlike-1.1.1-sims.jld2" sims
+#@load "covidlike-1.1.1-sims.jld2" sims
 
 # Or adapt to use 
 #@load "covidlike-1.1-sims_filtered_G_icu.jld2" sims_filtered_G_icu
@@ -83,7 +83,7 @@ icu_turnaround_time = [2,4]
 # Parameters for existing Oxford-RCGP RSC primary care surveillance
 gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
 gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
-gp_swabs_mg = [319, 747] #[100,200] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+gp_swabs_mg = [100,200] #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
 #ITL225CD_wales = ITL2SIZE[37:39,:ITL225CD]
 #ITL2SIZE_eng = ITL2SIZE[.!in(ITL2SIZE.ITL225CD, ITL225CD_wales), :]
 #ITL2SIZE_eng = ITL2SIZE[ ITL2SIZE.ITL225CD .!= , :]
@@ -108,9 +108,9 @@ p_pc_mg_min_winter = prob_visiting_gp_swab * prob_swabbed_winter * prob_mg_min_w
 p_pc_mg_max_summer = prob_visiting_gp_swab * prob_swabbed_summer * prob_mg_max_summer
 p_pc_mg_max_winter = prob_visiting_gp_swab * prob_swabbed_winter * prob_mg_max_winter
 p_pc = [ p_pc_mg_min_summer, p_pc_mg_max_summer, p_pc_mg_min_winter, p_pc_mg_max_winter ]
-p_pc = 0.25 # Test to compare TDs with ICU with 0.25 sampling proportion
-swabs_at_25_summer
-swabs_at_25_winter
+#p_pc = 0.25 # Test to compare TDs with ICU with 0.25 sampling proportion
+#swabs_at_25_summer
+#swabs_at_25_winter
 
 # Create df to store results
 sim_tds = DataFrame( [fill(Inf,length(sims)) for _ in 1:19], ["sim_n"
@@ -206,7 +206,7 @@ for s in 1:length(sims)
         # Subsample of GP cases
         gp_cases_sub = gp_cases[sample( 1:size(gp_cases,1), n_gp, replace=false ), :]
     
-        
+        # If there are NO GP cases in the sample
         if size(gp_cases_sub,1) == 0
             
             #p_pc = [ p_pc_mg_min_summer, p_pc_mg_max_summer, p_pc_mg_min_winter, p_pc_mg_max_winter ]
@@ -218,7 +218,14 @@ for s in 1:length(sims)
             #  3 primary care cases for 3TD
             sim_tds[s, 2*i + 3 ] = Inf
 
-        elseif size(gp_cases_sub,1) > 0         
+            # ICU and primary care combined
+            # If there are no GP cases then the combination of primary care and ICU is just ICU only (which was already entered into df above)
+            # - 1 case
+            sim_tds[s, 2*i + 10] = sim_tds[s,:ICU_TD]
+            # - 3 case
+            sim_tds[s, 2*i + 11] = sim_tds[s,:ICU_3TD]
+            
+        elseif size(gp_cases_sub,1) > 0 # If there ARE GP cases in the sample
         
             # Generate sample times
             gp_tsample = gp_cases_sub.tgp
@@ -233,8 +240,11 @@ for s in 1:length(sims)
             gp_cases_sub_top3_td = first(sort(gp_cases_sub, :treport), 3)
             
             # ICU and primary care combined
-            icu_gp_cases_sub_top3_td = sort( append!(icu_cases_sub_top3_td, gp_cases_sub_top3_td), :treport)
-            #println(icu_gp_cases_sub_top3_td)
+            if @isdefined icu_cases_sub_top3_td # Check if there are any ICU cases...
+                icu_gp_cases_sub_top3_td = sort( append!(icu_cases_sub_top3_td, gp_cases_sub_top3_td), :treport)
+            else # ... if not then the combination is just primary care (GP) cases only
+                icu_gp_cases_sub_top3_td = gp_cases_sub_top3_td
+            end
 
             ## Add to results df for primary care times to detection
             # Record the times to detection for earliest:
@@ -264,10 +274,16 @@ for s in 1:length(sims)
 
 end # End of loop through different simulations
 
-# Save as .csv file for inspection
+#### Save as .csv file for inspection
+## Versions Only recording a combined TD or 3TD when there is a value for primary care TD
 #CSV.write("scripts/primary_care_v_icu/sim_TDs.csv", sim_tds) # using 100 and 200 metagenomic samples per week
 #CSV.write("scripts/primary_care_v_icu/sim_TDs_all_gp_samples.csv", sim_tds) # using all samples for metagenomic sequencing each week
-CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p25.csv", sim_tds) # metagenomic sampling of 25% of all ARI consultations
+#CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p25.csv", sim_tds) # metagenomic sampling of 25% of all ARI consultations
+
+## Versions recording a combined TD or 3TD even if there is no value for primary care TD (i.e. the combined value = ICU value)
+CSV.write("scripts/primary_care_v_icu/sim_TDs_v2.csv", sim_tds) # using 100 and 200 metagenomic samples per week
+#CSV.write("scripts/primary_care_v_icu/sim_TDs_all_gp_samples_v2.csv", sim_tds) # using all samples for metagenomic sequencing each week
+#CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p25_v2.csv", sim_tds) # metagenomic sampling of 25% of all ARI consultations
 
 ### Compute median values for each time to detection scenario
 
