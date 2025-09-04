@@ -250,8 +250,13 @@ P = (
 	, lagsseqdbub = 7 # upper bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
 	
 	# TODO STRATIFY BY AGE GROUP - SEE KNOCK ET AL (2021)
-	, propmild = 0.60 
-	, propsevere = 0.05
+	#, propmild = 0.6
+	, propmild = 0.507 + 0.432 
+	# 0.507 = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
+	# TODO 0.432 is a balancing value of individuals that are neither sampled at GP or in ICU. 
+	# They are not truly mild infections as they may be hospitalised - this will impact transmission dynamics because there is reduced transmission when individuals are in hospital
+	#, propsevere = 0.05
+	, propsevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
 
 	# TODO STRATIFY BY AGE GROUP
 	, gprate = 1/3 
