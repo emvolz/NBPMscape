@@ -33,7 +33,7 @@ end
 
 #const AGEGROUPS = (:youth, :youngadult, :adult, :old, :elderly) # TODO POSSIBLY CHANGE BASED ON SC2 / NO LONGER NEEDED AS USING SINGLE YEAR AGES
 const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :discharged) # :deceased) # TODO ADD DECEASED HERE??
-const SEVERITY = [:mildorasymptomatic, :moderate, :severe ] # TODO POSSIBLY CHANGE BASED ON SC2
+const SEVERITY = [:mildorasymptomatic, :moderate, :severe, :verysevere ] # TODO POSSIBLY CHANGE BASED ON SC2
 const STAGE = (:latent, :infectious, :recovered) # :deceased) # TODO ADD DECEASED HERE??
 
 const CONTACTTYPES = (:F, :G, :H) # TODO POSSIBLY SPLIT INTO 4 (OR MORE) CONTACT TYPES: HOME, WORK/SCHOOL, TRAVEL, OTHER
@@ -250,14 +250,12 @@ P = (
 	, lagsseqdbub = 7 # upper bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
 	
 	# TODO STRATIFY BY AGE GROUP - SEE KNOCK ET AL (2021)
-	#, propmild = 0.6
-	, propmild = 0.507 + 0.432 
-	# 0.507 = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
-	# TODO 0.432 is a balancing value of individuals that are neither sampled at GP or in ICU. 
-	# They are not truly mild infections as they may be hospitalised - this will impact transmission dynamics because there is reduced transmission when individuals are in hospital
-	#, propsevere = 0.05
-	, propsevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
-
+	, propverysevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+	, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+	, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
+	, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
+	, propmildorasymptomatic = prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
+	
 	# TODO STRATIFY BY AGE GROUP
 	, gprate = 1/3 
 	, hospadmitrate = 1/4 # Docherty 2020 
@@ -512,7 +510,7 @@ function Infection(p; pid = "0"
 	#tdeceased = Inf # deceased TODO ADD ONCE DECEASED COMPARTMENT INCLUDED
 
 	# TODO AGE STRATIFY SEE KNOCK ET AL (2021)
-	severity = StatsBase.wsample( SEVERITY, [p.propmild, 1-p.propmild-p.propsevere , p.propsevere]  )
+	severity = StatsBase.wsample( SEVERITY, [p.propmildorasymptomatic, p.propmoderate , p.propsevere, p.propverysevere]  )
 	
 	#cumulative transm 
 	R = 0 
@@ -612,7 +610,7 @@ function Infection(p; pid = "0"
 	# trecovered = Inf # recovered/deceased/removed
 
 	## gp 
-	rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe))) ? p.gprate : 0.0 
+	rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe,:verysevere))) ? p.gprate : 0.0 
 	aff_gp!(int) = begin 
 		carestage = :GP; 
 		tgp = int.t 
@@ -620,7 +618,7 @@ function Infection(p; pid = "0"
 	j_gp = ConstantRateJump(rategp, aff_gp!)
 
 	## hospital
-	ratehospital(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity in (:severe,)) )) ? p.hospadmitrate : 0.0 
+	ratehospital(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity in (:severe,:verysevere)) )) ? p.hospadmitrate : 0.0 
 	aff_hosp!(int) = begin 
 		carestage = :admittedhospital  
 		thospital = int.t 
@@ -637,7 +635,7 @@ function Infection(p; pid = "0"
 
 
 	## icu
-	rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:severe,)) )) ? p.icurate : 0.0 
+	rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:verysevere,)) )) ? p.icurate : 0.0 
 	aff_icu!(int) = begin 
 		carestage = :icu  
 		ticu = int.t 
