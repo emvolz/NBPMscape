@@ -45,59 +45,52 @@ sims = load("covidlike-1.1.1-sims.jld2", "sims")
 # How many replicates are in this simulation
 n_replicates = length(sims)
 
-# ICU sampling proportion
-p_icu = 0.25 # Assumption TODO needs refining 
-
-# Time to process sample and report results / declare detection
-#icu_turnaround_time = 3
-icu_turnaround_time = [2,4] # 'icu_v_pc()' function assumes this is equal to 'pc_swab_turnaround_time'
-
-# Parameters for existing Oxford-RCGP RSC primary care surveillance
-gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
-gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
-gp_swabs_mg = [100,200] #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+# Obtain population of England from constant in NBPMscape
+# TODO not currently defined in Main
 #ITL225CD_wales = ITL2SIZE[37:39,:ITL225CD]
 #ITL2SIZE_eng = ITL2SIZE[.!in(ITL2SIZE.ITL225CD, ITL225CD_wales), :]
 #ITL2SIZE_eng = ITL2SIZE[ ITL2SIZE.ITL225CD .!= , :]
 #pop_eng = sum(ITL2SIZE[1:36,3])
-pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
-gp_ari_consults = [180, 327] # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-gp_ari_swabs = [319, 747] # Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
 
-function icu_v_pc_td(; p_icu = 0.25 # Assumption TODO needs refining 
-                     #, icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
+function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption needs refining 
+                     , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
                        # Parameters for existing Oxford-RCGP RSC primary care surveillance
                      , gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
                      , gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
-                     , gp_swabs_mg = [100,200] #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                     , gp_swabs_mg = [100,200] #[319, 747]#[25698,46685] # Assumed number of swabs that are metagenomic sequenced for investigating impact
                      , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
                      , gp_ari_consults = [180, 327] # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-                     , gp_ari_swabs = [319, 747] # Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+                     , gp_ari_swabs = [319, 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                      , pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                      #, p_pc # TODO Needs to be uncommented when want to set this directly
                     )
-    # Probability of primary care surveillance events
+    ### Probability of primary care surveillance events
+    # Probability of visiting a General Practice that takes surveillance swabs
     prob_visiting_gp_swab = minimum( [1, gp_practices_swab / gp_practices_total ])
-    prob_swabbed_summer = minimum([1, (100000*gp_ari_swabs[1]) / (pop_eng*gp_ari_consults[1])])
-    prob_swabbed_winter = minimum([1, (100000*gp_ari_swabs[2]) / (pop_eng*gp_ari_consults[2])])
-    prob_mg_min_summer = minimum([1, gp_swabs_mg[1] / gp_ari_swabs[1] ])
-    prob_mg_min_winter = minimum([1, gp_swabs_mg[1] / gp_ari_swabs[2] ])
-    prob_mg_max_summer = minimum([1, gp_swabs_mg[2] / gp_ari_swabs[1] ])
-    prob_mg_max_winter = minimum([1, gp_swabs_mg[2] / gp_ari_swabs[2] ])
+    # Probability of being swabbed given visited a GP that takes suriveillance swabs
+    prob_swabbed_g_visit_gp_swab_summer = minimum([1, (1e5*gp_ari_swabs[1]) / (pop_eng*gp_ari_consults[1]) / prob_visiting_gp_swab])
+    prob_swabbed_g_visit_gp_swab_winter = minimum([1, (1e5*gp_ari_swabs[2]) / (pop_eng*gp_ari_consults[2]) / prob_visiting_gp_swab])
+    # Probability that swab is selected for metagenomic sequencing given that patient has been selected for a surveillance swab
+    prob_mg_g_swabbed_min_summer = minimum([1, gp_swabs_mg[1] / gp_ari_swabs[1] ])
+    prob_mg_g_swabbed_min_winter = minimum([1, gp_swabs_mg[1] / gp_ari_swabs[2] ])
+    prob_mg_g_swabbed_max_summer = minimum([1, gp_swabs_mg[2] / gp_ari_swabs[1] ])
+    prob_mg_g_swabbed_max_winter = minimum([1, gp_swabs_mg[2] / gp_ari_swabs[2] ])
 
     # Primary care sampling proportion - equivalent to probability a swab being taken and a metagenomic sequence being taken if attend a GP
-    p_pc_mg_min_summer = prob_visiting_gp_swab * prob_swabbed_summer * prob_mg_min_summer
-    p_pc_mg_min_winter = prob_visiting_gp_swab * prob_swabbed_winter * prob_mg_min_winter
-    p_pc_mg_max_summer = prob_visiting_gp_swab * prob_swabbed_summer * prob_mg_max_summer
-    p_pc_mg_max_winter = prob_visiting_gp_swab * prob_swabbed_winter * prob_mg_max_winter
+    p_pc_mg_g_gp_visit_min_summer = prob_visiting_gp_swab * prob_swabbed_g_visit_gp_swab_summer * prob_mg_g_swabbed_min_summer
+    p_pc_mg_g_gp_visit_min_winter = prob_visiting_gp_swab * prob_swabbed_g_visit_gp_swab_winter * prob_mg_g_swabbed_min_winter
+    p_pc_mg_g_gp_visit_max_summer = prob_visiting_gp_swab * prob_swabbed_g_visit_gp_swab_summer * prob_mg_g_swabbed_max_summer
+    p_pc_mg_g_gp_visit_max_winter = prob_visiting_gp_swab * prob_swabbed_g_visit_gp_swab_winter * prob_mg_g_swabbed_max_winter
     # Check if primary care sampling proportion, p_pc, was entered as an input to the function
     if @isdefined p_pc 
         #continue
     else # Define based on calculated probabilities
-        p_pc = [ p_pc_mg_min_summer, p_pc_mg_max_summer, p_pc_mg_min_winter, p_pc_mg_max_winter ]
+        p_pc = [ p_pc_mg_g_gp_visit_min_summer
+                , p_pc_mg_g_gp_visit_max_summer
+                , p_pc_mg_g_gp_visit_min_winter
+                , p_pc_mg_g_gp_visit_max_winter ]
     end    
-    println(p_pc)
+    println("p_pc = ",p_pc)
     #p_pc = 0.25 # Test to compare TDs with ICU with 0.25 sampling proportion
     #swabs_at_25_summer
     #swabs_at_25_winter
@@ -479,6 +472,15 @@ sim_tds_100_200_samples_shorter_icu_tsample = icu_v_pc_td(; gp_swabs_mg = [100,2
 CSV.write("scripts/primary_care_v_icu/sim_TDs_shorter_icu_tsample_v2.csv", sim_tds_100_200_samples_shorter_icu_tsample) # using 100 and 200 metagenomic samples per week
 sim_tds_100_200_samples_shorter_icu_tsample_analysis = analyse_columns(sim_tds_100_200_samples_shorter_icu_tsample[:,2:19]) # Not essential but remove the column containing the simulation number
 println(sim_tds_100_200_samples_analysis)
+
+# Analysis with lower p_icu for ICU sampling
+# 1 # using 100 and 200 metagenomic samples per week
+sim_tds_100_200_samples_p_icu_10 = icu_v_pc_td(; p_icu = 0.10 # 0.25
+                                                , gp_swabs_mg = [100,200] ) #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+# Save as .csv file for inspection
+CSV.write("scripts/primary_care_v_icu/sim_TDs_p_icu_10_v2.csv", sim_tds_100_200_samples_p_icu_10) # using 100 and 200 metagenomic samples per week
+sim_tds_100_200_samples_p_icu_10_analysis = analyse_columns(sim_tds_100_200_samples_p_icu_10[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_100_200_samples_p_icu_10_analysis)
 
 
 ### looking at the number of ICU cases and GP cases per week
