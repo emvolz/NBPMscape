@@ -39,11 +39,8 @@ sims = load("covidlike-1.1.1-sims.jld2", "sims")
 #@load "covidlike-1.1.1-sims.jld2" sims
 
 # TODO Or adapt to use (because smaller files have less issues with reloading)
-#@load "covidlike-1.1-sims_filtered_G_icu.jld2" sims_filtered_G_icu
-#@load "covidlike-1.1-sims_filtered_G_gp.jld2"  sims_filtered_G_gp
-
-# How many replicates are in this simulation
-n_replicates = length(sims)
+#@load "covidlike-1.1.1-sims_filtered_G_icu_combined_nrep53000.jld2" sims_filtered_G_icu
+#@load "covidlike-1.1.1-sims_filtered_G_gp_combined_nrep53000.jld2"  sims_filtered_G_gp
 
 # Obtain population of England from constant in NBPMscape
 # TODO not currently defined in Main
@@ -63,6 +60,7 @@ function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption ne
                      , gp_ari_swabs = [319, 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                      , pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                      #, p_pc # TODO Needs to be uncommented when want to set this directly
+                     , sim_object # "full" or "filtered"
                     )
     ### Probability of primary care surveillance events
     # Probability of visiting a General Practice that takes surveillance swabs
@@ -95,37 +93,69 @@ function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption ne
     #swabs_at_25_summer
     #swabs_at_25_winter
 
+    # How many replicates are in this simulation
+    if sim_object == "full"
+        n_replicates = length(sims)
+    elseif sim_object == "filtered"
+        # Check number of replicates is the same for ICU and GP filtered datasets
+        if length(sims_G_gp_filter) != length(sims_G_icu_filter)
+            error("Different numbers of sim reps: sims_G_filtered_gp (=$(length(sims_G_gp_filter))) sims_G_filtered_icu (=$(length(sims_G_icu_filter)))")
+        else
+            n_replicates = length(sims_G_gp_filter)
+        end
+    end
+
     # Create df to store results
-    sim_tds = DataFrame( [fill(Inf,length(sims)) for _ in 1:19], ["sim_n"
-                                                                ,"ICU_TD","ICU_3TD"                              # time to detection results using ICU sampling only
-                                                                ,"PC_TD_min_summer","PC_3TD_min_summer"          # time to detection results using primary care sampling only with LOWER  number of metagenomic swab tests in SUMMER
-                                                                ,"PC_TD_max_summer","PC_3TD_max_summer"          # time to detection results using primary care sampling only with HIGHER number of metagenomic swab tests in SUMMER
-                                                                ,"PC_TD_min_winter","PC_3TD_min_winter"          # time to detection results using primary care sampling only with LOWER  number of metagenomic swab tests in WINTER
-                                                                ,"PC_TD_max_winter","PC_3TD_max_winter"          # time to detection results using primary care sampling only with HIGHER number of metagenomic swab tests in WINTER
-                                                                ,"ICU_PC_TD_min_summer","ICU_PC_3TD_min_summer"  # time to detection results using ICU AND primary care sampling  with LOWER  number of metagenomic swab tests in SUMMER
-                                                                ,"ICU_PC_TD_max_summer","ICU_PC_3TD_max_summer"  # time to detection results using ICU AND primary care sampling  with HIGHER number of metagenomic swab tests in SUMMER
-                                                                ,"ICU_PC_TD_min_winter","ICU_PC_3TD_min_winter"  # time to detection results using ICU AND primary care sampling  with LOWER  number of metagenomic swab tests in WINTER
-                                                                ,"ICU_PC_TD_max_winter","ICU_PC_3TD_max_winter"  # time to detection results using ICU AND primary care sampling  with HIGHER number of metagenomic swab tests in WINTER
-                                                                ])
+    col_any = Vector{Any}(undef, n_replicates)
+    fill!(col_any, Inf)
+    sim_tds_cols = [copy(col_any) for _ in 1:25]
+    sim_tds = DataFrame( sim_tds_cols, ["sim_n"
+                                        ,"ICU_TD","ICU_3TD"                              # time to detection results using ICU sampling only
+                                        ,"PC_TD_min_summer","PC_3TD_min_summer"          # time to detection results using primary care sampling only with LOWER  number of metagenomic swab tests in SUMMER
+                                        ,"PC_TD_max_summer","PC_3TD_max_summer"          # time to detection results using primary care sampling only with HIGHER number of metagenomic swab tests in SUMMER
+                                        ,"PC_TD_min_winter","PC_3TD_min_winter"          # time to detection results using primary care sampling only with LOWER  number of metagenomic swab tests in WINTER
+                                        ,"PC_TD_max_winter","PC_3TD_max_winter"          # time to detection results using primary care sampling only with HIGHER number of metagenomic swab tests in WINTER
+                                        ,"ICU_PC_TD_min_summer","ICU_PC_3TD_min_summer"  # time to detection results using ICU AND primary care sampling  with LOWER  number of metagenomic swab tests in SUMMER
+                                        ,"ICU_PC_TD_max_summer","ICU_PC_3TD_max_summer"  # time to detection results using ICU AND primary care sampling  with HIGHER number of metagenomic swab tests in SUMMER
+                                        ,"ICU_PC_TD_min_winter","ICU_PC_3TD_min_winter"  # time to detection results using ICU AND primary care sampling  with LOWER  number of metagenomic swab tests in WINTER
+                                        ,"ICU_PC_TD_max_winter","ICU_PC_3TD_max_winter"  # time to detection results using ICU AND primary care sampling  with HIGHER number of metagenomic swab tests in WINTER
+                                        ,"n_ICU_cases","n_ICU_cases_sampled"
+                                        ,"n_GP_cases","n_GP_cases_sampled"
+                                        ,"ICU_simid","GP_simid"
+                                        ])
 
     # Adaptation of sampleforest() function in 'core.jl' and 'median_TD_by_region.jl'
-    for s in 1:length(sims)
-
-        # TEST
-        #println(s)
+    for s in 1:n_replicates
+        #TEST
+        #println("$(s) of $(n_replicates) replicates")
 
         # Add simulation number to results df
         sim_tds[s,:sim_n] = s
         
         #s=1
-        #fo = sims_test[s]#sims[s]
-            
-        # Filter for ICU cases 
-        fo = sims[s]
-        icu_cases = fo.G[ isfinite.(fo.G.ticu), : ]
-        
-        # Filter for GP cases (some of these will also become ICU cases)
-        gp_cases = fo.G[ isfinite.(fo.G.tgp), : ]    
+        # If sim_object is not pre-filtered then need to filter for ICU and GP cases
+        if sim_object == "full"
+            # Filter for ICU cases 
+            fo = sims[s]
+            icu_cases = fo.G[ isfinite.(fo.G.ticu), : ]
+            # Filter for GP cases (some of these will also become ICU cases)
+            gp_cases = fo.G[ isfinite.(fo.G.tgp), : ]    
+        elseif sim_object == "filtered"
+            icu_cases = sims_G_icu_filter[s]
+            gp_cases = sims_G_gp_filter[s]
+            # Double check that icu_cases and gp_cases are from the same simulation
+            if size(icu_cases,1) > 0 && size(gp_cases,1) > 0
+                sim_tds[s,:ICU_simid] = icu_cases[1,:simid] 
+                sim_tds[s,:GP_simid] = gp_cases[1,:simid]
+                if icu_cases[1,:simid] != gp_cases[1,:simid]
+                    #error("Sim IDs don't match between sims_G_filtered_gp ($(gp_cases[1,:simid])) and sims_G_filtered_icu ($(icu_cases[1,:simid]))for sim  rep $(s)")
+                    #println("Sim IDs don't match between sims_G_filtered_gp ($(gp_cases[1,:simid])) and sims_G_filtered_icu ($(icu_cases[1,:simid]))for sim  rep $(s)")
+                    sim_tds[s,:sim_n] = s
+                    sim_tds[s,2:23] = ["Sim ID mismatch" for _ in 2:23]
+                    continue
+                end
+            end
+        end
 
         ### Record infection time stats
         ## First for ICU cases
@@ -134,7 +164,16 @@ function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption ne
         # Subsample of ICU cases
         icu_cases_sub = icu_cases[sample( 1:size(icu_cases,1), n_icu, replace=false ), :]
 
+        # Record number of cases in the sim rep and the number that were tested
+        sim_tds[s,:n_ICU_cases] = size(icu_cases,1)
+        sim_tds[s,:n_ICU_cases_sampled] = n_icu
+
         if size(icu_cases_sub,1) == 0
+            
+            # Record zero cases and zero sampled
+            #sim_tds[s,:n_ICU_cases] = 0
+            #sim_tds[s,:n_ICU_cases_sampled] = 0
+
             # Record Inf as time to detection for earliest:
             # - 1 ICU case
             sim_tds[s,:ICU_TD] = Inf
@@ -142,25 +181,17 @@ function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption ne
             sim_tds[s,:ICU_3TD] = Inf
 
         elseif size(icu_cases_sub,1) > 0 
-                
+            
             #= Sample time has uniform distribution between time of admission to ICU and time of recovery
                 TODO THIS MAY NEED TO BE UPDATED FOR LATER VERSIONS WITH MORE COMPLEX CARE PATHWAYS
-                NOTE TIME BETWEEN ticu and trecovered can be large and so with uniform distribution of 
-                sampling the tsample can be a long time after tinf. 
-                Example I saw was tinf = 48.9, ticu = 52.6, trecovered = 91.1, and treport = 90.7
-                If we're modelling 100% of ICU cases being sampled then more likely to sampled closer to ticu
             =#
-            
             # Generate sample times
-            #tsample = (size(g_region,1)>0) ? map( g -> rand( Uniform( g.ticu[1], g.trecovered[1])) , eachrow(g_region) ) : []
-            icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.trecovered[1])) , eachrow(icu_cases_sub) )
-            # TODO Possible alternative
-            #icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
+            icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
             icu_cases_sub.tsample = icu_tsample 
 
             # Simulate reports times
             #treport = (size(g_region,1)>0) ? (tsample .+ turnaroundtime) : []
-            icu_treport = (icu_tsample .+ rand(Uniform(pc_swab_turnaround_time[1], pc_swab_turnaround_time[2])) )
+            icu_treport = (icu_tsample .+ rand(Uniform(icu_turnaround_time[1], icu_turnaround_time[2])) )
             icu_cases_sub.treport = icu_treport
             #println(g_region_sub[:,[2,3,4,5,6,16,17]])
 
@@ -191,9 +222,17 @@ function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption ne
             # Subsample of GP cases
             gp_cases_sub = gp_cases[sample( 1:size(gp_cases,1), n_gp, replace=false ), :]
         
+            # Record number of cases in the sim rep and the number that were tested
+            sim_tds[s,:n_GP_cases] = size(gp_cases,1)
+            sim_tds[s,:n_GP_cases_sampled] = n_gp
+
             # If there are NO GP cases in the sample
             if size(gp_cases_sub,1) == 0
                 
+                # Record zero cases and zero sampled
+                #sim_tds[s,:n_GP_cases] = 0
+                #sim_tds[s,:n_GP_cases_sampled] = 0
+
                 #p_pc = [ p_pc_mg_min_summer, p_pc_mg_max_summer, p_pc_mg_min_winter, p_pc_mg_max_winter ]
                 
                 ## Add to results df for ICU times to detection
@@ -277,26 +316,44 @@ end # End of icu_v_pc_td function
 
 function analyse_columns(df::DataFrame)
     result = DataFrame(TD_description=String[], Median_TD=Float64[], Percentage_with_a_TD=Float64[])
+    # How many rows (sim reps) have a Sim ID mismatch
+    n_simid_mismatch = sum(col_data .=="Sim ID mismatch")
+    println("$(n_simid_mismatch) have a Sim ID mismatch")
     for col in names(df)
         col_data = df[!, col]
+        # Remove rows (sim reps) with a sim id mismatch
+        col_data_filtered = filter(row -> row != "Sim ID mismatch", col_data)
         # Convert strings "Inf" to actual Inf (if present as string)
-        cleaned = [x == "Inf" ? Inf : x for x in col_data]
+        #cleaned = [x in ["Inf", "Sim ID mismatch"] ? Inf : x for x in col_data]
+        cleaned = [x == "Inf" ? Inf : x for x in col_data_filtered]
         # Keep only finite numbers
         finite_vals = filter(x -> isfinite(x), cleaned)
-        percent_finite = 100 * length(finite_vals) / length(col_data)
+        percent_finite_ex_simid_mismatch = 100 * length(finite_vals) / length(col_data_filtered)
         median_val = isempty(finite_vals) ? NaN : median(skipmissing(finite_vals))
-        push!(result, (col, median_val, percent_finite))
+        push!(result, (col, median_val, percent_finite_ex_simid_mismatch))
     end
     return result
 end
 
 
+###### Analysis 5 Sep 2025 - updated parameters
+# 1 # using 100 and 200 metagenomic samples per week
+sim_tds_100_200_samples = icu_v_pc_td(; gp_swabs_mg = [100,200] #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                                      , sim_object = "filtered" ) 
+# Save as .csv file for inspection
+CSV.write("scripts/primary_care_v_icu/sim_TDs.csv", sim_tds_100_200_samples) # using 100 and 200 metagenomic samples per week
+sim_tds_100_200_samples_analysis = analyse_columns(sim_tds_100_200_samples[:,2:23]) # Not essential but remove the column containing the simulation number
+println(sim_tds_100_200_samples_analysis)
+
+
 ###### Analysis
 
 # 1 # using 100 and 200 metagenomic samples per week
-sim_tds_100_200_samples = icu_v_pc_td(; gp_swabs_mg = [100,200] ) #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+sim_tds_100_200_samples = icu_v_pc_td(; gp_swabs_mg = [100,200] #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                                    
 # Save as .csv file for inspection
 CSV.write("scripts/primary_care_v_icu/sim_TDs_v2.csv", sim_tds_100_200_samples) # using 100 and 200 metagenomic samples per week
+
 sim_tds_100_200_samples_analysis = analyse_columns(sim_tds_100_200_samples[:,2:19]) # Not essential but remove the column containing the simulation number
 println(sim_tds_100_200_samples_analysis)
 
@@ -313,6 +370,20 @@ sim_tds_primary_care_p25 = icu_v_pc_td(; p_pc = 0.25 ) # Test to compare TDs wit
 CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p25_v2.csv", sim_tds_primary_care_p25) # metagenomic sampling of 25% of all ARI consultations
 sim_tds_primary_care_p25_analysis = analyse_columns(sim_tds_primary_care_p25[:,2:19]) # Not essential but remove the column containing the simulation number
 println(sim_tds_primary_care_p25_analysis)
+
+# 3.0 # Sampling 15% of all ARI consultations
+sim_tds_primary_care_p15 = icu_v_pc_td(; p_pc = 0.15 ) # Test to compare TDs with ICU with 0.15 sampling proportion # If p_pc not input then it is calculated from other inputs
+# Save as .csv file for inspection
+CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p15_v2.csv", sim_tds_primary_care_p15) # metagenomic sampling of 25% of all ARI consultations
+sim_tds_primary_care_p15_analysis = analyse_columns(sim_tds_primary_care_p15[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_primary_care_p15_analysis)
+
+# 3.0 # Sampling 10% of all ARI consultations
+sim_tds_primary_care_p10 = icu_v_pc_td(; p_pc = 0.10 ) # Test to compare TDs with ICU with 0.15 sampling proportion # If p_pc not input then it is calculated from other inputs
+# Save as .csv file for inspection
+CSV.write("scripts/primary_care_v_icu/sim_TDs_primary_care_p10_v2.csv", sim_tds_primary_care_p10) # metagenomic sampling of 25% of all ARI consultations
+sim_tds_primary_care_p10_analysis = analyse_columns(sim_tds_primary_care_p10[:,2:19]) # Not essential but remove the column containing the simulation number
+println(sim_tds_primary_care_p10_analysis)
 
 # 3(a) # Sampling 25% of all ARI consultations but using number of swabs instead of directly defining the proportion
 # Same for all seasons - note that the differences between min and max are not meaningful in this case - it is just variance from random sampling
@@ -359,7 +430,7 @@ combined_df[3,:] = [ 319,                     sim_tds_all_gp_samples_analysis[1,
 combined_df[4,:] = [ 747,                     sim_tds_all_gp_samples_analysis[1,2],             sim_tds_all_gp_samples_analysis[5,2],               sim_tds_all_gp_samples_analysis[13,2],              sim_tds_all_gp_samples_analysis[9,2],               sim_tds_all_gp_samples_analysis[17,2]            ]
 combined_df[5,:] = [ 1000,                    sim_tds_higher_gp_swab_target_1000_analysis[1,2], sim_tds_higher_gp_swab_target_1000_analysis[3,2],   sim_tds_higher_gp_swab_target_1000_analysis[11,2],  sim_tds_higher_gp_swab_target_1000_analysis[7,2],   sim_tds_higher_gp_swab_target_1000_analysis[15,2]]
 combined_df[6,:] = [ 6000,                    sim_tds_higher_gp_swab_target_6000_analysis[1,2], sim_tds_higher_gp_swab_target_6000_analysis[3,2],   sim_tds_higher_gp_swab_target_6000_analysis[11,2],  sim_tds_higher_gp_swab_target_1000_analysis[7,2],   sim_tds_higher_gp_swab_target_6000_analysis[15,2]]
-combined_df[7,:] = [ 0.25,                    sim_tds_primary_care_p25_analysis[1,2],           sim_tds_primary_care_p25_analysis[3,2],             sim_tds_primary_care_p25_analysis[11,2],            sim_tds_primary_care_p25_analysis[7,2],             sim_tds_primary_care_p25_analysis[15,2]          ]
+combined_df[7,:] = [ 0.15,                    sim_tds_primary_care_p15_analysis[1,2],           sim_tds_primary_care_p15_analysis[3,2],             sim_tds_primary_care_p15_analysis[11,2],            sim_tds_primary_care_p15_analysis[7,2],             sim_tds_primary_care_p15_analysis[15,2]          ]
 combined_df[7,5] = combined_df[7,3]
 combined_df[7,6] = combined_df[7,4]
 println(combined_df)
@@ -383,7 +454,7 @@ combined_sim_rep_df[3,:] = [ 319,                     sim_tds_all_gp_samples_ana
 combined_sim_rep_df[4,:] = [ 747,                     sim_tds_all_gp_samples_analysis[1,3],             sim_tds_all_gp_samples_analysis[5,3],               sim_tds_all_gp_samples_analysis[13,3],              sim_tds_all_gp_samples_analysis[9,3],               sim_tds_all_gp_samples_analysis[17,3]            ]
 combined_sim_rep_df[5,:] = [ 1000,                    sim_tds_higher_gp_swab_target_1000_analysis[1,3], sim_tds_higher_gp_swab_target_1000_analysis[3,3],   sim_tds_higher_gp_swab_target_1000_analysis[11,3],  sim_tds_higher_gp_swab_target_1000_analysis[7,3],   sim_tds_higher_gp_swab_target_1000_analysis[15,3]]
 combined_sim_rep_df[6,:] = [ 6000,                    sim_tds_higher_gp_swab_target_6000_analysis[1,3], sim_tds_higher_gp_swab_target_6000_analysis[3,3],   sim_tds_higher_gp_swab_target_6000_analysis[11,3],  sim_tds_higher_gp_swab_target_1000_analysis[7,3],   sim_tds_higher_gp_swab_target_6000_analysis[15,3]]
-combined_sim_rep_df[7,:] = [ 0.25,                    sim_tds_primary_care_p25_analysis[1,3],           sim_tds_primary_care_p25_analysis[3,3],             sim_tds_primary_care_p25_analysis[11,3],            sim_tds_primary_care_p25_analysis[7,3],             sim_tds_primary_care_p25_analysis[15,3]          ]
+combined_sim_rep_df[7,:] = [ 0.15,                    sim_tds_primary_care_p15_analysis[1,3],           sim_tds_primary_care_p15_analysis[3,3],             sim_tds_primary_care_p15_analysis[11,3],            sim_tds_primary_care_p15_analysis[7,3],             sim_tds_primary_care_p15_analysis[15,3]          ]
 combined_sim_rep_df[7,5] = combined_sim_rep_df[7,3]
 combined_sim_rep_df[7,6] = combined_sim_rep_df[7,4]
 println(combined_sim_rep_df)
@@ -397,7 +468,7 @@ using StatsPlots  # This imports the @df macro for easier DataFrame plotting
 
 # Plot the DataFrame with points and lines
 # Summer
-x_replace_summer = [100,200,319,747,1000,6000,25698]
+x_replace_summer = [100,200,319,747,1000,6000,15419]
 # plot separately so coloured by y-series
 p = plot(xlabel = "Number of primary care metagenomic samples"
         , ylabel = "Median time to detection of 1 case (TD) in days"
@@ -428,7 +499,7 @@ p = plot(xlabel = "Number of primary care metagenomic samples"
 @df combined_df plot!(x_replace_summer, :Combined_summer, color=:green, linewidth=2, label="")
 
 # Winter
-x_replace_winter = [100,200,319,747,1000,6000,46685]
+x_replace_winter = [100,200,319,747,1000,6000,28011]
 # plot separately so coloured by y-series
 #p = plot(xlabel = "Number of primary care metagenomic samples"
 #        , ylabel = "Time to detection of 1 case (days)"
