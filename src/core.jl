@@ -254,8 +254,10 @@ P = (
 	, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
 	, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
 	, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
-	, propmildorasymptomatic = 0.507 +(1 - 0.008 - 0.03 - 0.053) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
-	
+	, propmildorasymptomatic = 0.507 + (1 - 0.008 - 0.03 - 0.053 - 0.507) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
+	# CHECK
+	#propverysevere + propsevere + propmoderate + propmildorasymptomatic
+
 	# TODO STRATIFY BY AGE GROUP
 	, gprate = 1/3 
 	, hospadmitrate = 1/4 # Docherty 2020 
