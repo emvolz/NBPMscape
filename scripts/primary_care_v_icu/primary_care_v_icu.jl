@@ -60,8 +60,8 @@ function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption ne
                      , gp_ari_swabs = [319, 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                      , pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                      #, p_pc # TODO Needs to be uncommented when want to set this directly
-                     , sim_object # "full" or "filtered"
-                    )
+                     , sim_object # = "filtered" or  "full" 
+                     )
     ### Probability of primary care surveillance events
     # Probability of visiting a General Practice that takes surveillance swabs
     prob_visiting_gp_swab = minimum( [1, gp_practices_swab / gp_practices_total ])
@@ -143,15 +143,24 @@ function icu_v_pc_td(; p_icu = 0.15 # ICU sampling proportion TODO Assumption ne
         elseif sim_object == "filtered"
             icu_cases = sims_G_icu_filter[s]
             gp_cases = sims_G_gp_filter[s]
-            # Double check that icu_cases and gp_cases are from the same simulation
+            # Double check that icu_cases and gp_cases are from the same simulation.
+            # Note that simid is generated in simtree() function and is unique to 
+            # the cases originating from a particular imported case and so if a 
+            # simulation has more than one import (i.e. using simforest() function) 
+            # then a single outbreak simulation can contain multiple unique simid values.
+            # However, it would be likely that the ICU and GP cases datasets would
+            # have at least one simid value in common, although not certain.
             if size(icu_cases,1) > 0 && size(gp_cases,1) > 0
-                sim_tds[s,:ICU_simid] = icu_cases[1,:simid] 
-                sim_tds[s,:GP_simid] = gp_cases[1,:simid]
-                if icu_cases[1,:simid] != gp_cases[1,:simid]
+                simids_icu = unique( icu_cases.simid )  #unique( [icu_cases[1,:simid]] ) 
+                simids_gp = unique( gp_cases.simid )
+                sim_tds[s,:ICU_simid] = simids_icu #unique( [icu_cases[1,:simid] ]) 
+                sim_tds[s,:GP_simid] = simids_gp #unique( [gp_cases[1,:simid]] )
+                #if icu_cases[1,:simid] != gp_cases[1,:simid]
+                if isempty( intersect( simids_icu, simids_gp) )
                     #error("Sim IDs don't match between sims_G_filtered_gp ($(gp_cases[1,:simid])) and sims_G_filtered_icu ($(icu_cases[1,:simid]))for sim  rep $(s)")
-                    #println("Sim IDs don't match between sims_G_filtered_gp ($(gp_cases[1,:simid])) and sims_G_filtered_icu ($(icu_cases[1,:simid]))for sim  rep $(s)")
+                    println("Sim IDs do not match between sims_G_filtered_gp and sims_G_filtered_icu for sim rep $(s)")
                     sim_tds[s,:sim_n] = s
-                    sim_tds[s,2:23] = ["Sim ID mismatch" for _ in 2:23]
+                    sim_tds[s,2:23] = ["No Sim ID match" for _ in 2:23]
                     continue
                 end
             end
@@ -317,17 +326,20 @@ end # End of icu_v_pc_td function
 function analyse_columns(df::DataFrame)
     result = DataFrame(TD_description=String[], Median_TD=Float64[], Percentage_with_a_TD=Float64[])
     # How many rows (sim reps) have a Sim ID mismatch
-    n_simid_mismatch = sum(col_data .=="Sim ID mismatch")
-    println("$(n_simid_mismatch) have a Sim ID mismatch")
+    n_simid_mismatch = sum(col_data .=="No Sim ID match")
+    #println("$(n_simid_mismatch) have a Sim ID mismatch")
     for col in names(df)
         col_data = df[!, col]
+        
         # Remove rows (sim reps) with a sim id mismatch
-        col_data_filtered = filter(row -> row != "Sim ID mismatch", col_data)
+        col_data_filtered = filter(row -> row != "No Sim ID match", col_data)
+        
         # Convert strings "Inf" to actual Inf (if present as string)
         #cleaned = [x in ["Inf", "Sim ID mismatch"] ? Inf : x for x in col_data]
-        cleaned = [x == "Inf" ? Inf : x for x in col_data_filtered]
+        #cleaned = [x == "Inf" ? Inf : x for x in col_data_filtered]
+        
         # Keep only finite numbers
-        finite_vals = filter(x -> isfinite(x), cleaned)
+        finite_vals = filter(x -> isfinite(x), col_data_filtered) #cleaned)
         percent_finite_ex_simid_mismatch = 100 * length(finite_vals) / length(col_data_filtered)
         median_val = isempty(finite_vals) ? NaN : median(skipmissing(finite_vals))
         push!(result, (col, median_val, percent_finite_ex_simid_mismatch))
@@ -336,12 +348,49 @@ function analyse_columns(df::DataFrame)
 end
 
 
+#############
+# Debugging issue with multiple sim IDs in same simulation
+CSV.write("scripts/primary_care_v_icu/G_icu_filter.csv",sims_G_icu_filter[1])
+
+sim_id_check = DataFrame( [fill(-1,53000) for _ in 1:3], ["sim_n","n_unique_simids_gp","n_unique_simids_icu"] )
+for s in 1:53000
+    sim_id_check[s,1]=s
+    # GP filtered
+    if size(sims_G_gp_filter[s],1) > 0
+        sim_id_check[s,2] = length(unique(sims_G_gp_filter[s].simid))
+    else
+        sim_id_check[s,2] = 0
+    end
+    # ICU filtered
+    if size(sims_G_icu_filter[s],1) > 0
+        sim_id_check[s,3] = length(unique(sims_G_icu_filter[s].simid))
+    else
+        sim_id_check[s,3] = 0
+    end
+    #sim_id_check[s,2] = unique(sims_G_icu_filter[s].simid)
+end
+
+using Plots
+# Look at number of different unique sim IDs
+histogram(sim_id_check[:,2])
+scatter(sim_id_check[:,1],sim_id_check[:,2])
+# Is the number of different unique sim IDs the same in the GP and ICU filtered datasets?
+# No
+scatter(sim_id_check[:,:n_unique_simids_gp],sim_id_check[:,:n_unique_simids_icu])
+
+# from 'combine_small_sim_reps.jl'
+sims_temp_icu = load(sim_files_icu[i], "sims_G_icu_filter")
+sims_temp_gp = load(sim_files_gp[i], "sims_G_gp_filter")
+println(unique(sims_temp_icu[1].simid))
+println(unique(sims_temp_gp[1].simid))
+
+
 ###### Analysis 5 Sep 2025 - updated parameters
 # 1 # using 100 and 200 metagenomic samples per week
 sim_tds_100_200_samples = icu_v_pc_td(; gp_swabs_mg = [100,200] #[319, 747] # Assumed number of swabs that are metagenomic sequenced for investigating impact
                                       , sim_object = "filtered" ) 
 # Save as .csv file for inspection
-CSV.write("scripts/primary_care_v_icu/sim_TDs.csv", sim_tds_100_200_samples) # using 100 and 200 metagenomic samples per week
+CSV.write("scripts/primary_care_v_icu/sim_TDs_2025_09_07.csv", sim_tds_100_200_samples) # using 100 and 200 metagenomic samples per week
 sim_tds_100_200_samples_analysis = analyse_columns(sim_tds_100_200_samples[:,2:23]) # Not essential but remove the column containing the simulation number
 println(sim_tds_100_200_samples_analysis)
 
