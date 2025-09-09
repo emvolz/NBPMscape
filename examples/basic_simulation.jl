@@ -1,3 +1,4 @@
+using Revise
 using NBPMscape
 using Plots
 using DataFrames
@@ -15,12 +16,13 @@ println("Total infections: ", nrow(results.G))
 println("Transmission events: ", nrow(results.D))
 
 # Plot the infection timeline
-scatter(results.G.timeinfected, results.G.generation
+scatter(results.G.tinf, results.G.generation
 	, xlabel="Day"
 	, ylabel="Generation"
 	, title="Infection Timeline"
 	, legend=false
 )
+println(results.G)
 
 # Optional: Save the plot
 # savefig("infection_timeline.png")
@@ -31,8 +33,8 @@ if nrow(results.G) > 0
 	for i in 1:min(5, nrow(results.G))
 		println("ID: ", results.G.pid[i]
 			, ", Generation: ", results.G.generation[i]
-			, ", Infected: ", results.G.timeinfected[i]
-			, ", Diagnosed: ", results.G.timediagnosed[i]
+			, ", Infected: ", results.G.tinf[i]
+			#, ", Diagnosed: ", results.G.timediagnosed[i]
 		)
 	end
 end
