@@ -509,6 +509,43 @@ TDs_mg186738_swab186738_ari327_gp6199 = icu_v_pc_td_2(; gp_swabs_mg = 186738, gp
 CSV.write("scripts/primary_care_v_icu/TDs_mg186738_swab186738_ari327_gp6199.csv", TDs_mg186738_swab186738_ari327_gp6199) 
 TDs_mg186738_swab186738_ari327_gp6199_analysis = analyse_columns(TDs_mg186738_swab186738_ari327_gp6199[:,2:11]) # Not essential but remove the column containing the simulation number
 
+# Create compilation of data
+# Vector of dataframes containing results for summer
+TD_results_dfs_summer = [TDs_mg100_swab319_ari180_analysis[1:6,:]
+                        , TDs_mg200_swab319_ari180_analysis[1:6,:]
+                        , TDs_mg319_swab319_ari180_analysis[1:6,:]
+                        , TDs_mg747_swab747_ari180_analysis[1:6,:]
+                        , TDs_mg1000_swab1000_ari180_analysis[1:6,:]
+                        , TDs_mg6000_swab6000_ari180_analysis[1:6,:]
+                        , TDs_mg15419_swab15419_ari180_gp929_analysis[1:6,:]
+                        , TDs_mg28011_swab28011_ari180_gp929_analysis[1:6,:]
+                        , TDs_mg102792_swab102792_ari180_gp6199_analysis[1:6,:]
+                        , TDs_mg186738_swab186738_ari327_gp6199_analysis[1:6,:] # placeholder values to be replaced
+                        ] 
+
+# Vector of dataframes containing results for summer
+TD_results_dfs_winter = [ TDs_mg100_swab747_ari327_analysis[1:6,:]
+                        , TDs_mg200_swab747_ari327_analysis[1:6,:]
+                        , TDs_mg319_swab747_ari327_analysis[1:6,:]
+                        , TDs_mg747_swab747_ari327_analysis[1:6,:]
+                        , TDs_mg1000_swab1000_ari327_analysis[1:6,:]
+                        , TDs_mg6000_swab6000_ari327_analysis[1:6,:]
+                        , TDs_mg15419_swab15419_ari327_gp929_analysis[1:6,:]
+                        , TDs_mg28011_swab28011_ari327_gp929_analysis[1:6,:]
+                        , TDs_mg102792_swab102792_ari327_gp6199_analysis[1:6,:]
+                        , TDs_mg186738_swab186738_ari327_gp6199_analysis[1:6,:]
+                        ] 
+
+# Create a new dataframe with results for times to detection of 1 case
+results_df = DataFrame( Number_of_PC_mg_samples = [100,200,319,747,1000,6000,15419,28011,102792,186738])
+results_df.ICU_only           = [df[1, :Median_TD] for df in TD_results_dfs_summer]
+results_df.PC_only_summer     = [df[2, :Median_TD] for df in TD_results_dfs_summer]
+results_df.Combined_summer    = [df[3, :Median_TD] for df in TD_results_dfs_summer]
+results_df.Improvement_summer = [df[3, :Median_TD] for df in TD_results_dfs_summer] - [df[1, :Median_TD] for df in TD_results_dfs_summer]
+results_df.PC_only_winter     = [df[2, :Median_TD] for df in TD_results_dfs_winter]
+results_df.Combined_winter    = [df[3, :Median_TD] for df in TD_results_dfs_winter]
+results_df.Improvement_winter = [df[3, :Median_TD] for df in TD_results_dfs_winter] - [df[1, :Median_TD] for df in TD_results_dfs_winter]
+results_df[10,3:5] = [-1,-1,-1]
 
 
 # Create compilation of data
@@ -750,9 +787,6 @@ savefig("scripts/primary_care_v_icu/3TD_vs_PC_sample_size.png")
 
 
 
-
-
-
 ### looking at the number of ICU cases and GP cases per week
 sims_G_gp_filter = load("covidlike-1.1.1-sims_filtered_G_gp.jld2", "sims_G_gp_filter")
 sims_G_icu_filter = load("covidlike-1.1.1-sims_filtered_G_icu.jld2", "sims_G_icu_filter")
@@ -770,3 +804,70 @@ median(n_cases_df[:,1])
 median(n_cases_df[:,2])
 n_cases_mat = hcat(n_cases_df[:,1],n_cases_df[:,2])
 histogram(n_cases_mat, label=["ICU cases" "GP cases"], bins=100, alpha=0.6)
+
+
+
+#### Age profile of ICU and GP cases
+
+# Initialise df to store ages
+ages_icu_df = DataFrame( sim_rep_n = []
+                        ,ICU_ages = [] )
+ages_gp_df = DataFrame( sim_rep_n = []
+                        ,GP_ages = [] )
+                    
+# Gather ages
+for s in 1:1 #length(sims_G_gp_filter)
+    
+    if size(sims_G_icu_filter[s],1) >0
+        ## ICU
+        # ICU ages
+        icu_case_ages = sims_G_icu_filter[s].infectee_age
+        # ICU simulation replicate number
+        icu_sim_rep_temp = [ s for _ in 1:length(icu_case_ages)]
+        # Add to temp df
+        ages_icu_df_temp = DataFrame( sim_rep_n = icu_sim_rep_temp
+                                , ICU_ages = icu_case_ages )
+        # Append to output df
+        ages_icu_df = append!( ages_icu_df, ages_icu_df_temp)
+    end
+    
+    if size(sims_G_gp_filter[s],1) >0
+        ## GP
+        # GP ages
+        gp_case_ages = sims_G_gp_filter[s].infectee_age
+        # ICU simulation replicate number
+        gp_sim_rep_temp = [ s for _ in 1:length(gp_case_ages)]
+        # Add to temp df
+        ages_gp_df_temp = DataFrame( sim_rep_n = gp_sim_rep_temp
+                                , GP_ages = gp_case_ages )
+        # Append to output df
+        ages_gp_df = append!( ages_gp_df, ages_gp_df_temp)
+    end
+end
+
+# Plot distributions
+using StatsBase, Plots
+
+# Sample data
+#n1 = 1
+#n2 = 30
+#x1 = filter( row -> row.sim_rep_n in 1:30 , ages_icu_df)[:,2]
+x1 = ages_icu_df[:,2]
+x2 = ages_gp_df[:,2]
+
+mean_icu_age = mean(x1)
+mean_gp_age = mean(x2)
+
+median_icu_age = median(x1)
+median_gp_age = median(x2)
+
+# Create histogram objects using the same bin edges
+histogram([x1, x2]
+    ,normalize = :pdf
+    ,alpha = 0.5
+    ,bins = 100
+    ,label = ["ICU case ages" "GP case ages"]
+    ,xlabel = "Age in years"
+    , ylabel = "Density"
+    , colo = [:blue,:red]
+    , linewidth = 2)
