@@ -9,13 +9,15 @@ mutable struct Infection
 	R::Int64 # number transmissions 
 	sol::Union{ODESolution,Nothing}
 	tinf::Float64 # time infected 
-	tgp::Float64 # time 
-	thospital::Float64 # time 
-	ticu::Float64 # time 
+	tgp::Float64 # time visited GP
+	thospital::Float64 # time admitted to hospital general ward
+	ticu::Float64 # time admitted to ICU
+	tstepdown::Float64 # time stepped down from ICU to general ward
+	tdischarge::Float64 # time discharged from hospital (general ward, ICU, or stepdown)
+	trecovered::Float64 # time recovered - either community, discharge from hospital, ICU, or stepdown ward
+	tdeceased::Float64 # time of death - either in hospital, ICU, or stepdown ward
 	# tsampled::Float64 # time
 	# tseqdeposition::Float64 # time for sequencing + qc + bioninf 
-	trecovered::Float64
-	# tdeceased::Float64 # time infected individual died TODO
 	contacttype::Symbol # cause of infection
 	degree::Tuple{Int64,Int64,Float64} # TODO add a 4th type if change the number of contact types
 	iscommuter::Bool
@@ -23,18 +25,18 @@ mutable struct Infection
 	homeregion::String
 	commuteregion::String
 	initialdayofweek::Int # day 1-7 when infection ocurred 
-	severity::Symbol
+	severity::Symbol #severity::NamedTuple{(:severity, :fatal), Tuple{Symbol, Bool}} # severity of infection and whether it will be fatal
 	generation::Int64
-	#isdeceased::Bool # TODO whether individual has died (default = FALSE). Assume all individuals that die have been admitted to ICU. 
+	isdeceased::Bool # TODO whether individual has died (default = FALSE). Assume all individuals that die have been admitted to ICU. 
 	donor_age::Union{Int8,Missing} # Age of infector
 	infectee_age::Union{Int8,Missing} # using single year age so can incorporate different age groupings for different data inputs, e.g. contact number distributions may have different age groups to the number of ICU admissions
-	#importedinfection::Bool # TODO record whether individual was infected when arrived in UK - if they are admitted to ICU, this may prompt further investigation
+	importedinfection::Bool # TODO record whether individual was infected when arrived in UK - if they are admitted to ICU, this may prompt further investigation
 end
 
 #const AGEGROUPS = (:youth, :youngadult, :adult, :old, :elderly) # TODO POSSIBLY CHANGE BASED ON SC2 / NO LONGER NEEDED AS USING SINGLE YEAR AGES
-const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :discharged) # :deceased) # TODO ADD DECEASED HERE??
-const SEVERITY = [:mildorasymptomatic, :moderate, :severe, :verysevere ] # TODO POSSIBLY CHANGE BASED ON SC2
-const STAGE = (:latent, :infectious, :recovered) # :deceased) # TODO ADD DECEASED HERE??
+const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :stepdown, :discharged, :deceased)
+const SEVERITY = [:asymptomatic, :mild, :moderate, :severe, :verysevere ] #const SEVERITY = [:mildorasymptomatic, :moderate, :severe, :verysevere ]
+const STAGE = (:latent, :infectious, :recovered, :deceased)
 
 const CONTACTTYPES = (:F, :G, :H) # TODO POSSIBLY SPLIT INTO 4 (OR MORE) CONTACT TYPES: HOME, WORK/SCHOOL, TRAVEL, OTHER
 
@@ -215,8 +217,9 @@ P = (
 	, infectious_shape = 8.16 # Verity 2020 , mean 24d 
 	, infectious_scale = 3.03 
 
-	, ρ = 0.250 #  transmission reduction 
-	
+	, ρ = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
+	, ρ_asymptomatic = 0.223 #  transmission reduction for asymptomatic individuals - see Knock et al (2021) Supplementary Information
+
 	, frate = 0.0 # rate of gaining & losing flinks
 	, grate = 1/30.0 # rate of gaining and losing
 	# TODO DO WE NEED TO ADD RATES FOR OTHER AND TRAVEL?
@@ -249,22 +252,61 @@ P = (
 	, lagseqdblb  = 3 # lower bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
 	, lagsseqdbub = 7 # upper bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
 	
-	# TODO STRATIFY BY AGE GROUP - SEE KNOCK ET AL (2021)
-	, propverysevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
-	, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
-	, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
-	, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
-	, propmildorasymptomatic = 0.507 + (1 - 0.008 - 0.03 - 0.053 - 0.507) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
+	#######################################################
+	### UPDATING INFECTION SEVERITY AGE DISAGGREGATION ####
+	
+	## Single values calculated using disaggregated probabilities and
+	## weighted by population age distribution
+	#, propverysevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+	#, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+	#, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
+	#, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
+	#, propmildorasymptomatic = 0.507 + (1 - 0.008 - 0.03 - 0.053 - 0.507) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
 	# CHECK
 	#propverysevere + propsevere + propmoderate + propmildorasymptomatic
+	
+	## Infection severity probabilities disaggregated by age
+	## Sourced from Knock et al (2021)
+	, symptomatic_prob_by_age = SYMPTOMATIC_PROB_BY_AGE
+ 	, ihr_by_age = IHR_BY_AGE[:,"IHR"]
+	, symptomatic_ihr_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_hosp_sympt"])
+	, icu_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_ICU_hosp"]) # Prob of admission to ICU if already admitted to hospital
+	# Severity probabilities with no age disaggregation
+	# TODO prop_moderate is based on a survey of people with ILI and so may be different from GP seeking behaviour 
+	#      of individuals with Covid-like illness. Ideally find data from initial wave of Covid in UK.
+	, prop_mild     = 0.89175 # = 1 - prop_moderate # Symptomatic but won't visit a GP or go to hospital
+	, prop_moderate = 0.10825 # Will visit a GP but won't go to hospital. Estimated from FluSurvey data, combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
+	
+	## Probability of death by age and care stage
+	## Sourced from Knock et al (2021)
+	, ifr_by_age = IFR_BY_AGE[:,"IFR"]
+	, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
+	, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
+	, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
+	# TODO DOES NOT INCLUDE DEATH IN THE COMMUNITY OR CARE HOMES
+	#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
 
 	# TODO STRATIFY BY AGE GROUP
-	, gprate = 1/3 
+	, gprate = 1/3 # TODO Could replace this with 3-7 days (perhaps 1/5?) between symptom onset and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025)), although this is non-virus specific. Would need to make sure it is consistent with the hospadmitrate
 	, hospadmitrate = 1/4 # Docherty 2020 
-	, icurate = 1/2.5 # Knock 2021
+	#, icurate = 1/2.5 # Knock 2021
 	#, hosp_disch_rate # TODO - SEE KNOCK ET AL (2021)
 	#, icu_disch_rate # TODO - SEE KNOCK ET AL (2021)
-	#, death_rate =  TODO ADD RATE FOR DEATHS - POSSIBLY DIFFERENT RATES DEPENDING ON CARE STAGE - SEE KNOCK ET AL (2021)
+	#, icu_stepdown_disch_rate # TODO
+	## Rate (= 1 / duration) in different care stages for different pathways - source Knock et al (2021) Table S2
+	# General ward rates
+	, hosp_recovery_rate = 1 / 10.7 # 'Hospitalised on general ward leading to recovery' 10.7 days (95% CI: 0.3-39.4). Erlang(k=1,gamma=0.09). Knock et al (2021). 
+	, hosp_death_rate    = 1 / 10.3 # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
+	, triage_icu_rate    = 1 /  2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
+	# ICU rates
+	, icu_to_recovery_rate  = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4-57.6). Erlang(k=1,gamma=0.06). Knock et al (2021). 
+	, icu_to_death_rate  = 1 / 11.8 # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
+	, icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). 
+	# ICU stepdown rates
+	, stepdown_to_recovery_after_icu_rate  = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
+	, stepdown_to_death_after_icu_rate = 1 / 8.1 # 'Stepdown period before death after leaving ICU' 8.1 (95% CI: 
+
+	#############################################################
 
 	, psampled = .05  # prop sampled from icu 
 	, turnaroundtime = 3 # days TODO HOW DOES THIS LINK TO lagseqdblb and lagsseqdbub?
@@ -301,6 +343,7 @@ P = (
 	# TODO NEED TIMINGS AROUND TESTING AND RESULTS FOR NON-METAGENOMIC SURVEILLANCE - WILL BE LONGER - AND DIFFERENTIATE BETWEEN CURRENT ICU AND DECEASED
 
 )
+#typeof(P)
 
 # Function to sample age of infectee, which is conditional on the age of the infector
 function samp_infectee_age(p; contacttype, donor_age)# = :nothing, donor_age = :nothing)
@@ -347,6 +390,7 @@ function sampdegree(p; contacttype = :nothing, age = :nothing)
 	end
 	#Test
 	#age=1
+	# TODO CHECK HOW WORKING WITH DISTRIBUTIONS INCLUDING A PDF FOR ZERO CONTACTS
 	r  = Gamma( p.oorateshape[age+1], p.ooratescale[age+1] ) |> Base.rand 
 	kf = rand( NegativeBinomial(p.fnegbinomr[age+1], p.fnegbinomp[age+1]) )
 	kg = rand( NegativeBinomial(p.gnegbinomr[age+1], p.gnegbinomp[age+1]) )
@@ -370,14 +414,20 @@ end
 #println( dayofweek( 7, 1, 1) )
 
 # TODO POSSIBLY STRATIFY BY AGE GROUP / SINGLE YEAR AGE
-function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious, initialdow, p, age)
+function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious, initialdow, p, age, severity)
 	dow = dayofweek(t,tinf,initialdow) 
 	ρ = 1.0 # 0.250 
+	# Reduced transmission while in hospital
 	if carestage in (:admittedhospital,:admittedicu)
 		ρ *= p.ρ
 	end
-	if infstage in (:latent, :recovered)
+	# Non-infectious stages
+	if infstage in (:latent, :recovered, :deceased)
 		ρ  *= 0.0 
+	end
+	# Asymptomatic individuals are less likely to transmit
+	if severity.severity == :asymptomatic
+		ρ *= p.ρ_asymptomatic
 	end
 	if contacttype == :F 
 		ρ *= p.fcont
@@ -403,6 +453,50 @@ function simgendist(tuv, p; s = 1000)
 	# Gamma(  p.μ * (tuv)/(1.0+p.ω),  1.0+p.ω ) |> Base.rand
 	simgendist(0., tuv, p; s = s)
 end
+
+# Function to determine the severity of an infection
+# Based on probabilities reported in Knock et al (2021)
+# Note that among patients over 65yo the probability of admission to ICU decreases with age
+# but this may not be repeated in a future outbreak
+#= TODO SEVERITY COULD BE DEVELOPED FURTHER WITH:
+   - MORE CATEGORIES (e.g. triaged directly to ICU, ICU via general ward, care home residents/workers, etc)
+   - DIFFERENT TRANSMISSION RATES (e.g. symptomatic has lower transmission rate)
+=#
+# ASSUMES THAT NO-ONE DIES FROM INFECTION OUTSIDE OF HOSPITAL OR ICU (NOT IN LINE WITH COVID-19)
+# Assume that ifr_by_age = p_death_icu + p_death_hosp_D + p_death_stepdown (note that )
+function sample_infectee_severity( p; age = infectee_age )
+	# Begin with blank severity and fatal as false by default
+	severity = nothing
+	fatal = false
+	# First determine if symptomatic or asymptomatic
+	if rand() < (1 - p.symptomatic_prob_by_age.symptomatic_prob[ age+1 ]) # age+1 because age=0 is the first element in the vector
+		severity = :asymptomatic
+		fatal = false
+	# If not asymptomatic then determine how severe the symptoms are
+	# Severe enough for hospitalisation? 
+	elseif rand() < ( p.symptomatic_ihr_by_age[age+1] )
+		severity = :severe
+		fatal = ( rand() < p.p_death_hosp )
+		# Severe enough for hospital and then ICU?
+		# Determine if a hospitalised patient is then admitted to ICU
+		if rand() < ( P.icu_by_age[age+1] )
+			severity = :verysevere
+			fatal = ( rand() < (p.p_death_icu + p.p_death_stepdown)) # Probability of death if infection is very severe is sum of p of death in ICU and p of death in stepdown ward
+		end
+	else
+		#severity = :moderate
+		# Remaining possibilities are mild or moderate (latter indicates a visit to GP but not hospital or ICU)
+		# TODO FIND ESTIMATES FOR MILD AND MODERATE PROPORTIONS
+		severity = StatsBase.wsample( [:mild, :moderate], [p.prop_mild, p.prop_moderate]  )
+		fatal = false
+	end
+
+	infectee_severity = ( severity = severity, fatal = fatal )
+
+	return( infectee_severity )
+end
+# Test
+#sample_infectee_severity( P; age = 80 )
 
 function Infection(p; pid = "0"
 					, region="TLI3"
@@ -508,12 +602,26 @@ function Infection(p; pid = "0"
 	thospital = Inf # hospital admit 
 	tsampled = Inf # sampled 
 	tseqdeposition = Inf # sequence db 
-	trecovered = Inf # recovered/deceased/removed # TODO ONCE DECEASED COMPARTMENT ADDED, REMOVE DECEASED
-	#tdeceased = Inf # deceased TODO ADD ONCE DECEASED COMPARTMENT INCLUDED
+	tstepdown = Inf # time at which patient care stepped down from ICU to general ward
+	tdischarge = Inf # time discharged from hospital (general ward, ICU, or stepdown after ICU)
+	trecovered = Inf # time recovered
+	tdeceased = Inf # time died
 
-	# TODO AGE STRATIFY SEE KNOCK ET AL (2021)
-	severity = StatsBase.wsample( SEVERITY, [p.propmildorasymptomatic, p.propmoderate , p.propsevere, p.propverysevere]  )
-	
+	#= Determine severity of infection, stratified by age. Probabilities from Knock et al (2021)
+	Possibilities are:
+	:asymptomatic (reduced transmission rate)
+	:mild
+	:moderate (will visit GP)
+	:severe (will be admitted to hospital)
+	:verysevere (will be admitted to ICU)
+	TODO Returns infection severity and whether infection will be fatal or not
+	=# 
+	severity = sample_infectee_severity( p; age = infectee_age ) #severity = StatsBase.wsample( SEVERITY, [p.propmildorasymptomatic, p.propmoderate , p.propsevere, p.propverysevere]  ) #StatsBase.wsample( SEVERITY, [P.propmild, 1-P.propmild-P.propsevere , P.propsevere]  )
+		#Test
+	#severity = sample_infectee_severity( P; age = 90 )
+	#severity.severity
+	#severity.fatal
+
 	#cumulative transm 
 	R = 0 
 
@@ -527,7 +635,16 @@ function Infection(p; pid = "0"
 	lagrecovery = rand( gammarecovery ) 
 	tinfectious = tinf + laglatent
 	tfin = laglatent + lagrecovery + tinf
-	trecovered = tfin 
+	#trecovered = tfin
+	# TODO DETERMINE TIME DEPENDING ON RECOVERY OR DEATH
+	#lagdeath = 
+	#if infstage == :recovered
+	#	tfin = laglatent + tinf + lagrecovery 
+	#	trecovered = tfin
+	#elseif infstage == :deceased
+	#	tfin = laglatent + tinf + lagdeath
+	#	tdeceased = tfin
+	#end 
 	tspan = (tinfectious, tfin)
 	
 	# rate interval for variable rate jumps
@@ -551,9 +668,9 @@ function Infection(p; pid = "0"
 	j_loseg = ConstantRateJump(rate_loseg, aff_loseg!) 
 
 	# transmissions 
-	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t,tinf,  tinfectious, initialdow, p, infectee_age) : 0.0 
-	hrate_transmf(u,p,t) = max(1.2*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age) )
-	lrate_transmf(u,p,t) = min(0.8*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age) )
+	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t,tinf,  tinfectious, initialdow, p, infectee_age, severity) : 0.0 
+	hrate_transmf(u,p,t) = max(1.2*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age, severity) )
+	lrate_transmf(u,p,t) = min(0.8*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age, severity) )
 	aff_transmf!(int) = begin 
 		Kf -= 1
 		R += 1
@@ -567,9 +684,9 @@ function Infection(p; pid = "0"
 	end
 	j_transmf = VariableRateJump(rate_transmf, aff_transmf!; lrate=lrate_transmf, urate=hrate_transmf, rateinterval=rint) # 
 	
-	rate_transmg(u,p,t) = (region==commuteregion) ? Kg*transmissionrate(carestage, infstage, :G, t,tinf,  tinfectious, initialdow, p, infectee_age) : 0.0 
-	hrate_transmg(u,p,t) = max(1.2*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3, tinf, tinfectious, initialdow, p, infectee_age) )
-	lrate_transmg(u,p,t) = min(0.8*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3,tinf,  tinfectious, initialdow, p, infectee_age) )
+	rate_transmg(u,p,t) = (region==commuteregion) ? Kg*transmissionrate(carestage, infstage, :G, t,tinf,  tinfectious, initialdow, p, infectee_age, severity) : 0.0 
+	hrate_transmg(u,p,t) = max(1.2*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3, tinf, tinfectious, initialdow, p, infectee_age, severity) )
+	lrate_transmg(u,p,t) = min(0.8*rate_transmg(u,p,t), Kg*transmissionrate(carestage, infstage, :G, t+3,tinf,  tinfectious, initialdow, p, infectee_age, severity) )
 	aff_transmg!(int) = begin 
 		Kg -= 1
 		R += 1
@@ -583,9 +700,9 @@ function Infection(p; pid = "0"
 	end
 	j_transmg = VariableRateJump(rate_transmg, aff_transmg!; lrate=lrate_transmg, urate=hrate_transmg, rateinterval=rint)
 
-	rate_transmh(u,p,t) = hr*transmissionrate(carestage, infstage, :H, t, tinf, tinfectious, initialdow, p, infectee_age) 
-	hrate_transmh(u,p,t) = max(1.2*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p, infectee_age) )
-	lrate_transmh(u,p,t) = min(0.8*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p, infectee_age) )
+	rate_transmh(u,p,t) = hr*transmissionrate(carestage, infstage, :H, t, tinf, tinfectious, initialdow, p, infectee_age, severity) 
+	hrate_transmh(u,p,t) = max(1.2*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p, infectee_age, severity) )
+	lrate_transmh(u,p,t) = min(0.8*rate_transmh(u,p,t), hr*transmissionrate(carestage, infstage, :H, t+3, tinf, tinfectious, initialdow, p, infectee_age, severity) )
 	aff_transmh!(int) = begin 
 		R += 1
 		nextpid = pid * ".$(R)"
@@ -600,50 +717,93 @@ function Infection(p; pid = "0"
 
 
 	# care pathway  
-	# const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :discharged) 
-	# const SEVERITY = (:mildorasymptomatic, :moderate, :severe )
-	
+	# const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :stepdown, :discharged, :deceased) 
+	# const SEVERITY = [:asymptomatic, :mild, :moderate, :severe, :verysevere ] #(:mildorasymptomatic, :moderate, :severe )
+	# const STAGE = (:latent, :infectious, :recovered :deceased)
+
 	# tseq = Inf # time of sequencing 
-	# ticu = Inf # icu admit 
-	# tgp = Inf # gpu attend 
-	# thospital = Inf # hospital admit 
+	# ticu = Inf # time admitted to ICU
+	# tstepdown = Inf # time stepped down from ICU to general ward
+	# tgp = Inf # gp attend 
+	# thospital = Inf # time admitted to hospital general ward
 	# tsampled = Inf # sampled 
 	# tseqdeposition = Inf # sequence db 
-	# trecovered = Inf # recovered/deceased/removed
+	# trecovered = Inf # time recovered - either community, discharge from hospital, ICU, or stepdown ward
+	# tdeceased = Inf # time of death - either in hospital, ICU, or stepdown ward
 
-	## gp 
-	rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe,:verysevere))) ? p.gprate : 0.0 
+	## gp visit
+	#rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe,:verysevere))) ? p.gprate : 0.0
+	rategp(u,p,t) = ((carestage==:undiagnosed) & (severity.severity in (:moderate,:severe,:verysevere))) ? p.gprate : 0.0  
 	aff_gp!(int) = begin 
 		carestage = :GP; 
 		tgp = int.t 
 	end
 	j_gp = ConstantRateJump(rategp, aff_gp!)
 
-	## hospital
-	ratehospital(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity in (:severe,:verysevere)) )) ? p.hospadmitrate : 0.0 
+	## hospital admission
+	#ratehospital(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity in (:severe,:verysevere)) )) ? p.hospadmitrate : 0.0 
+	ratehospital(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity.severity in (:severe,:verysevere)) )) ? p.hospadmitrate : 0.0 
 	aff_hosp!(int) = begin 
 		carestage = :admittedhospital  
 		thospital = int.t 
 	end 
 	j_hospital = ConstantRateJump( ratehospital, aff_hosp! )
 
-	##TODO add hospital -> discharged rate 
+	## hospital -> discharged rate 
 	#ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital)) & (severity in (:severe,)) )) ? p.hosp_disch_rate : 0.0 
-	#aff_hosp_disch!(int) = begin 
-	#	carestage = :dischargedhospital  
-	#	thospital = int.t # TODO
-	#end 
-	#j_hospital_discharge = ConstantRateJump( ratehospitaldischarge, aff_hosp_disch! )
+	ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == false) )) ? P.hosp_recovery_rate : 0.0 
+	aff_hosp_disch!(int) = begin 
+		carestage = :discharged
+		trecovered = int.t
+	end 
+	j_hospital_discharge = ConstantRateJump( ratehospitaldischarge, aff_hosp_disch! )
 
+	## hospital -> death rate 
+	ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == true) )) ? p.hosp_death_rate : 0.0 
+	aff_hosp_death!(int) = begin 
+		carestage = :deceased  
+		tdeceased = int.t # TODO DO WE NEED TO DIFFERENTIATE CARE PATHWAY BEFORE DEATH (OR RECOVERY)??
+		isdeceased = true
+	end 
+	j_hospital_death = ConstantRateJump( ratehospitaldeath, aff_hosp_death! )
 
-	## icu
-	rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:verysevere,)) )) ? p.icurate : 0.0 
+	## Triage to ICU
+	#rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:verysevere,)) )) ? p.icurate : 0.0 
+	rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity.severity in (:verysevere,)) )) ? p.triage_icu_rate : 0.0 
 	aff_icu!(int) = begin 
 		carestage = :icu  
 		ticu = int.t 
 		sampled = (rand() < p.psampled )
 	end 
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
+
+	## ICU -> Recovery
+	rate_icu_recovery(u,p,t) = (( (carestage in (:icu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false ) )) ? p.icu_to_recovery_rate : 0.0 
+	aff_icu_recovery!(int) = begin 
+		carestage = :discharged  
+		trecovered = int.t # TODO CHECK WHETHER THIS SHOULD BE DETERMINED ELSEWHERE
+	end 
+	j_icu_recovery = ConstantRateJump( rate_icu_recovery, aff_icu_recovery! )
+
+	## ICU -> Death
+	rate_icu_death(u,p,t) = (( (carestage in (:icu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true ) )) ? p.icu_to_death_rate : 0.0 
+	aff_icu_death!(int) = begin 
+		carestage = :deceased
+		tdeceased = int.t
+		isdeceased = true 
+	end 
+	j_icu_death = ConstantRateJump( rate_icu_death, aff_icu_death! )
+
+	## TODO - NOT SURE WE HAVE THE RATE FOR THIS PATHWAY
+	# Only have time in ICU before stepdown for infections leading to death
+	# ?? , icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). ??
+	## ICU -> Stepdown (to hospital general ward)
+	rate_icu_stepdown(u,p,t) = (( (carestage in (:icu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_resulting_in_death_rate : 0.0 
+	aff_icu_stepdown!(int) = begin 
+		carestage = :stepdown  
+		tstepdown = int.t 
+	end 
+	j_icu_stepdown = ConstantRateJump( rate_icu_stepdown, aff_icu_stepdown! )
 
 	## TODO icu discharge to hospital ward 
 	#rate_icu_discharge(u,p,t) = (( (carestage in (:icu)) & (severity in (:severe,)) )) ? p.icu_disch_rate : 0.0 
@@ -652,6 +812,23 @@ function Infection(p; pid = "0"
 	#	ticu = int.t 
 	#end 
 	#j_icu_discharge = ConstantRateJump( rate_icu_discharge, aff_icu_disch! )
+
+	## Hospital general ward (ICU Stepdown) -> Recovery
+	rate_stepdown_recovery(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
+	aff_stepdown_recovery!(int) = begin 
+		carestage = :discharged
+		trecovered = int.t # TODO CHECK WHETHER THIS SHOULD BE DETERMINED ELSEWHERE
+	end 
+	j_stepdown_recovery = ConstantRateJump( rate_stepdown_recovery, aff_stepdown_recovery! )
+
+	## Hospital general ward (ICU Stepdown) -> Death
+	rate_stepdown_death(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true)) ) ? p.stepdown_to_death_after_icu_rate : 0.0 
+	aff_stepdown_death!(int) = begin 
+		carestage = :deceased
+		tdeceased = int.t
+		isdeceased = true 
+	end 
+	j_stepdown_death = ConstantRateJump( rate_stepdown_death, aff_stepdown_death! )
 
 	# # sampling 
 	# ratesample(u,p,t) = (carestage == :icu & sampled=false) ? p.samplerate : 0.0 
@@ -683,9 +860,8 @@ function Infection(p; pid = "0"
 	end 
 	j_importhome = ConstantRateJump( rateimporthome, aff_importhome! )
 
-	## TODO ADD SET OF RATES AND AFFECTS FOR DEATHS
-	# j_death = TODO
-
+	## TODO ADD SET OF RATES AND AFFECTS FOR SAMPLING UNDER CURRENT SURVEILLANCE ASSUMPTIONS: DEATHS, ICU AGE, TRAVEL etc
+	
 	## TODO long distance occasional travel 
 	
 	# ratemigration(u,p,t) = MIGRATES[region] 
@@ -710,13 +886,16 @@ function Infection(p; pid = "0"
 		    , j_transmh 
 		    , j_gp 
 		    , j_hospital
-			#, j_hospital_discharge TODO
+			, j_hospital_discharge
 		    , j_icu
-			#, j_icu_discharge TODO THIS IS REQUIRED BECAUSE SOME INDIVIDUALS STEPDOWN FROM ICU TO GENERAL WARD BEFORE DYING AND WE WANT TO USE DEATH AS A PROMPT FOR SAMPLING
+			, j_icu_recovery
+			, j_icu_death
+			, j_icu_stepdown
+			, j_stepdown_recovery
+			, j_stepdown_death
 		    #, j_migration
 		    , j_commute
-		   #, j_death TODO
-	]
+			]
 	### include imported related jump (port-of-entry to home) 
 	importedinfection && push!(jumps, j_importhome  )
 	## jdep complete graph works, but is probably slower 
@@ -744,11 +923,13 @@ function Infection(p; pid = "0"
 				, tinf
 				, tgp
 				, thospital
-				, ticu 
+				, ticu
+				, tstepdown
+				, tdischarge
+				, trecovered
+				, tdeceased
 				# , tsampled 
 				# , tseqdeposition 
-				, trecovered
-				#, tdeceased # TODO
 				, contacttype
 				, (flinks,glinks,hr)
 				, iscommuter 
@@ -756,12 +937,12 @@ function Infection(p; pid = "0"
 				, homeregion
 				, commuteregion
 				, initialdow # day 1-7 when infection ocurred 
-				, severity
+				, severity.severity
 				, isnothing(donor) ? 0 : donor.generation+1 # Determine generation 
-				#, isdeceased # TODO
+				, isdeceased
 				, isnothing(donor) ? missing : donor.infectee_age
 				, isnothing(infectee_age) ? missing : infectee_age
-				#, importedinfection # TODO
+				, importedinfection
 				)
 end
 
@@ -777,10 +958,41 @@ Infection(p, h::DataFrameRow, donor::Infection) = Infection(p; pid = h["pid2"]
 # function Infection(p; pid = "0", region="TLI3", tinf = 0.0, initialdow = 1, contacttype = :nothing, donor::Union{Nothing,Infection} = nothing)
 
 function simgeneration(p, prevgen::Array{Infection}; maxtime = Inf)
-	length(prevgen) == 0 && return Array{Infection}([]) 
+	length(prevgen) == 0 && return Array{Infection}([])
+	# TODO THERE IS AN ERROR HERE - possibly in "if h["timetransmission"] < maxtime" which apparently sometimes
+	# tries to compare a vector with a single value
+	# Loops through the each Infection u in the prevgen array of Infections and loops through each row h in u.H.
+	# If the timetransmission value in row h in H in Infection u is less than maxtime then a new Infection object 
+	# will be created using parameter p (the parameter set), h (row in H) and u (the prevgen Infection) 
 	Array{Infection}(
 		[Infection(p, h, u) for u in prevgen for h in eachrow(u.H) if h["timetransmission"] < maxtime]
 	)
+end
+
+#TEST
+# Alternative version of simgeneration() for debugging
+#prevgen = g
+#maxtime=60.0
+#p=P
+function simgeneration_alt(p, prevgen::Array{Infection}; maxtime = Inf)
+	#Test
+	#println("length of g = ",length(g))
+	#println(prevgen[1])
+	length(prevgen) == 0 && return Array{Infection}([])	
+	newgen = Infection[]
+	for u in 1:length(prevgen)
+		for h in 1:nrow(prevgen[u].H)
+			#println("u=",u", ","h=",h)
+			println("Infection ",u," H row",h," has time of transmission = ",prevgen[u].H[h,:]["timetransmission"])
+			println("t_transmission",prevgen[u].H[h,:]["timetransmission"])
+			if prevgen[u].H[h,:]["timetransmission"] < maxtime
+				#Array{Infection}
+				#push!( Array{Infection},  Infection(p,h,u) )
+				push!( newgen,  Infection(p,prevgen[u].H[h,:],prevgen[u]) )
+			end
+		end
+	end
+	return( newgen )
 end
 
 # TODO IN SIMTREE NEED TO RECORD IF INFECTION IS AN IMPORTATION OR NOT BECAUSE IMPORTATION MAY PROMPT
@@ -788,6 +1000,14 @@ end
 function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H)
 	# clustthreshold::Float64 = 0.005,
 	
+	#TEST
+	#p=P
+	#region="TLJ1"
+	#initialtime=23.59195186679564
+	#maxtime=60.0
+	#maxgenerations=100
+	#initialcontact=:import
+
 	@assert maxgenerations > 0
 	@assert maxtime > initialtime
 
@@ -802,6 +1022,9 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 	G = g 
 	H = g[1].H 
 	
+	println(g)
+	println(length(g))
+
 	for igen in 2:maxgenerations
 		g = simgeneration(p, g, maxtime = maxtime)
 		# g = [infection for infection in g if infection.tinf < maxtime]
@@ -813,6 +1036,8 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 		end
 	end
 	
+	# TODO POSSIBLY ADD MORE VARIABLES TO REPORT IN D AND G NOW THAT AGE STRATIFIED SEVERITY AND ADDED MORE CARE PATHWAYS
+
 	# removed the if statement at the end because it was stopping simforest() working after age disaggregation added
 	dfargs = [(u.dpid, u.pid, u.tinf, u.contacttype, u.initialregion, u.donor_age, u.infectee_age) for u in G]# if !ismissing(u.dpid)]
 	D = length(dfargs) > 0 ? 
@@ -824,7 +1049,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 					, :infector_age => nothing, :infectee_age => nothing])
 	
 	dfargs1 = [(u.pid, u.tinf, u.tgp, u.thospital, u.ticu, u.trecovered
-				, u.severity
+				, u.severity#.severity
 				, u.iscommuter, u.homeregion, u.commuteregion
 				, u.generation,
 				u.degree...
@@ -841,6 +1066,8 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 	H.simid .= simid 
 	D.simid .= simid 
 	Gdf.simid .= simid 
+
+	println("Finished simtree run")
 
 	(
 		 G = Gdf 
@@ -862,6 +1089,8 @@ end
 
 # simulate continuous importation 
 function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, importmodel=:TDist)
+#TEST
+#simforest(p=NBPMscape.P; initialtime=0.0, maxtime=60.0, maxgenerations=100)
 	if importmodel == :Poisson # for testing  
 		nimports = rand(Poisson((maxtime-initialtime)*p.importrate))
 		nimports = max(1, nimports )
