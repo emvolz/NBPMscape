@@ -476,17 +476,16 @@ function sample_infectee_severity( p; age = infectee_age )
 	# Severe enough for hospitalisation? 
 	elseif rand() < ( p.symptomatic_ihr_by_age[age+1] )
 		severity = :severe
-		fatal = ( rand() < p.p_death_hosp )
+		fatal = ( rand() < P.p_death_hosp[age+1] )
 		# Severe enough for hospital and then ICU?
 		# Determine if a hospitalised patient is then admitted to ICU
 		if rand() < ( P.icu_by_age[age+1] )
 			severity = :verysevere
-			fatal = ( rand() < (p.p_death_icu + p.p_death_stepdown)) # Probability of death if infection is very severe is sum of p of death in ICU and p of death in stepdown ward
+			fatal = ( rand() < (p.p_death_icu[age+1] + p.p_death_stepdown[age+1])) # Probability of death if infection is very severe is sum of p of death in ICU and p of death in stepdown ward
 		end
 	else
 		#severity = :moderate
 		# Remaining possibilities are mild or moderate (latter indicates a visit to GP but not hospital or ICU)
-		# TODO FIND ESTIMATES FOR MILD AND MODERATE PROPORTIONS
 		severity = StatsBase.wsample( [:mild, :moderate], [p.prop_mild, p.prop_moderate]  )
 		fatal = false
 	end
@@ -617,7 +616,7 @@ function Infection(p; pid = "0"
 	TODO Returns infection severity and whether infection will be fatal or not
 	=# 
 	severity = sample_infectee_severity( p; age = infectee_age ) #severity = StatsBase.wsample( SEVERITY, [p.propmildorasymptomatic, p.propmoderate , p.propsevere, p.propverysevere]  ) #StatsBase.wsample( SEVERITY, [P.propmild, 1-P.propmild-P.propsevere , P.propsevere]  )
-		#Test
+	#Test
 	#severity = sample_infectee_severity( P; age = 90 )
 	#severity.severity
 	#severity.fatal
