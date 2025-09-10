@@ -112,8 +112,7 @@ contact_rate_dist_par_age_groups = DataFrame(
     #,lrateshape  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
     #,lratescale  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
 	#,lnegbinomr  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
-    #,lnegbinomp  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
-		
+    #,lnegbinomp  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p	
 )
 
 # Create expanded contact number distribution parameter vectors
@@ -203,7 +202,7 @@ P = (
 	
 
 	# TODO introduce population variation in infectiousness 
-	, infectivity = 1.25 # scales transmission rate 
+	, infectivity = 2.00 #1.25 # scales transmission rate # Updated to 2.00 after incorporation of age disaggregated parameters # Use infectivitytoR() to check R value for current parameters
 	, infectivity_shape = 2.2 * 0.75 # TODO 
 	, infectivity_scale = 2.5 * 0.75
 	# , infectivity_shape = 1.72 # Jones & Drosten, Science 2021 
@@ -217,7 +216,7 @@ P = (
 	, infectious_shape = 8.16 # Verity 2020 , mean 24d 
 	, infectious_scale = 3.03 
 
-	, ρ = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
+	, ρ_hosp = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
 	, ρ_asymptomatic = 0.223 #  transmission reduction for asymptomatic individuals - see Knock et al (2021) Supplementary Information
 
 	, frate = 0.0 # rate of gaining & losing flinks
@@ -274,12 +273,13 @@ P = (
 	# Severity probabilities with no age disaggregation
 	# TODO prop_moderate is based on a survey of people with ILI and so may be different from GP seeking behaviour 
 	#      of individuals with Covid-like illness. Ideally find data from initial wave of Covid in UK.
-	, prop_mild     = 0.89175 # = 1 - prop_moderate # Symptomatic but won't visit a GP or go to hospital
+	# Note that mild and moderate sum to 1. They are both symptomatic but the distinction is whether they consult a GP (in person or via phone).
 	, prop_moderate = 0.10825 # Will visit a GP but won't go to hospital. Estimated from FluSurvey data, combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
+	, prop_mild     = 0.89175 # = 1 - prop_moderate # Symptomatic but won't visit a GP or go to hospital
 	
 	## Probability of death by age and care stage
 	## Sourced from Knock et al (2021)
-	, ifr_by_age = IFR_BY_AGE[:,"IFR"]
+	, ifr_by_age = IFR_BY_AGE[:,"IFR"] # Infection fatality ratio
 	, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
 	, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
 	, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
@@ -419,7 +419,7 @@ function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious
 	ρ = 1.0 # 0.250 
 	# Reduced transmission while in hospital
 	if carestage in (:admittedhospital,:admittedicu)
-		ρ *= p.ρ
+		ρ *= p.ρ_hosp
 	end
 	# Non-infectious stages
 	if infstage in (:latent, :recovered, :deceased)
