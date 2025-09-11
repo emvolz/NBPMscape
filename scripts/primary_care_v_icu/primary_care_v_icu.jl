@@ -6,7 +6,7 @@ Description:
 Outline:
 1) Load simulation
 2) Extract sample of cases
-    a) 25% of ICU cases
+    a) 15% of ICU cases
     b) X% of GP cases based on RCGP-RSC surveillance parameters and calculating probabilities of 
         i) going to a GP that takes surveillance swabs
         ii) individual is swabbed
@@ -26,6 +26,8 @@ using Distributions
 using DataFrames
 using StatsBase
 using CSV 
+using Plots
+using StatsPlots
 
 #using Pkg
 #Pkg.add(PackageSpec(name="JLD2", version="0.5.15"))#version="1.11.2"))#version="0.4.54"))
@@ -34,13 +36,22 @@ using JLD2
 #version = Pkg.TOML.parsefile(joinpath(pkgdir(JLD2), "Project.toml"))["version"]
 #println(version)
 
+# Check R for current parameters in NBPMscape
+infectivitytoR(2, nsims=10000)
+# nsim = 1,000: 2.14 2.19 2.01 2.13 2.16
+# nsim = 10,000: 2.07
+
 # Load simulation
 sims = load("covidlike-1.1.1-sims.jld2", "sims")
 #@load "covidlike-1.1.1-sims.jld2" sims
 
-# TODO Or adapt to use (because smaller files have less issues with reloading)
+# If using files created from smaller files, which have less issues with reloading
+# Versions BEFORE addition of age disaggregation of severity
 #@load "covidlike-1.1.1-sims_filtered_G_icu_combined_nrep53000.jld2" sims_filtered_G_icu
 #@load "covidlike-1.1.1-sims_filtered_G_gp_combined_nrep53000.jld2"  sims_filtered_G_gp
+# Versions AFTER addition of age disaggregation of severity
+sims_G_icu_filter = load("covidlike-1.3.1-sims_filtered_G_icu_combined_nrep64000_95898.jld2", "sims_G_icu_filter")
+sims_G_gp_filter = load("covidlike-1.3.1-sims_filtered_G_gp_combined_nrep64000_95898.jld2", "sims_G_gp_filter")
 
 # Obtain population of England from constant in NBPMscape
 # TODO not currently defined in Main
@@ -546,144 +557,141 @@ results_df.PC_only_winter     = [df[2, :Median_TD] for df in TD_results_dfs_wint
 results_df.Combined_winter    = [df[3, :Median_TD] for df in TD_results_dfs_winter]
 results_df.Improvement_winter = [df[3, :Median_TD] for df in TD_results_dfs_winter] - [df[1, :Median_TD] for df in TD_results_dfs_winter]
 results_df[10,3:5] = [-1,-1,-1]
+println(results_df)
 
+## Results when number of GPs kept at 300
+# Vector of dataframes containing results for summer
+TD_results_dfs_summer_gp300 = [ TDs_mg15419_swab15419_ari180_analysis[1:6,:]
+                            , TDs_mg28011_swab28011_ari180_analysis[1:6,:]
+                            , TDs_mg102792_swab102792_ari180_gp300_analysis[1:6,:]
+                            , TDs_mg186738_swab186738_ari327_analysis[1:6,:] # placeholder values to be replaced
+                        ] 
 
-# Create compilation of data
-# Times to detection 1 case
-simple_combined_df = DataFrame([zeros(Float64,10) for _ in 1:8], [:Number_of_PC_mg_samples
-                                                        , :ICU_only
-                                                        , :PC_only_summer
-                                                        , :Combined_summer
-                                                        , :Improvement_summer
-                                                        , :PC_only_winter
-                                                        , :Combined_winter
-                                                        , :Improvement_winter])
-#                         Number of
-#                         PC mg samples  ICU_only                                               PC_only_summer                                      Combined_summer                                     Improvement summer                                                                                      PC_only_winter                                          Combined_winter                                         Improvement winter
-simple_combined_df[1,:] = [ 100,         TDs_mg100_swab319_ari180_analysis[1,2],                TDs_mg100_swab319_ari180_analysis[2,2],             TDs_mg100_swab319_ari180_analysis[3,2],             TDs_mg100_swab319_ari180_analysis[3,2] - TDs_mg100_swab319_ari180_analysis[1,2],                        TDs_mg100_swab747_ari327_analysis[2,2],                 TDs_mg100_swab747_ari327_analysis[3,2],                 TDs_mg100_swab319_ari180_analysis[3,2] - TDs_mg100_swab747_ari327_analysis[1,2]           ]
-simple_combined_df[2,:] = [ 200,         TDs_mg200_swab319_ari180_analysis[1,2],                TDs_mg200_swab319_ari180_analysis[2,2],             TDs_mg200_swab319_ari180_analysis[3,2],             TDs_mg200_swab319_ari180_analysis[3,2] - TDs_mg200_swab319_ari180_analysis[1,2],                        TDs_mg200_swab747_ari327_analysis[2,2],                 TDs_mg200_swab747_ari327_analysis[3,2],                 TDs_mg200_swab319_ari180_analysis[3,2] - TDs_mg200_swab747_ari327_analysis[1,2]           ]
-simple_combined_df[3,:] = [ 319,         TDs_mg319_swab319_ari180_analysis[1,2],                TDs_mg319_swab319_ari180_analysis[2,2],             TDs_mg319_swab319_ari180_analysis[3,2],             TDs_mg319_swab319_ari180_analysis[3,2] - TDs_mg319_swab319_ari180_analysis[1,2],                        TDs_mg319_swab747_ari327_analysis[2,2],                 TDs_mg319_swab747_ari327_analysis[3,2],                 TDs_mg319_swab319_ari180_analysis[3,2] - TDs_mg319_swab747_ari327_analysis[1,2]           ]
-simple_combined_df[4,:] = [ 747,         TDs_mg747_swab747_ari180_analysis[1,2],                TDs_mg747_swab747_ari180_analysis[2,2],             TDs_mg747_swab747_ari180_analysis[3,2],             TDs_mg747_swab747_ari180_analysis[3,2] - TDs_mg747_swab747_ari180_analysis[1,2],                        TDs_mg747_swab747_ari327_analysis[2,2],                 TDs_mg747_swab747_ari327_analysis[3,2],                 TDs_mg747_swab747_ari327_analysis[3,2] - TDs_mg747_swab747_ari327_analysis[1,2]           ]
-simple_combined_df[5,:] = [ 1000,        TDs_mg1000_swab1000_ari180_analysis[1,2],              TDs_mg1000_swab1000_ari180_analysis[2,2],           TDs_mg1000_swab1000_ari180_analysis[3,2],           TDs_mg1000_swab1000_ari180_analysis[3,2] - TDs_mg1000_swab1000_ari180_analysis[1,2],                    TDs_mg1000_swab1000_ari327_analysis[2,2],                 TDs_mg1000_swab1000_ari327_analysis[3,2],             TDs_mg1000_swab1000_ari327_analysis[3,2] - TDs_mg1000_swab1000_ari327_analysis[1,2]           ]
-simple_combined_df[6,:] = [ 6000,        TDs_mg6000_swab6000_ari180_analysis[1,2],              TDs_mg6000_swab6000_ari180_analysis[2,2],           TDs_mg6000_swab6000_ari180_analysis[3,2],           TDs_mg6000_swab6000_ari180_analysis[3,2] - TDs_mg6000_swab6000_ari180_analysis[1,2],                    TDs_mg6000_swab6000_ari327_analysis[2,2],                TDs_mg6000_swab6000_ari327_analysis[3,2],              TDs_mg6000_swab6000_ari327_analysis[3,2] - TDs_mg6000_swab6000_ari327_analysis[1,2]           ]
-simple_combined_df[7,:] = [ 15419,       TDs_mg15419_swab15419_ari180_gp929_analysis[1,2],      TDs_mg15419_swab15419_ari180_gp929_analysis[2,2],   TDs_mg15419_swab15419_ari180_gp929_analysis[3,2],   TDs_mg15419_swab15419_ari180_gp929_analysis[3,2] - TDs_mg15419_swab15419_ari180_gp929_analysis[1,2],    TDs_mg15419_swab15419_ari327_gp929_analysis[2,2],        TDs_mg15419_swab15419_ari327_gp929_analysis[3,2],      TDs_mg15419_swab15419_ari327_gp929_analysis[3,2] - TDs_mg15419_swab15419_ari327_gp929_analysis[1,2]           ]
-simple_combined_df[8,:] = [ 28011,       TDs_mg28011_swab28011_ari180_gp929_analysis[1,2],      TDs_mg28011_swab28011_ari180_gp929_analysis[2,2],   TDs_mg28011_swab28011_ari180_gp929_analysis[3,2],   TDs_mg28011_swab28011_ari180_gp929_analysis[3,2] - TDs_mg28011_swab28011_ari180_gp929_analysis[1,2],    TDs_mg28011_swab28011_ari327_gp929_analysis[2,2],       TDs_mg28011_swab28011_ari327_gp929_analysis[3,2],       TDs_mg28011_swab28011_ari327_gp929_analysis[3,2] - TDs_mg28011_swab28011_ari327_gp929_analysis[1,2]           ]
-simple_combined_df[9,:] = [ 102792,     TDs_mg102792_swab102792_ari180_gp6199_analysis[1,2],   TDs_mg102792_swab102792_ari180_gp6199_analysis[2,2],TDs_mg102792_swab102792_ari180_gp6199_analysis[3,2] , TDs_mg102792_swab102792_ari180_gp6199_analysis[3,2] - TDs_mg102792_swab102792_ari180_gp6199_analysis[1,2],  TDs_mg102792_swab102792_ari327_gp6199_analysis[2,2],    TDs_mg102792_swab102792_ari327_gp6199_analysis[3,2],    TDs_mg102792_swab102792_ari327_gp6199_analysis[3,2] - TDs_mg102792_swab102792_ari327_gp6199_analysis[1,2]           ]
-simple_combined_df[10,:] = [ 186738,    TDs_mg186738_swab186738_ari327_gp6199_analysis[1,2],   -1,-1 , -1,  TDs_mg186738_swab186738_ari327_gp6199_analysis[2,2],    TDs_mg186738_swab186738_ari327_gp6199_analysis[3,2],    TDs_mg186738_swab186738_ari327_gp6199_analysis[3,2] - TDs_mg186738_swab186738_ari327_gp6199_analysis[1,2]           ]
+# Vector of dataframes containing results for summer
+TD_results_dfs_winter_gp300 = [ TDs_mg15419_swab15419_ari327_analysis[1:6,:]
+                        , TDs_mg28011_swab28011_ari327_analysis[1:6,:]
+                        , TDs_mg102792_swab102792_ari327_gp300_analysis[1:6,:]
+                        , TDs_mg186738_swab186738_ari327_analysis[1:6,:]
+                        ] 
 
-println(simple_combined_df)
+# Create a new dataframe with results for times to detection of 1 case
+results_df_gp300 = DataFrame( Number_of_PC_mg_samples = [15419,28011,102792,186738])
+results_df_gp300.ICU_only           = [df[1, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.PC_only_summer     = [df[2, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.Combined_summer    = [df[3, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.Improvement_summer = [df[3, :Median_TD] for df in TD_results_dfs_summer_gp300] - [df[1, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.PC_only_winter     = [df[2, :Median_TD] for df in TD_results_dfs_winter_gp300]
+results_df_gp300.Combined_winter    = [df[3, :Median_TD] for df in TD_results_dfs_winter_gp300]
+results_df_gp300.Improvement_winter = [df[3, :Median_TD] for df in TD_results_dfs_winter_gp300] - [df[1, :Median_TD] for df in TD_results_dfs_winter_gp300]
+results_df_gp300[4,3:5] = [-1,-1,-1]
+println(results_df_gp300)
 
-# Times to detection 3 cases
-simple_combined_3TD_df = DataFrame([zeros(Float64,10) for _ in 1:8], [:Number_of_PC_mg_samples
-                                                        , :ICU_only
-                                                        , :PC_only_summer
-                                                        , :Combined_summer
-                                                        , :Improvement_summer
-                                                        , :PC_only_winter
-                                                        , :Combined_winter
-                                                        , :Improvement_winter])
-#                         Number of
-#                         PC mg samples  ICU_only                                               PC_only_summer                                      Combined_summer                                     Improvement summer                                                                                          PC_only_winter                                          Combined_winter                                         Improvement winter
-simple_combined_3TD_df[1,:] = [ 100,         TDs_mg100_swab319_ari180_analysis[4,2],                TDs_mg100_swab319_ari180_analysis[5,2],             TDs_mg100_swab319_ari180_analysis[6,2],             TDs_mg100_swab319_ari180_analysis[6,2] - TDs_mg100_swab319_ari180_analysis[4,2],                            TDs_mg100_swab747_ari327_analysis[5,2],                 TDs_mg100_swab747_ari327_analysis[6,2],                 TDs_mg100_swab319_ari180_analysis[6,2] - TDs_mg100_swab747_ari327_analysis[4,2]           ]
-simple_combined_3TD_df[2,:] = [ 200,         TDs_mg200_swab319_ari180_analysis[4,2],                TDs_mg200_swab319_ari180_analysis[5,2],             TDs_mg200_swab319_ari180_analysis[6,2],             TDs_mg200_swab319_ari180_analysis[6,2] - TDs_mg200_swab319_ari180_analysis[4,2],                            TDs_mg200_swab747_ari327_analysis[5,2],                 TDs_mg200_swab747_ari327_analysis[6,2],                 TDs_mg200_swab319_ari180_analysis[6,2] - TDs_mg200_swab747_ari327_analysis[4,2]           ]
-simple_combined_3TD_df[3,:] = [ 319,         TDs_mg319_swab319_ari180_analysis[4,2],                TDs_mg319_swab319_ari180_analysis[5,2],             TDs_mg319_swab319_ari180_analysis[6,2],             TDs_mg319_swab319_ari180_analysis[6,2] - TDs_mg319_swab319_ari180_analysis[4,2],                            TDs_mg319_swab747_ari327_analysis[5,2],                 TDs_mg319_swab747_ari327_analysis[6,2],                 TDs_mg319_swab319_ari180_analysis[6,2] - TDs_mg319_swab747_ari327_analysis[4,2]           ]
-simple_combined_3TD_df[4,:] = [ 747,         TDs_mg747_swab747_ari180_analysis[4,2],                TDs_mg747_swab747_ari180_analysis[5,2],             TDs_mg747_swab747_ari180_analysis[6,2],             TDs_mg747_swab747_ari180_analysis[6,2] - TDs_mg747_swab747_ari180_analysis[4,2],                            TDs_mg747_swab747_ari327_analysis[5,2],                 TDs_mg747_swab747_ari327_analysis[6,2],                 TDs_mg747_swab747_ari327_analysis[6,2] - TDs_mg747_swab747_ari327_analysis[4,2]           ]
-simple_combined_3TD_df[5,:] = [ 1000,        TDs_mg1000_swab1000_ari180_analysis[4,2],              TDs_mg1000_swab1000_ari180_analysis[5,2],           TDs_mg1000_swab1000_ari180_analysis[6,2],           TDs_mg1000_swab1000_ari180_analysis[6,2] - TDs_mg1000_swab1000_ari180_analysis[4,2],                        TDs_mg1000_swab1000_ari327_analysis[5,2],                 TDs_mg1000_swab1000_ari327_analysis[6,2],             TDs_mg1000_swab1000_ari327_analysis[6,2] - TDs_mg1000_swab1000_ari327_analysis[4,2]           ]
-simple_combined_3TD_df[6,:] = [ 6000,        TDs_mg6000_swab6000_ari180_analysis[4,2],              TDs_mg6000_swab6000_ari180_analysis[5,2],           TDs_mg6000_swab6000_ari180_analysis[6,2],           TDs_mg6000_swab6000_ari180_analysis[6,2] - TDs_mg6000_swab6000_ari180_analysis[4,2],                        TDs_mg6000_swab6000_ari327_analysis[5,2],                TDs_mg6000_swab6000_ari327_analysis[6,2],              TDs_mg6000_swab6000_ari327_analysis[6,2] - TDs_mg6000_swab6000_ari327_analysis[4,2]           ]
-simple_combined_3TD_df[7,:] = [ 15419,       TDs_mg15419_swab15419_ari180_gp929_analysis[4,2],      TDs_mg15419_swab15419_ari180_gp929_analysis[5,2],   TDs_mg15419_swab15419_ari180_gp929_analysis[6,2],   TDs_mg15419_swab15419_ari180_gp929_analysis[6,2] - TDs_mg15419_swab15419_ari180_gp929_analysis[4,2],        TDs_mg15419_swab15419_ari327_gp929_analysis[5,2],        TDs_mg15419_swab15419_ari327_gp929_analysis[6,2],      TDs_mg15419_swab15419_ari327_gp929_analysis[6,2] - TDs_mg15419_swab15419_ari327_gp929_analysis[4,2]           ]
-simple_combined_3TD_df[8,:] = [ 28011,       TDs_mg28011_swab28011_ari180_gp929_analysis[4,2],      TDs_mg28011_swab28011_ari180_gp929_analysis[5,2],   TDs_mg28011_swab28011_ari180_gp929_analysis[6,2],   TDs_mg28011_swab28011_ari180_gp929_analysis[6,2] - TDs_mg28011_swab28011_ari180_gp929_analysis[4,2],        TDs_mg28011_swab28011_ari327_gp929_analysis[5,2],       TDs_mg28011_swab28011_ari327_gp929_analysis[6,2],       TDs_mg28011_swab28011_ari327_gp929_analysis[6,2] - TDs_mg28011_swab28011_ari327_gp929_analysis[4,2]           ]
-simple_combined_3TD_df[9,:] = [ 102792,     TDs_mg102792_swab102792_ari180_gp6199_analysis[4,2],   TDs_mg102792_swab102792_ari180_gp6199_analysis[5,2], TDs_mg102792_swab102792_ari180_gp6199_analysis[6,2] , TDs_mg102792_swab102792_ari180_gp6199_analysis[6,2] - TDs_mg102792_swab102792_ari180_gp6199_analysis[4,2],  TDs_mg102792_swab102792_ari327_gp6199_analysis[5,2],    TDs_mg102792_swab102792_ari327_gp6199_analysis[6,2],    TDs_mg102792_swab102792_ari327_gp6199_analysis[6,2] - TDs_mg102792_swab102792_ari327_gp6199_analysis[4,2]           ]
-simple_combined_3TD_df[10,:] = [ 186738,    TDs_mg186738_swab186738_ari327_gp6199_analysis[4,2],   -1,                                                  -1 ,                                                -1,                                                                                                         TDs_mg186738_swab186738_ari327_gp6199_analysis[5,2],    TDs_mg186738_swab186738_ari327_gp6199_analysis[6,2],    TDs_mg186738_swab186738_ari327_gp6199_analysis[6,2] - TDs_mg186738_swab186738_ari327_gp6199_analysis[4,2]           ]
+# Repeat for time to detection of 3 cases (3TD)
+# Create a new dataframe with results for times to detection of 3 case
+results_3td_df = DataFrame( Number_of_PC_mg_samples = [100,200,319,747,1000,6000,15419,28011,102792,186738])
+results_3td_df.ICU_only           = [df[4, :Median_TD] for df in TD_results_dfs_summer]
+results_3td_df.PC_only_summer     = [df[5, :Median_TD] for df in TD_results_dfs_summer]
+results_3td_df.Combined_summer    = [df[6, :Median_TD] for df in TD_results_dfs_summer]
+results_3td_df.Improvement_summer = [df[6, :Median_TD] for df in TD_results_dfs_summer] - [df[4, :Median_TD] for df in TD_results_dfs_summer]
+results_3td_df.PC_only_winter     = [df[5, :Median_TD] for df in TD_results_dfs_winter]
+results_3td_df.Combined_winter    = [df[6, :Median_TD] for df in TD_results_dfs_winter]
+results_3td_df.Improvement_winter = [df[6, :Median_TD] for df in TD_results_dfs_winter] - [df[4, :Median_TD] for df in TD_results_dfs_winter]
+results_3td_df[10,3:5] = [-1,-1,-1]
+println(results_3td_df)
 
-println(simple_combined_3TD_df)
+## Results when number of GPs kept at 300
+# Vector of dataframes containing results for summer
+TD_results_dfs_summer_gp300 = [ TDs_mg15419_swab15419_ari180_analysis[1:6,:]
+                            , TDs_mg28011_swab28011_ari180_analysis[1:6,:]
+                            , TDs_mg102792_swab102792_ari180_gp300_analysis[1:6,:]
+                            , TDs_mg186738_swab186738_ari327_analysis[1:6,:] # placeholder values to be replaced
+                        ] 
+
+# Vector of dataframes containing results for summer
+TD_results_dfs_winter_gp300 = [ TDs_mg15419_swab15419_ari327_analysis[1:6,:]
+                        , TDs_mg28011_swab28011_ari327_analysis[1:6,:]
+                        , TDs_mg102792_swab102792_ari327_gp300_analysis[1:6,:]
+                        , TDs_mg186738_swab186738_ari327_analysis[1:6,:]
+                        ] 
+
+# Create a new dataframe with results for times to detection of 1 case
+results_df_gp300 = DataFrame( Number_of_PC_mg_samples = [15419,28011,102792,186738])
+results_df_gp300.ICU_only           = [df[1, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.PC_only_summer     = [df[2, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.Combined_summer    = [df[3, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.Improvement_summer = [df[3, :Median_TD] for df in TD_results_dfs_summer_gp300] - [df[1, :Median_TD] for df in TD_results_dfs_summer_gp300]
+results_df_gp300.PC_only_winter     = [df[2, :Median_TD] for df in TD_results_dfs_winter_gp300]
+results_df_gp300.Combined_winter    = [df[3, :Median_TD] for df in TD_results_dfs_winter_gp300]
+results_df_gp300.Improvement_winter = [df[3, :Median_TD] for df in TD_results_dfs_winter_gp300] - [df[1, :Median_TD] for df in TD_results_dfs_winter_gp300]
+results_df_gp300[4,3:5] = [-1,-1,-1]
+println(results_df_gp300)
 
 # % of replicates with times to detection 1 case
-simple_combined_simrep_perc_df = DataFrame([zeros(Float64,10) for _ in 1:8], [:Number_of_PC_mg_samples
-                                                        , :ICU_only
-                                                        , :PC_only_summer
-                                                        , :Combined_summer
-                                                        , :Improvement_summer
-                                                        , :PC_only_winter
-                                                        , :Combined_winter
-                                                        , :Improvement_winter])
-#                         Number of
-#                         PC mg samples  ICU_only                                               PC_only_summer                                      Combined_summer                                                 Improvement summer                                                                                      PC_only_winter                                          Combined_winter                                         Improvement winter
-simple_combined_simrep_perc_df[1,:] = [ 100,         TDs_mg100_swab319_ari180_analysis[1,3],                TDs_mg100_swab319_ari180_analysis[2,3],             TDs_mg100_swab319_ari180_analysis[3,3],             TDs_mg100_swab319_ari180_analysis[3,3] - TDs_mg100_swab319_ari180_analysis[1,3],                        TDs_mg100_swab747_ari327_analysis[2,3],                 TDs_mg100_swab747_ari327_analysis[3,3],                 TDs_mg100_swab319_ari180_analysis[3,3] - TDs_mg100_swab747_ari327_analysis[1,3]           ]
-simple_combined_simrep_perc_df[2,:] = [ 200,         TDs_mg200_swab319_ari180_analysis[1,3],                TDs_mg200_swab319_ari180_analysis[2,3],             TDs_mg200_swab319_ari180_analysis[3,3],             TDs_mg200_swab319_ari180_analysis[3,3] - TDs_mg200_swab319_ari180_analysis[1,3],                        TDs_mg200_swab747_ari327_analysis[2,3],                 TDs_mg200_swab747_ari327_analysis[3,3],                 TDs_mg200_swab319_ari180_analysis[3,3] - TDs_mg200_swab747_ari327_analysis[1,3]           ]
-simple_combined_simrep_perc_df[3,:] = [ 319,         TDs_mg319_swab319_ari180_analysis[1,3],                TDs_mg319_swab319_ari180_analysis[2,3],             TDs_mg319_swab319_ari180_analysis[3,3],             TDs_mg319_swab319_ari180_analysis[3,3] - TDs_mg319_swab319_ari180_analysis[1,3],                        TDs_mg319_swab747_ari327_analysis[2,3],                 TDs_mg319_swab747_ari327_analysis[3,3],                 TDs_mg319_swab319_ari180_analysis[3,3] - TDs_mg319_swab747_ari327_analysis[1,3]           ]
-simple_combined_simrep_perc_df[4,:] = [ 747,         TDs_mg747_swab747_ari180_analysis[1,3],                TDs_mg747_swab747_ari180_analysis[2,3],             TDs_mg747_swab747_ari180_analysis[3,3],             TDs_mg747_swab747_ari180_analysis[3,3] - TDs_mg747_swab747_ari180_analysis[1,3],                        TDs_mg747_swab747_ari327_analysis[2,3],                 TDs_mg747_swab747_ari327_analysis[3,3],                 TDs_mg747_swab747_ari327_analysis[3,3] - TDs_mg747_swab747_ari327_analysis[1,3]           ]
-simple_combined_simrep_perc_df[5,:] = [ 1000,        TDs_mg1000_swab1000_ari180_analysis[1,3],              TDs_mg1000_swab1000_ari180_analysis[2,3],           TDs_mg1000_swab1000_ari180_analysis[3,3],           TDs_mg1000_swab1000_ari180_analysis[3,3] - TDs_mg1000_swab1000_ari180_analysis[1,3],                    TDs_mg1000_swab1000_ari327_analysis[2,3],                 TDs_mg1000_swab1000_ari327_analysis[3,3],             TDs_mg1000_swab1000_ari327_analysis[3,3] - TDs_mg1000_swab1000_ari327_analysis[1,3]           ]
-simple_combined_simrep_perc_df[6,:] = [ 6000,        TDs_mg6000_swab6000_ari180_analysis[1,3],              TDs_mg6000_swab6000_ari180_analysis[2,3],           TDs_mg6000_swab6000_ari180_analysis[3,3],           TDs_mg6000_swab6000_ari180_analysis[3,3] - TDs_mg6000_swab6000_ari180_analysis[1,3],                    TDs_mg6000_swab6000_ari327_analysis[2,3],                TDs_mg6000_swab6000_ari327_analysis[3,3],              TDs_mg6000_swab6000_ari327_analysis[3,3] - TDs_mg6000_swab6000_ari327_analysis[1,3]           ]
-simple_combined_simrep_perc_df[7,:] = [ 15419,       TDs_mg15419_swab15419_ari180_gp929_analysis[1,3],      TDs_mg15419_swab15419_ari180_gp929_analysis[2,3],   TDs_mg15419_swab15419_ari180_gp929_analysis[3,3],   TDs_mg15419_swab15419_ari180_gp929_analysis[3,3] - TDs_mg15419_swab15419_ari180_gp929_analysis[1,3],    TDs_mg15419_swab15419_ari327_gp929_analysis[2,3],        TDs_mg15419_swab15419_ari327_gp929_analysis[3,3],      TDs_mg15419_swab15419_ari327_gp929_analysis[3,3] - TDs_mg15419_swab15419_ari327_gp929_analysis[1,3]           ]
-simple_combined_simrep_perc_df[8,:] = [ 28011,       TDs_mg28011_swab28011_ari180_gp929_analysis[1,3],      TDs_mg28011_swab28011_ari180_gp929_analysis[2,3],   TDs_mg28011_swab28011_ari180_gp929_analysis[3,3],   TDs_mg28011_swab28011_ari180_gp929_analysis[3,3] - TDs_mg28011_swab28011_ari180_gp929_analysis[1,3],    TDs_mg28011_swab28011_ari327_gp929_analysis[2,3],       TDs_mg28011_swab28011_ari327_gp929_analysis[3,3],       TDs_mg28011_swab28011_ari327_gp929_analysis[3,3] - TDs_mg28011_swab28011_ari327_gp929_analysis[1,3]           ]
-simple_combined_simrep_perc_df[9,:] = [ 102792,     TDs_mg102792_swab102792_ari180_gp6199_analysis[1,3],   TDs_mg102792_swab102792_ari180_gp6199_analysis[2,3],TDs_mg102792_swab102792_ari180_gp6199_analysis[3,3] , TDs_mg102792_swab102792_ari180_gp6199_analysis[3,3] - TDs_mg102792_swab102792_ari180_gp6199_analysis[1,3],  TDs_mg102792_swab102792_ari327_gp6199_analysis[2,3],    TDs_mg102792_swab102792_ari327_gp6199_analysis[3,3],    TDs_mg102792_swab102792_ari327_gp6199_analysis[3,3] - TDs_mg102792_swab102792_ari327_gp6199_analysis[1,3]           ]
-simple_combined_simrep_perc_df[10,:] = [ 186738,    TDs_mg186738_swab186738_ari327_gp6199_analysis[1,3],   -1,-1 , -1,  TDs_mg186738_swab186738_ari327_gp6199_analysis[2,3],    TDs_mg186738_swab186738_ari327_gp6199_analysis[3,3],    TDs_mg186738_swab186738_ari327_gp6199_analysis[3,3] - TDs_mg186738_swab186738_ari327_gp6199_analysis[1,3]           ]
 
-println(simple_combined_simrep_perc_df)
+# Create a new dataframe with results for times to detection of 1 case
+simrep_perc_df = DataFrame( Number_of_PC_mg_samples = [100,200,319,747,1000,6000,15419,28011,102792,186738])
+simrep_perc_df.ICU_only           = [df[1, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_df.PC_only_summer     = [df[2, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_df.Combined_summer    = [df[3, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_df.Improvement_summer = [df[3, :Percentage_with_a_TD] for df in TD_results_dfs_summer] - [df[1, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_df.PC_only_winter     = [df[2, :Percentage_with_a_TD] for df in TD_results_dfs_winter]
+simrep_perc_df.Combined_winter    = [df[3, :Percentage_with_a_TD] for df in TD_results_dfs_winter]
+simrep_perc_df.Improvement_winter = [df[3, :Percentage_with_a_TD] for df in TD_results_dfs_winter] - [df[1, :Percentage_with_a_TD] for df in TD_results_dfs_winter]
+simrep_perc_df[10,3:5] = [-1,-1,-1]
+println(simrep_perc_df)
 
 # % of replicates with times to detection 3 cases
-simple_combined_3TD_simrep_perc_df = DataFrame([zeros(Float64,10) for _ in 1:8], [:Number_of_PC_mg_samples
-                                                        , :ICU_only
-                                                        , :PC_only_summer
-                                                        , :Combined_summer
-                                                        , :Improvement_summer
-                                                        , :PC_only_winter
-                                                        , :Combined_winter
-                                                        , :Improvement_winter])
-#                         Number of
-#                         PC mg samples  ICU_only                                               PC_only_summer                                      Combined_summer                                     Improvement summer                                                                                          PC_only_winter                                          Combined_winter                                         Improvement winter
-simple_combined_3TD_simrep_perc_df[1,:] = [ 100,         TDs_mg100_swab319_ari180_analysis[4,3],                TDs_mg100_swab319_ari180_analysis[5,3],             TDs_mg100_swab319_ari180_analysis[6,3],             TDs_mg100_swab319_ari180_analysis[6,3] - TDs_mg100_swab319_ari180_analysis[4,3],                            TDs_mg100_swab747_ari327_analysis[5,3],                 TDs_mg100_swab747_ari327_analysis[6,3],                 TDs_mg100_swab319_ari180_analysis[6,3] - TDs_mg100_swab747_ari327_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[2,:] = [ 200,         TDs_mg200_swab319_ari180_analysis[4,3],                TDs_mg200_swab319_ari180_analysis[5,3],             TDs_mg200_swab319_ari180_analysis[6,3],             TDs_mg200_swab319_ari180_analysis[6,3] - TDs_mg200_swab319_ari180_analysis[4,3],                            TDs_mg200_swab747_ari327_analysis[5,3],                 TDs_mg200_swab747_ari327_analysis[6,3],                 TDs_mg200_swab319_ari180_analysis[6,3] - TDs_mg200_swab747_ari327_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[3,:] = [ 319,         TDs_mg319_swab319_ari180_analysis[4,3],                TDs_mg319_swab319_ari180_analysis[5,3],             TDs_mg319_swab319_ari180_analysis[6,3],             TDs_mg319_swab319_ari180_analysis[6,3] - TDs_mg319_swab319_ari180_analysis[4,3],                            TDs_mg319_swab747_ari327_analysis[5,3],                 TDs_mg319_swab747_ari327_analysis[6,3],                 TDs_mg319_swab319_ari180_analysis[6,3] - TDs_mg319_swab747_ari327_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[4,:] = [ 747,         TDs_mg747_swab747_ari180_analysis[4,3],                TDs_mg747_swab747_ari180_analysis[5,3],             TDs_mg747_swab747_ari180_analysis[6,3],             TDs_mg747_swab747_ari180_analysis[6,3] - TDs_mg747_swab747_ari180_analysis[4,3],                            TDs_mg747_swab747_ari327_analysis[5,3],                 TDs_mg747_swab747_ari327_analysis[6,3],                 TDs_mg747_swab747_ari327_analysis[6,3] - TDs_mg747_swab747_ari327_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[5,:] = [ 1000,        TDs_mg1000_swab1000_ari180_analysis[4,3],              TDs_mg1000_swab1000_ari180_analysis[5,3],           TDs_mg1000_swab1000_ari180_analysis[6,3],           TDs_mg1000_swab1000_ari180_analysis[6,3] - TDs_mg1000_swab1000_ari180_analysis[4,3],                        TDs_mg1000_swab1000_ari327_analysis[5,3],                 TDs_mg1000_swab1000_ari327_analysis[6,3],             TDs_mg1000_swab1000_ari327_analysis[6,3] - TDs_mg1000_swab1000_ari327_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[6,:] = [ 6000,        TDs_mg6000_swab6000_ari180_analysis[4,3],              TDs_mg6000_swab6000_ari180_analysis[5,3],           TDs_mg6000_swab6000_ari180_analysis[6,3],           TDs_mg6000_swab6000_ari180_analysis[6,3] - TDs_mg6000_swab6000_ari180_analysis[4,3],                        TDs_mg6000_swab6000_ari327_analysis[5,3],                TDs_mg6000_swab6000_ari327_analysis[6,3],              TDs_mg6000_swab6000_ari327_analysis[6,3] - TDs_mg6000_swab6000_ari327_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[7,:] = [ 15419,       TDs_mg15419_swab15419_ari180_gp929_analysis[4,3],      TDs_mg15419_swab15419_ari180_gp929_analysis[5,3],   TDs_mg15419_swab15419_ari180_gp929_analysis[6,3],   TDs_mg15419_swab15419_ari180_gp929_analysis[6,3] - TDs_mg15419_swab15419_ari180_gp929_analysis[4,3],        TDs_mg15419_swab15419_ari327_gp929_analysis[5,3],        TDs_mg15419_swab15419_ari327_gp929_analysis[6,3],      TDs_mg15419_swab15419_ari327_gp929_analysis[6,3] - TDs_mg15419_swab15419_ari327_gp929_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[8,:] = [ 28011,       TDs_mg28011_swab28011_ari180_gp929_analysis[4,3],      TDs_mg28011_swab28011_ari180_gp929_analysis[5,3],   TDs_mg28011_swab28011_ari180_gp929_analysis[6,3],   TDs_mg28011_swab28011_ari180_gp929_analysis[6,3] - TDs_mg28011_swab28011_ari180_gp929_analysis[4,3],        TDs_mg28011_swab28011_ari327_gp929_analysis[5,3],       TDs_mg28011_swab28011_ari327_gp929_analysis[6,3],       TDs_mg28011_swab28011_ari327_gp929_analysis[6,3] - TDs_mg28011_swab28011_ari327_gp929_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[9,:] = [ 102792,     TDs_mg102792_swab102792_ari180_gp6199_analysis[4,3],   TDs_mg102792_swab102792_ari180_gp6199_analysis[5,3], TDs_mg102792_swab102792_ari180_gp6199_analysis[6,3] , TDs_mg102792_swab102792_ari180_gp6199_analysis[6,3] - TDs_mg102792_swab102792_ari180_gp6199_analysis[4,3],  TDs_mg102792_swab102792_ari327_gp6199_analysis[5,3],    TDs_mg102792_swab102792_ari327_gp6199_analysis[6,3],    TDs_mg102792_swab102792_ari327_gp6199_analysis[6,3] - TDs_mg102792_swab102792_ari327_gp6199_analysis[4,3]           ]
-simple_combined_3TD_simrep_perc_df[10,:] = [ 186738,    TDs_mg186738_swab186738_ari327_gp6199_analysis[4,3],   -1,                                                  -1 ,                                                -1,                                                                                                         TDs_mg186738_swab186738_ari327_gp6199_analysis[5,3],    TDs_mg186738_swab186738_ari327_gp6199_analysis[6,3],    TDs_mg186738_swab186738_ari327_gp6199_analysis[6,3] - TDs_mg186738_swab186738_ari327_gp6199_analysis[4,3]           ]
-
-println(simple_combined_3TD_simrep_perc_df)
+# Create a new dataframe with results for times to detection of 1 case
+simrep_perc_3td_df = DataFrame( Number_of_PC_mg_samples = [100,200,319,747,1000,6000,15419,28011,102792,186738])
+simrep_perc_3td_df.ICU_only           = [df[4, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_3td_df.PC_only_summer     = [df[5, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_3td_df.Combined_summer    = [df[6, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_3td_df.Improvement_summer = [df[6, :Percentage_with_a_TD] for df in TD_results_dfs_summer] - [df[4, :Percentage_with_a_TD] for df in TD_results_dfs_summer]
+simrep_perc_3td_df.PC_only_winter     = [df[5, :Percentage_with_a_TD] for df in TD_results_dfs_winter]
+simrep_perc_3td_df.Combined_winter    = [df[6, :Percentage_with_a_TD] for df in TD_results_dfs_winter]
+simrep_perc_3td_df.Improvement_winter = [df[6, :Percentage_with_a_TD] for df in TD_results_dfs_winter] - [df[4, :Percentage_with_a_TD] for df in TD_results_dfs_winter]
+simrep_perc_3td_df[10,3:5] = [-1,-1,-1]
+println(simrep_perc_3td_df)
 
 
 # Plot the DataFrame with points and lines
 ##### 1 case ####
 # Summer
-simple_combined_df_ex100winter = simple_combined_df[1:9,:]
-x_replace_summer = simple_combined_df_ex100winter[:,1]#[100,200,319,747,1000,6000,15419]
+results_df_ex100winter = results_df[1:9,:]
+x_replace_summer = results_df_ex100winter[:,1]#[100,200,319,747,1000,6000,15419]
 # plot separately so coloured by y-series
 p = plot(xlabel = "Number of primary care metagenomic samples"
-        , ylabel = "Median time to detection of 1 case (TD) in days"
+        , ylabel = "Median time to detection\n of 1 case (TD) in days"
         , xscale=:log10
         , ylim=(0,70)
         , legend = :bottomleft
         #, size =(1600,1200)
         , xticks = [100, 1000, 10000, 100000, 1000000]
         )
-@df simple_combined_df_ex100winter scatter!(x_replace_summer
+@df results_df_ex100winter scatter!(x_replace_summer
                         , :ICU_only
                         , color=:red
                         , marker=:circle
                         , markersize=4
                         , label="ICU only")
-@df simple_combined_df_ex100winter scatter!(x_replace_summer
+@df results_df_ex100winter scatter!(x_replace_summer
                         , :PC_only_summer
                         , color=:blue
                         , marker=:circle
                         , markersize=4
                         , label="Primary care only (summer)")
-@df simple_combined_df_ex100winter scatter!(x_replace_summer
+@df results_df_ex100winter scatter!(x_replace_summer
                         , :Combined_summer
                         , color=:green
                         , marker=:circle
                         , markersize=4
                         , label="Combined (summer)")
-@df simple_combined_df_ex100winter plot!(x_replace_summer, :ICU_only, color=:red, linewidth=2, label="")
-@df simple_combined_df_ex100winter plot!(x_replace_summer, :PC_only_summer, color=:blue, linewidth=2, label="")
-@df simple_combined_df_ex100winter plot!(x_replace_summer, :Combined_summer, color=:green, linewidth=2, label="")
+@df results_df_ex100winter plot!(x_replace_summer, :ICU_only, color=:red, linewidth=2, label="")
+@df results_df_ex100winter plot!(x_replace_summer, :PC_only_summer, color=:blue, linewidth=2, label="")
+@df results_df_ex100winter plot!(x_replace_summer, :Combined_summer, color=:green, linewidth=2, label="")
 
 # Winter
-x_replace_winter = simple_combined_df[:,1] #[100,200,319,747,1000,6000,28011]
+x_replace_winter = results_df[:,1] #[100,200,319,747,1000,6000,28011]
 # plot separately so coloured by y-series
 #p = plot(xlabel = "Number of primary care metagenomic samples"
 #        , ylabel = "Time to detection of 1 case (days)"
@@ -691,35 +699,35 @@ x_replace_winter = simple_combined_df[:,1] #[100,200,319,747,1000,6000,28011]
 #        , ylim=(0,70)
 #        , legend = :topright
 #        )
-@df simple_combined_df scatter!(x_replace_winter
+@df results_df scatter!(x_replace_winter
                         , :ICU_only
                         , color=:red
                         , marker=:circle
                         , markersize=4
                         , label="")
-@df simple_combined_df scatter!(x_replace_winter
+@df results_df scatter!(x_replace_winter
                         , :PC_only_winter
                         , color=:lightblue
                         , marker=:circle
                         , markersize=4
                         , label="Primary care only (winter)")
-@df simple_combined_df scatter!(x_replace_winter
+@df results_df scatter!(x_replace_winter
                         , :Combined_winter
                         , color=:lightgreen
                         , marker=:circle
                         , markersize=4
                         , label="Combined (winter)")
-@df simple_combined_df plot!(x_replace_winter, :ICU_only, color=:red, linewidth=2, label="")
-@df simple_combined_df plot!(x_replace_winter, :PC_only_winter, color=:lightblue, linewidth=2, label="")
-@df simple_combined_df plot!(x_replace_winter, :Combined_winter, color=:lightgreen, linewidth=2, label="")
+@df results_df plot!(x_replace_winter, :ICU_only, color=:red, linewidth=2, label="")
+@df results_df plot!(x_replace_winter, :PC_only_winter, color=:lightblue, linewidth=2, label="")
+@df results_df plot!(x_replace_winter, :Combined_winter, color=:lightgreen, linewidth=2, label="")
 
 # Save to file
 savefig("scripts/primary_care_v_icu/TD_vs_PC_sample_size.png")
 
 ##### 3 cases ####
 # Summer
-simple_combined_3TD_df_ex100winter = simple_combined_3TD_df[1:9,:]
-x_replace_summer = simple_combined_3TD_df_ex100winter[:,1]#[100,200,319,747,1000,6000,15419]
+results_3td_df_ex100winter = results_3td_df[1:9,:]
+x_replace_summer = results_3td_df_ex100winter[:,1]#[100,200,319,747,1000,6000,15419]
 # plot separately so coloured by y-series
 p = plot(xlabel = "Number of primary care metagenomic samples"
         , ylabel = "Median time to detection\n for 3 cases (3TD) in days"
@@ -729,30 +737,30 @@ p = plot(xlabel = "Number of primary care metagenomic samples"
         #, size =(1600,1200)
         , xticks = [100, 1000, 10000, 100000, 1000000]
         )
-@df simple_combined_3TD_df_ex100winter scatter!(x_replace_summer
+@df results_3td_df_ex100winter scatter!(x_replace_summer
                         , :ICU_only
                         , color=:red
                         , marker=:circle
                         , markersize=4
                         , label="ICU only")
-@df simple_combined_3TD_df_ex100winter scatter!(x_replace_summer
+@df results_3td_df_ex100winter scatter!(x_replace_summer
                         , :PC_only_summer
                         , color=:blue
                         , marker=:circle
                         , markersize=4
                         , label="Primary care only (summer)")
-@df simple_combined_3TD_df_ex100winter scatter!(x_replace_summer
+@df results_3td_df_ex100winter scatter!(x_replace_summer
                         , :Combined_summer
                         , color=:green
                         , marker=:circle
                         , markersize=4
                         , label="Combined (summer)")
-@df simple_combined_3TD_df_ex100winter plot!(x_replace_summer, :ICU_only, color=:red, linewidth=2, label="")
-@df simple_combined_3TD_df_ex100winter plot!(x_replace_summer, :PC_only_summer, color=:blue, linewidth=2, label="")
-@df simple_combined_3TD_df_ex100winter plot!(x_replace_summer, :Combined_summer, color=:green, linewidth=2, label="")
+@df results_3td_df_ex100winter plot!(x_replace_summer, :ICU_only, color=:red, linewidth=2, label="")
+@df results_3td_df_ex100winter plot!(x_replace_summer, :PC_only_summer, color=:blue, linewidth=2, label="")
+@df results_3td_df_ex100winter plot!(x_replace_summer, :Combined_summer, color=:green, linewidth=2, label="")
 
 # Winter
-x_replace_winter = simple_combined_3TD_df[:,1] #[100,200,319,747,1000,6000,28011]
+x_replace_winter = results_3td_df[:,1] #[100,200,319,747,1000,6000,28011]
 # plot separately so coloured by y-series
 #p = plot(xlabel = "Number of primary care metagenomic samples"
 #        , ylabel = "Time to detection of 1 case (days)"
@@ -760,27 +768,27 @@ x_replace_winter = simple_combined_3TD_df[:,1] #[100,200,319,747,1000,6000,28011
 #        , ylim=(0,70)
 #        , legend = :topright
 #        )
-@df simple_combined_3TD_df scatter!(x_replace_winter
+@df results_3td_df scatter!(x_replace_winter
                         , :ICU_only
                         , color=:red
                         , marker=:circle
                         , markersize=4
                         , label="")
-@df simple_combined_3TD_df scatter!(x_replace_winter
+@df results_3td_df scatter!(x_replace_winter
                         , :PC_only_winter
                         , color=:lightblue
                         , marker=:circle
                         , markersize=4
                         , label="Primary care only (winter)")
-@df simple_combined_3TD_df scatter!(x_replace_winter
+@df results_3td_df scatter!(x_replace_winter
                         , :Combined_winter
                         , color=:lightgreen
                         , marker=:circle
                         , markersize=4
                         , label="Combined (winter)")
-@df simple_combined_3TD_df plot!(x_replace_winter, :ICU_only, color=:red, linewidth=2, label="")
-@df simple_combined_3TD_df plot!(x_replace_winter, :PC_only_winter, color=:lightblue, linewidth=2, label="")
-@df simple_combined_3TD_df plot!(x_replace_winter, :Combined_winter, color=:lightgreen, linewidth=2, label="")
+@df results_3td_df plot!(x_replace_winter, :ICU_only, color=:red, linewidth=2, label="")
+@df results_3td_df plot!(x_replace_winter, :PC_only_winter, color=:lightblue, linewidth=2, label="")
+@df results_3td_df plot!(x_replace_winter, :Combined_winter, color=:lightgreen, linewidth=2, label="")
 
 # Save to file
 savefig("scripts/primary_care_v_icu/3TD_vs_PC_sample_size.png")
@@ -816,7 +824,7 @@ ages_gp_df = DataFrame( sim_rep_n = []
                         ,GP_ages = [] )
                     
 # Gather ages
-for s in 1:1 #length(sims_G_gp_filter)
+for s in 1:10000 #length(sims_G_gp_filter)
     
     if size(sims_G_icu_filter[s],1) >0
         ## ICU
@@ -865,9 +873,9 @@ median_gp_age = median(x2)
 histogram([x1, x2]
     ,normalize = :pdf
     ,alpha = 0.5
-    ,bins = 100
+    ,bins = 20 #100
     ,label = ["ICU case ages" "GP case ages"]
     ,xlabel = "Age in years"
     , ylabel = "Density"
-    , colo = [:blue,:red]
+    , colors = [:blue,:red]
     , linewidth = 2)
