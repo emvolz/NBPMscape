@@ -14,17 +14,9 @@ Pkg.resolve()
 using NBPMscape 
 using JLD2 
 
-NREPS = 1000
+NREPS = 100 #1000
 sims = map( _-> simforest(NBPMscape.P; initialtime=0.0, maxtime=60.0, maxgenerations=100), 1:NREPS )
-@save "covidlike-1.1.1-sims.jld2" sims
-
-#TODO NOT WORKING YET
-for i in 1:length(sims)
-    sim_temp = sims[i]
-    #var_name = Symbol("sims_$(i)")   # create a symbol like :df_1, :df_2, ...
-    #eval(:( $(var_name) = $sim_temp ))  
-    @save "covidlike-1.1.1-sims/covidlike-1.1.1-sims_$i.jld2" sim_temp #$(var_name)
-end
+@save "covidlike-1.1.1-sims-nrep100.jld2" sims
 
 # Filter for G and ICU and GP cases and save (reduces file size and more likely to be able to reload)
 # Create vector to store filtered dataframes
@@ -67,4 +59,4 @@ end
 @save "covidlike-1.1.1-sims_filtered_G_icu.jld2" sims_G_icu_filter
 @save "covidlike-1.1.1-sims_filtered_G_gp.jld2" sims_G_gp_filter
 
-# Also save other constituent parts of sims
+# TODO Also save other constituent parts of sims if need to retain but in smaller size files
