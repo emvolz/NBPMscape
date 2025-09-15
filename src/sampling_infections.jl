@@ -78,8 +78,7 @@ Function: icu_v_pc_td
 
 # Examples
     td_results_test_1 = icu_v_pc_td(; sim_object_type = "full", file_or_object = "file"
-                                    #, sims_file = "sims.jdl2"
-                                    , sims_file = "C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/primary_care_Sep_2025/955898/covidlike-1.3.1-sims-nrep1000_955898_2.jld2"
+                                    , sims_file = "sims.jdl2"
                                     , sims_object_name = "sims"
                                     , gp_swabs_mg = 100 , gp_ari_swabs = 319, gp_ari_consults = 180 )
 
@@ -88,12 +87,8 @@ Function: icu_v_pc_td
                                     , gp_swabs_mg = 100 , gp_ari_swabs = 319, gp_ari_consults = 180 )
     
     td_results_test_3 = icu_v_pc_td(; sim_object_type = "filtered", file_or_object = "file"
-                                    #, sims_G_gp_filter_file = "sims_G_gp_filter.jld2", sims_G_gp_filter_object_name = "sims_G_gp_filter" 
-                                    #, sims_G_icu_filter_file = "sims_G_icu_filter.jld2", sims_G_icu_filter_object_name = "sims_G_icu_filter" 
-                                    , sims_G_gp_filter_file = "C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/primary_care_Sep_2025/955898/G_filtered_gp/covidlike-1.3.1-sims-nrep1000_filtered_G_gp_955898.2.jld2"
-                                    , sims_G_gp_filter_object_name = "sims_G_gp_filter" 
-                                    , sims_G_icu_filter_file = "C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/primary_care_Sep_2025/955898/G_filtered_icu/covidlike-1.3.1-sims-nrep1000_filtered_G_icu_955898.2.jld2"
-                                    , sims_G_icu_filter_object_name = "sims_G_icu_filter" 
+                                    , sims_G_gp_filter_file = "sims_G_gp_filter.jld2", sims_G_gp_filter_object_name = "sims_G_gp_filter" 
+                                    , sims_G_icu_filter_file = "sims_G_icu_filter.jld2", sims_G_icu_filter_object_name = "sims_G_icu_filter" 
                                     , gp_swabs_mg = 100 , gp_ari_swabs = 319, gp_ari_consults = 180 )
     
     td_results_test_4 = icu_v_pc_td(; sim_object_type = "filtered", file_or_object = "object"
