@@ -7,7 +7,7 @@ using Distributions
 using DataFrames
 import UUIDs 
 import StatsBase
-using Statistics
+#using Statistics
 using Interpolations
 import SpecialFunctions as SF 
 using Plots 
@@ -19,6 +19,10 @@ using NamedArrays
 using RData 
 using CSV 
 # using Pkg.Artifacts
+
+using GLM
+using StatsPlots
+using JLD2
 
 const COMMUTERPROBPATH = joinpath(@__DIR__, "..", "data",  "commuting_ITL2_prob_list.rds")
 const COMMUTEPROB = load( COMMUTERPROBPATH )   

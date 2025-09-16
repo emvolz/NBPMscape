@@ -1,8 +1,8 @@
 #### Function to estimate frequency/percentage of infection in each severity category
 
-using JLD2
-using DataFrames
-using StatsPlots
+#using JLD2
+#using DataFrames
+#using StatsPlots
 
 """
 Function: inf_severity_estimate
@@ -110,9 +110,9 @@ function inf_severity_estimate(;  sims_file
 end
 
 # Save figure
-savefig("scripts/primary_care_v_icu/infection_severity_weights.png")
+#savefig("scripts/primary_care_v_icu/infection_severity_weights.png")
 
 
-violin(total_infections, legend=false, palette = colors
-        , ylabel = "total infections per simulation"
-        , yscale = :log10)
+#violin(total_infections, legend=false, palette = colors
+#        , ylabel = "total infections per simulation"
+#        , yscale = :log10)

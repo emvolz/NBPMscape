@@ -1,10 +1,10 @@
 # Load packages
-using Revise
-using NBPMscape
-using GLM, Statistics, StatsBase, Distributions
-using DataFrames, CSV 
-using Plots, StatsPlots
-using JLD2
+#using Revise
+#using NBPMscape
+#using GLM, Statistics, StatsBase, Distributions
+#using DataFrames, CSV 
+#using Plots, StatsPlots
+#using JLD2
 
 #=  This file contains a number of functions used in the analysis of time to detection 
     under different scenarios. The functions are:
