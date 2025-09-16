@@ -598,3 +598,18 @@ histogram([x1, x2]
     , ylabel = "Density"
     , colors = [:blue,:red]
     , linewidth = 2)
+
+
+## Check how many simulations contain results
+n_sims_w_results_icu_gp( sims_file_icu = "covidlike-1.1.1-sims_filtered_G_icu_combined_nrep53000.jld2" 
+                , sims_file_gp = "covidlike-1.1.1-sims_filtered_G_gp_combined_nrep53000.jld2") 
+# ICU: 90% and GP: 90% 
+
+n_sims_w_results_icu_gp( sims_file_icu = "covidlike-1.3.1-sims_filtered_G_icu_combined_nrep84000.jld2" 
+                , sims_file_gp = "covidlike-1.3.1-sims_filtered_G_gp_combined_nrep84000.jld2") 
+# Combination of HPC run 851401+854085 
+# ICU: 35% and GP: 34% (because R was too low at ~1)
+
+n_sims_w_results_icu_gp( sims_file_icu = "covidlike-1.3.1-sims_filtered_G_icu_combined_nrep64000_955898.jld2" 
+                , sims_file_gp = "covidlike-1.3.1-sims_filtered_G_gp_combined_nrep64000_955898.jld2") 
+# ICU: 80% and GP: 80%

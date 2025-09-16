@@ -9,16 +9,11 @@
 2(b) {n_sims_w_results_icu_gp}
      Takes only two files as input - one pre-filtered for GP cases and one pre-filtered for ICU cases
 
-and also
-3   Code to try if having issues with loading .jld2 files, try looking at different package versions
 =#
-
 
 using JLD2
 using DataFrames
 
-#=1   {combine_sim_reps}
-     =#
 
 """
 Function: combine_sim_reps
@@ -182,20 +177,6 @@ function n_sims_w_results(; sims_files = [], sims_object_names = [], count_types
 
 end
 
-n_sims_w_results(; sims_files = ["covidlike-1.3.1-sims-nrep1000_filtered_G_icu_955898.2.jld2"
-                                ,"covidlike-1.3.1-sims-nrep1000_filtered_G_icu_955898.3.jld2"] #[]
-                 , sims_object_names = [ "sims_G_icu_filter"
-                                        ,"sims_G_icu_filter"] #[]
-                 , count_types = [ "tgp", "ticu" ]
-                 ) # Input vector of files
-
-##Row │ sims_files                                                     tgp      ticu    
-#     │ String                                                         Float64  Float64
-#─────┼─────────────────────────────────────────────────────────────────────────────────
-#   1 │ covidlike-1.3.1-sims-nrep1000_filtered_G_icu_955898.2.jld2    0.717    0.795
-#   2 │ covidlike-1.3.1-sims-nrep1000_filtered_G_icu_955898.2.jld2    0.704    0.78
-
-
 """
 Function: n_sims_w_results_icu_gp
 
@@ -251,48 +232,3 @@ function n_sims_w_results_icu_gp(; sims_file_icu, sims_file_gp)
     end
     println("For ICU cases, $(icu_results_counter) ($(round(100*icu_results_counter/nrep_sims_G_icu_filter))%) out of $(nrep_sims_G_icu_filter) simulations contain results")
 end
-
-n_sims_w_results_icu_gp( sims_file_icu = "covidlike-1.1.1-sims_filtered_G_icu_combined_nrep53000.jld2" 
-                , sims_file_gp = "covidlike-1.1.1-sims_filtered_G_gp_combined_nrep53000.jld2") 
-# ICU: 90% and GP: 90% 
-
-n_sims_w_results_icu_gp( sims_file_icu = "covidlike-1.3.1-sims_filtered_G_icu_combined_nrep84000.jld2" 
-                , sims_file_gp = "covidlike-1.3.1-sims_filtered_G_gp_combined_nrep84000.jld2") 
-# Combination of HPC run 851401+854085 
-# ICU: 35% and GP: 34% (because R was too low at ~1)
-
-n_sims_w_results_icu_gp( sims_file_icu = "covidlike-1.3.1-sims_filtered_G_icu_combined_nrep64000_955898.jld2" 
-                , sims_file_gp = "covidlike-1.3.1-sims_filtered_G_gp_combined_nrep64000_955898.jld2") 
-# ICU: 80% and GP: 80%
-
-
-##########################################
-# 3 Code to try if having issues with loading .jld2 files, try looking at different package versions
-
-using Pkg
-Pkg.status("JLD2")
-println(Pkg.installed()["JLD2"])
-
-using JLD2
-Pkg.dependencies()[Base.UUID("e6f89c97-0c3b-5dc0-b6b1-59888e4c5d15")].version
-
-
-function get_version(pkg_name::String)
-    for (uuid, pkg) in Pkg.dependencies()
-        if pkg.name == pkg_name
-            return pkg.version
-        end
-    end
-    return "Package not found in current environment"
-end
-
-println(get_version("JLD2"))
-Pkg.add("JLD2")
-
-# HPC version of JLD2
-using Pkg
-Pkg.add(Pkg.PackageSpec(name="JLD2", version="0.5.15"))
-using JLD2
-# NBPMscape version of JLD2
-using Pkg
-Pkg.add(Pkg.PackageSpec(name="JLD2", version="1.11.2"))
