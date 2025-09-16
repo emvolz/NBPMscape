@@ -374,7 +374,7 @@ function samp_infectee_age(p; contacttype, donor_age)# = :nothing, donor_age = :
 	return (infectee_age)
 end
 # Test
-# samp_infectee_age(P; contacttype = :nothing, donor_age = 1) # TODO CURRENTLY RETURNS AN ERROR
+# samp_infectee_age(P; contacttype = :nothing, donor_age = 1) # TODO contacttype = :nothing CURRENTLY RETURNS AN ERROR
 #samp_infectee_age(P; contacttype = :G, donor_age = 1)
 #samp_infectee_age(P; contacttype = :H, donor_age = 1)
 #samp_infectee_age(P; contacttype = :F, donor_age = 1)
@@ -597,14 +597,14 @@ function Infection(p; pid = "0"
 	# time of main events 
 	tseq = Inf # time of sequencing 
 	ticu = Inf # icu admit 
-	tgp = Inf # gpu attend 
-	thospital = Inf # hospital admit 
+	tgp = Inf # gp attend 
+	thospital = Inf # time admitted to hospital general ward
 	tsampled = Inf # sampled 
 	tseqdeposition = Inf # sequence db 
 	tstepdown = Inf # time at which patient care stepped down from ICU to general ward
 	tdischarge = Inf # time discharged from hospital (general ward, ICU, or stepdown after ICU)
-	trecovered = Inf # time recovered
-	tdeceased = Inf # time died
+	trecovered = Inf # time recovered - either community, discharge from hospital, ICU, or stepdown ward
+	tdeceased = Inf # time of death - either in hospital, ICU, or stepdown ward
 
 	#= Determine severity of infection, stratified by age. Probabilities from Knock et al (2021)
 	Possibilities are:
@@ -613,7 +613,7 @@ function Infection(p; pid = "0"
 	:moderate (will visit GP)
 	:severe (will be admitted to hospital)
 	:verysevere (will be admitted to ICU)
-	TODO Returns infection severity and whether infection will be fatal or not
+	Returns infection severity and whether infection will be fatal or not
 	=# 
 	severity = sample_infectee_severity( p; age = infectee_age ) #severity = StatsBase.wsample( SEVERITY, [p.propmildorasymptomatic, p.propmoderate , p.propsevere, p.propverysevere]  ) #StatsBase.wsample( SEVERITY, [P.propmild, 1-P.propmild-P.propsevere , P.propsevere]  )
 	#Test
@@ -713,22 +713,6 @@ function Infection(p; pid = "0"
 		)
 	end
 	j_transmh = VariableRateJump(rate_transmh, aff_transmh!; lrate=lrate_transmh, urate=hrate_transmh, rateinterval=rint)
-
-
-	# care pathway  
-	# const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :stepdown, :discharged, :deceased) 
-	# const SEVERITY = [:asymptomatic, :mild, :moderate, :severe, :verysevere ] #(:mildorasymptomatic, :moderate, :severe )
-	# const STAGE = (:latent, :infectious, :recovered :deceased)
-
-	# tseq = Inf # time of sequencing 
-	# ticu = Inf # time admitted to ICU
-	# tstepdown = Inf # time stepped down from ICU to general ward
-	# tgp = Inf # gp attend 
-	# thospital = Inf # time admitted to hospital general ward
-	# tsampled = Inf # sampled 
-	# tseqdeposition = Inf # sequence db 
-	# trecovered = Inf # time recovered - either community, discharge from hospital, ICU, or stepdown ward
-	# tdeceased = Inf # time of death - either in hospital, ICU, or stepdown ward
 
 	## gp visit
 	#rategp(u,p,t) = ((carestage==:undiagnosed) & (severity in (:moderate,:severe,:verysevere))) ? p.gprate : 0.0
@@ -958,40 +942,9 @@ Infection(p, h::DataFrameRow, donor::Infection) = Infection(p; pid = h["pid2"]
 
 function simgeneration(p, prevgen::Array{Infection}; maxtime = Inf)
 	length(prevgen) == 0 && return Array{Infection}([])
-	# TODO THERE IS AN ERROR HERE - possibly in "if h["timetransmission"] < maxtime" which apparently sometimes
-	# tries to compare a vector with a single value
-	# Loops through the each Infection u in the prevgen array of Infections and loops through each row h in u.H.
-	# If the timetransmission value in row h in H in Infection u is less than maxtime then a new Infection object 
-	# will be created using parameter p (the parameter set), h (row in H) and u (the prevgen Infection) 
 	Array{Infection}(
 		[Infection(p, h, u) for u in prevgen for h in eachrow(u.H) if h["timetransmission"] < maxtime]
 	)
-end
-
-#TEST
-# Alternative version of simgeneration() for debugging
-#prevgen = g
-#maxtime=60.0
-#p=P
-function simgeneration_alt(p, prevgen::Array{Infection}; maxtime = Inf)
-	#Test
-	#println("length of g = ",length(g))
-	#println(prevgen[1])
-	length(prevgen) == 0 && return Array{Infection}([])	
-	newgen = Infection[]
-	for u in 1:length(prevgen)
-		for h in 1:nrow(prevgen[u].H)
-			#println("u=",u", ","h=",h)
-			println("Infection ",u," H row",h," has time of transmission = ",prevgen[u].H[h,:]["timetransmission"])
-			println("t_transmission",prevgen[u].H[h,:]["timetransmission"])
-			if prevgen[u].H[h,:]["timetransmission"] < maxtime
-				#Array{Infection}
-				#push!( Array{Infection},  Infection(p,h,u) )
-				push!( newgen,  Infection(p,prevgen[u].H[h,:],prevgen[u]) )
-			end
-		end
-	end
-	return( newgen )
 end
 
 # TODO IN SIMTREE NEED TO RECORD IF INFECTION IS AN IMPORTATION OR NOT BECAUSE IMPORTATION MAY PROMPT
