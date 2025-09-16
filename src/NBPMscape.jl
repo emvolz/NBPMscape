@@ -6,7 +6,8 @@ using Random
 using Distributions
 using DataFrames
 import UUIDs 
-import StatsBase 
+import StatsBase
+using Statistics
 using Interpolations
 import SpecialFunctions as SF 
 using Plots 
@@ -90,5 +91,17 @@ const CARE_PATHWAY_PROB_BY_AGE = load( joinpath( @__DIR__, "..", "data", "knock_
 export simtree, simforest, sampleforest, simgendist, Infection, infectivitytoR
 export transmissionrate, sampdegree, REGKEY, COMMUTEPROB #TODO 
 include("core.jl")
+
+include("sampling_infections.jl")
+export icu_v_pc_td, analyse_td_columns, plot_hist
+
+include("sims_filter.jl")
+export sims_filter
+
+include("estimate_severity_weights.jl")
+export inf_severity_estimate
+
+include("combine_small_sim_reps.jl")
+export combine_sim_reps, n_sims_w_results, n_sims_w_results_icu_gp
 
 end 
