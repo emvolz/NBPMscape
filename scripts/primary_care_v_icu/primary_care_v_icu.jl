@@ -43,6 +43,27 @@ infectivitytoR(2, nsims=10000)
 sims = load("covidlike-1.1.1-sims.jld2", "sims")
 #@load "covidlike-1.1.1-sims.jld2" sims
 
+## Combine and save multiple files each containing 1000 simulation replicates that have been filtered
+## to retain ICU cases only (G dataframe)
+sims_G_icu_filter = combine_sim_reps( sim_input_folders = [ "C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/primary_care_Sep_2025/955898/G_filtered_icu"]
+                                       #                     ,"C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/primary_care_Sep_2025/955898/G_filtered_gp"]
+                                    , sim_object_name = "sims_G_icu_filter" #"sims_G_gp_filter"# "sims" #  
+                                    , nrep = 1000
+                                    )
+@save "covidlike-1.3.1-sims_filtered_G_icu_combined_nrep64000_955898.jld2" sims_G_icu_filter #@save "covidlike-1.3.1-sims_filtered_G_icu_combined_nrep$(nrep_sims_G_icu_filter)_955898.jld2" sims_G_icu_filter
+
+## Combine and save multiple files each containing 1000 simulation replicates that have been filtered 
+## to retain GP cases only (G dataframe)
+sims_G_gp_filter = combine_sim_reps( sim_input_folders = [ "C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/primary_care_Sep_2025/955898/G_filtered_gp"]
+                                    , sim_object_name = "sims_G_gp_filter" #"sims_G_icu_filter" ## "sims" #  
+                                    , nrep = 1000
+                                    )
+@save "covidlike-1.3.1-sims_filtered_G_gp_combined_nrep64000_955898.jld2" sims_G_gp_filter #@save "covidlike-1.3.1-sims_filtered_G_icu_combined_nrep$(nrep_sims_G_gp_filter)_955898.jld2" sims_G_gp_filter
+
+### Check whether can reload files - large files can be difficult to reload
+sims_G_icu_filter = load("covidlike-1.3.1-sims_filtered_G_icu_combined_nrep64000_955898.jld2", "sims_G_icu_filter") #load("covidlike-1.3.1-sims_filtered_G_icu_combined_nrep$(nrep_sims_G_icu_filter).jld2", "sims_G_icu_filter")
+sims_G_gp_filter = load("covidlike-1.3.1-sims_filtered_G_gp_combined_nrep64000_955898.jld2", "sims_G_gp_filter") #sims_G_gp_filter = load("covidlike-1.3.1-sims_filtered_G_gp_combined_nrep$(nrep_sims_G_gp_filter).jld2", "sims_G_gp_filter")
+
 # If using files created from smaller files, which have less issues with reloading
 # Versions BEFORE addition of age disaggregation of severity
 #@load "covidlike-1.1.1-sims_filtered_G_icu_combined_nrep53000.jld2" sims_filtered_G_icu
