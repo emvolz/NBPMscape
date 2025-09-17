@@ -26,6 +26,7 @@ mutable struct Infection
 	commuteregion::String
 	initialdayofweek::Int # day 1-7 when infection ocurred 
 	severity::Symbol #severity::NamedTuple{(:severity, :fatal), Tuple{Symbol, Bool}} # severity of infection and whether it will be fatal
+	fatal::Bool # Will the infection be fatal {true,false}. Only possible to be true for severity = verysevere or severe
 	generation::Int64
 	isdeceased::Bool # TODO whether individual has died (default = FALSE). Assume all individuals that die have been admitted to ICU. 
 	donor_age::Union{Int8,Missing} # Age of infector
@@ -304,7 +305,7 @@ P = (
 	, icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). 
 	# ICU stepdown rates
 	, stepdown_to_recovery_after_icu_rate  = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
-	, stepdown_to_death_after_icu_rate = 1 / 8.1 # 'Stepdown period before death after leaving ICU' 8.1 (95% CI: 
+	, stepdown_to_death_after_icu_rate = 1 / 8.1 # 'Stepdown period before death after leaving ICU' 8.1 (95% CI: 0.2-29.7). Erlang(k=1,gamma=0.12)
 
 	#############################################################
 
@@ -921,6 +922,7 @@ function Infection(p; pid = "0"
 				, commuteregion
 				, initialdow # day 1-7 when infection ocurred 
 				, severity.severity
+				, severity.fatal
 				, isnothing(donor) ? 0 : donor.generation+1 # Determine generation 
 				, isdeceased
 				, isnothing(donor) ? missing : donor.infectee_age
@@ -1000,19 +1002,23 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 					, :timetransmission => nothing, :contacttype => nothing, :region => nothing
 					, :infector_age => nothing, :infectee_age => nothing])
 	
-	dfargs1 = [(u.pid, u.tinf, u.tgp, u.thospital, u.ticu, u.trecovered
+	dfargs1 = [(u.pid, u.tinf, u.tgp, u.thospital, u.ticu, u.tstepdown, u.tdischarge, u.trecovered, u.tdeceased
 				, u.severity#.severity
+				, u.fatal
 				, u.iscommuter, u.homeregion, u.commuteregion
 				, u.generation,
 				u.degree...
-				, u.donor_age, u.infectee_age) for u in G]
+				, u.donor_age, u.infectee_age
+				, u.importedinfection) for u in G]
 	Gdf = DataFrame(dfargs1
-		, [:pid, :tinf, :tgp, :thospital, :ticu, :trecovered
+		, [:pid, :tinf, :tgp, :thospital, :ticu, :tstepdown, :tdischarge, :trecovered, :tdeceased
 			, :severity
+			, :fatal
 			, :iscommuter, :homeregion, :commuteregion
 			, :generation
 			, :F, :G, :H
-			, :infector_age, :infectee_age ]
+			, :infector_age, :infectee_age
+			, :importedinfection ]
 	)
 	
 	H.simid .= simid 
