@@ -288,7 +288,7 @@ P = (
 	#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
 
 	# TODO STRATIFY BY AGE GROUP
-	, gprate = 1/5 # TODO Could replace this with 3-7 days (perhaps 1/5?) between symptom onset and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025)), although this is non-virus specific. Would need to make sure it is consistent with the hospadmitrate
+	, gprate = 1/3 # TODO Could replace this with 3-7 days (perhaps 1/5?) between symptom onset and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025)), although this is non-virus specific. Would need to make sure it is consistent with the hospadmitrate
 	, hospadmitrate = 1/4 # Docherty 2020 # Also in Knock et al (2021) "mean time from symptom onset to admission to hospital" = 4 days
 	#, icurate = 1/2.5 # Knock 2021
 	#, hosp_disch_rate # TODO - SEE KNOCK ET AL (2021)
@@ -753,16 +753,19 @@ function Infection(p; pid = "0"
 
 	## Triage to ICU
 	#rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:verysevere,)) )) ? p.icurate : 0.0 
-	rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity.severity in (:verysevere,)) )) ? p.triage_icu_rate : 0.0 
+	#rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity.severity in (:verysevere,)) )) ? p.triage_icu_rate : 0.0 
+	rateicu(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity in (:verysevere,)) ) ? p.triage_icu_rate : 0.0 
 	aff_icu!(int) = begin 
-		carestage = :icu  
+		carestage = :admittedicu  
 		ticu = int.t 
 		sampled = (rand() < p.psampled )
 	end 
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
+	# TODO PROBABLY CAN REMOVE THIS AS LIKELY THAT THERE IS ALWAYS STEPDOWN TO GENERAL WARD BETWEEN ICU AND DISCHARGE / RECOVERY
+	# TODO discharged is not necessarily the same as recovery
 	## ICU -> Recovery
-	rate_icu_recovery(u,p,t) = (( (carestage in (:icu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false ) )) ? p.icu_to_recovery_rate : 0.0 
+	rate_icu_recovery(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false ) )) ? p.icu_to_recovery_rate : 0.0 
 	aff_icu_recovery!(int) = begin 
 		carestage = :discharged  
 		trecovered = int.t # TODO CHECK WHETHER THIS SHOULD BE DETERMINED ELSEWHERE
@@ -770,7 +773,7 @@ function Infection(p; pid = "0"
 	j_icu_recovery = ConstantRateJump( rate_icu_recovery, aff_icu_recovery! )
 
 	## ICU -> Death
-	rate_icu_death(u,p,t) = (( (carestage in (:icu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true ) )) ? p.icu_to_death_rate : 0.0 
+	rate_icu_death(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true ) )) ? p.icu_to_death_rate : 0.0 
 	aff_icu_death!(int) = begin 
 		carestage = :deceased
 		tdeceased = int.t
@@ -778,11 +781,11 @@ function Infection(p; pid = "0"
 	end 
 	j_icu_death = ConstantRateJump( rate_icu_death, aff_icu_death! )
 
-	## TODO - NOT SURE WE HAVE THE RATE FOR THIS PATHWAY
-	# Only have time in ICU before stepdown for infections leading to death
-	# ?? , icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). ??
+	# TODO Only have time in ICU before stepdown for infections leading to death
+	# icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). ??
+	# TODO Need to decide whether to assume that the ICU stepdown rate is the same regardless of final outcome being death or recovery
 	## ICU -> Stepdown (to hospital general ward)
-	rate_icu_stepdown(u,p,t) = (( (carestage in (:icu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_resulting_in_death_rate : 0.0 
+	rate_icu_stepdown(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_resulting_in_death_rate : 0.0 
 	aff_icu_stepdown!(int) = begin 
 		carestage = :stepdown  
 		tstepdown = int.t 
@@ -800,7 +803,7 @@ function Infection(p; pid = "0"
 	## Hospital general ward (ICU Stepdown) -> Recovery
 	rate_stepdown_recovery(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
 	aff_stepdown_recovery!(int) = begin 
-		carestage = :discharged
+		carestage = :discharged # TODO discharged is not necessarily the same as recovery
 		trecovered = int.t # TODO CHECK WHETHER THIS SHOULD BE DETERMINED ELSEWHERE
 	end 
 	j_stepdown_recovery = ConstantRateJump( rate_stepdown_recovery, aff_stepdown_recovery! )
