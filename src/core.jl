@@ -288,7 +288,7 @@ P = (
 	#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
 
 	# TODO STRATIFY BY AGE GROUP
-	, gprate = 1/3 # TODO Could replace this with 3-7 days (perhaps 1/5?) between symptom onset and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025)), although this is non-virus specific. Would need to make sure it is consistent with the hospadmitrate
+	, gprate = 1/5 # TODO Could replace this with 3-7 days (perhaps 1/5?) between symptom onset and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025)), although this is non-virus specific. Would need to make sure it is consistent with the hospadmitrate
 	, hospadmitrate = 1/4 # Docherty 2020 # Also in Knock et al (2021) "mean time from symptom onset to admission to hospital" = 4 days
 	#, icurate = 1/2.5 # Knock 2021
 	#, hosp_disch_rate # TODO - SEE KNOCK ET AL (2021)
