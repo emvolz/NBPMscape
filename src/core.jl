@@ -621,26 +621,23 @@ function Infection(p; pid = "0"
 	#cumulative transm 
 	R = 0 
 
+	# Determine length of infectious period
 	gammalatent = Gamma(p.latent_shape, p.latent_scale)
 	latenthazard(t) = pdf(gammalatent,t) / (1 - cdf(gammalatent,t))
 	gammarecovery = Gamma(p.infectious_shape, p.infectious_scale)
 	recoveryhazard(t) = pdf(gammarecovery ,t) / (1 - cdf(gammarecovery,t)) 
-	# TODO ADD ANOTHER FUNCTION HERE ONCE DECEASED COMPARTMENT ADDED?
-
+	
 	laglatent = rand( gammalatent )
 	lagrecovery = rand( gammarecovery ) 
 	tinfectious = tinf + laglatent
 	tfin = laglatent + lagrecovery + tinf
 	#trecovered = tfin
-	# TODO DETERMINE TIME DEPENDING ON RECOVERY OR DEATH
-	#lagdeath = 
-	#if infstage == :recovered
-	#	tfin = laglatent + tinf + lagrecovery 
-	#	trecovered = tfin
-	#elseif infstage == :deceased
-	#	tfin = laglatent + tinf + lagdeath
-	#	tdeceased = tfin
-	#end 
+	if severity.fatal == false 
+		trecovered = tfin
+	elseif severity.fatal == true
+		trecovered = Inf
+		tfin = min(tdeceased,tfin)
+	end 
 	tspan = (tinfectious, tfin)
 	
 	# rate interval for variable rate jumps
@@ -725,14 +722,16 @@ function Infection(p; pid = "0"
 	ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == false) )) ? p.hosp_recovery_rate : 0.0 
 	aff_hosp_disch!(int) = begin 
 		carestage = :discharged
-		trecovered = int.t
+		infstage = :recovered # TODO assuming discharged and recovered are the same
+		trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_hospital_discharge = ConstantRateJump( ratehospitaldischarge, aff_hosp_disch! )
 
 	## hospital -> death rate 
 	ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == true) )) ? p.hosp_death_rate : 0.0 
 	aff_hosp_death!(int) = begin 
-		carestage = :deceased  
+		carestage = :deceased
+		infstage = :deceased  
 		tdeceased = int.t # TODO DO WE NEED TO DIFFERENTIATE CARE PATHWAY BEFORE DEATH (OR RECOVERY)?? i.e. IF USED AS A PROMPT FOR TESTING
 		isdeceased = true
 	end 
@@ -754,8 +753,9 @@ function Infection(p; pid = "0"
 	## ICU -> Recovery
 	rate_icu_recovery(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false ) )) ? p.icu_to_recovery_rate : 0.0 
 	aff_icu_recovery!(int) = begin 
-		carestage = :discharged  
-		trecovered = int.t # TODO CHECK WHETHER THIS SHOULD BE DETERMINED ELSEWHERE
+		carestage = :discharged
+		infstage = :recovered  
+		trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_icu_recovery = ConstantRateJump( rate_icu_recovery, aff_icu_recovery! )
 
@@ -763,6 +763,7 @@ function Infection(p; pid = "0"
 	rate_icu_death(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true ) )) ? p.icu_to_death_rate : 0.0 
 	aff_icu_death!(int) = begin 
 		carestage = :deceased
+		infstage = :deceased
 		tdeceased = int.t
 		isdeceased = true 
 	end 
@@ -783,7 +784,8 @@ function Infection(p; pid = "0"
 	rate_stepdown_recovery(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
 	aff_stepdown_recovery!(int) = begin 
 		carestage = :discharged # TODO discharged is not necessarily the same as recovery
-		trecovered = int.t # TODO CHECK WHETHER THIS SHOULD BE DETERMINED ELSEWHERE
+		infstage = :recovered
+		trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_stepdown_recovery = ConstantRateJump( rate_stepdown_recovery, aff_stepdown_recovery! )
 
@@ -791,6 +793,7 @@ function Infection(p; pid = "0"
 	rate_stepdown_death(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true)) ) ? p.stepdown_to_death_after_icu_rate : 0.0 
 	aff_stepdown_death!(int) = begin 
 		carestage = :deceased
+		infstage = :deceased
 		tdeceased = int.t
 		isdeceased = true 
 	end 
