@@ -292,8 +292,6 @@ P = (
 	, hospadmitrate = 1/4 # Docherty 2020 # Also in Knock et al (2021) "mean time from symptom onset to admission to hospital" = 4 days
 	#, icurate = 1/2.5 # Knock 2021
 	#, hosp_disch_rate # TODO - SEE KNOCK ET AL (2021)
-	#, icu_disch_rate # TODO - SEE KNOCK ET AL (2021)
-	#, icu_stepdown_disch_rate # TODO
 	## Rate (= 1 / duration) in different care stages for different pathways - source Knock et al (2021) Table S2
 	# General ward rates
 	, hosp_recovery_rate = 1 / 10.7 # 'Hospitalised on general ward leading to recovery' 10.7 days (95% CI: 0.3-39.4). Erlang(k=1,gamma=0.09). Knock et al (2021). 
@@ -574,8 +572,6 @@ function Infection(p; pid = "0"
 	       , degreeg = Int64[] 
 	       , oorate = Float64[] 
 	       , carestage = Symbol[]
-		   #, donor_age = Int8[]    # Caused issues when added here, so only recorded in D and G
-		   #, infectee_age = Int8[] # Caused issues when added here, so only recorded in D and G
 	)
 
 	# initial state of infection 
@@ -668,18 +664,15 @@ function Infection(p; pid = "0"
 	j_loseg = ConstantRateJump(rate_loseg, aff_loseg!) 
 
 	# transmissions 
-	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t,tinf,  tinfectious, initialdow, p, infectee_age, severity) : 0.0 
+	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t, tinf, tinfectious, initialdow, p, infectee_age, severity) : 0.0 # TODO transmissionrate not currently disaggregated by age - also when/if it is then this should possibly be donor.infectee_age rather than infectee_age
 	hrate_transmf(u,p,t) = max(1.2*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age, severity) )
 	lrate_transmf(u,p,t) = min(0.8*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age, severity) )
 	aff_transmf!(int) = begin 
 		Kf -= 1
 		R += 1
 		nextpid = pid * ".$(R)"
-		# TODO this method is not correctly recording the donor/infector and recipient/infectee ages - it is one step behind
-		#donor_age = isnothing(donor) ? -1 : donor.infectee_age
-		#infectee_age = isnothing(infectee_age) ? -2 : infectee_age
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :F, flinks, glinks, hr, carestage)#, donor_age, infectee_age)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :F, flinks, glinks, hr, carestage)
 		)
 	end
 	j_transmf = VariableRateJump(rate_transmf, aff_transmf!; lrate=lrate_transmf, urate=hrate_transmf, rateinterval=rint) # 
@@ -691,11 +684,8 @@ function Infection(p; pid = "0"
 		Kg -= 1
 		R += 1
 		nextpid = pid * ".$(R)"
-		# TODO this method is not correctly recording the donor/infector and recipient/infectee ages - it is one step behind
-		#donor_age = isnothing(donor) ? -1 : donor.infectee_age
-		#infectee_age = isnothing(infectee_age) ? -2 : infectee_age
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :G, flinks, glinks, hr, carestage)#,  donor_age, infectee_age)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :G, flinks, glinks, hr, carestage)
 		)
 	end
 	j_transmg = VariableRateJump(rate_transmg, aff_transmg!; lrate=lrate_transmg, urate=hrate_transmg, rateinterval=rint)
@@ -706,11 +696,8 @@ function Infection(p; pid = "0"
 	aff_transmh!(int) = begin 
 		R += 1
 		nextpid = pid * ".$(R)"
-		# TODO this method is not correctly recording the donor/infector and recipient/infectee ages - it is one step behind
-		#donor_age = isnothing(donor) ? -1 : donor.infectee_age
-		#infectee_age = isnothing(infectee_age) ? -2 : infectee_age
 		push!(H
-			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :H, flinks, glinks, hr, carestage)#,  donor_age, infectee_age)
+			, (pid, nextpid, int.t, dayofweek(int.t, tinf,initialdow), region, :H, flinks, glinks, hr, carestage)
 		)
 	end
 	j_transmh = VariableRateJump(rate_transmh, aff_transmh!; lrate=lrate_transmh, urate=hrate_transmh, rateinterval=rint)
@@ -735,7 +722,7 @@ function Infection(p; pid = "0"
 
 	## hospital -> discharged rate 
 	#ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital)) & (severity in (:severe,)) )) ? p.hosp_disch_rate : 0.0 
-	ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == false) )) ? P.hosp_recovery_rate : 0.0 
+	ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == false) )) ? p.hosp_recovery_rate : 0.0 
 	aff_hosp_disch!(int) = begin 
 		carestage = :discharged
 		trecovered = int.t
@@ -746,7 +733,7 @@ function Infection(p; pid = "0"
 	ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == true) )) ? p.hosp_death_rate : 0.0 
 	aff_hosp_death!(int) = begin 
 		carestage = :deceased  
-		tdeceased = int.t # TODO DO WE NEED TO DIFFERENTIATE CARE PATHWAY BEFORE DEATH (OR RECOVERY)??
+		tdeceased = int.t # TODO DO WE NEED TO DIFFERENTIATE CARE PATHWAY BEFORE DEATH (OR RECOVERY)?? i.e. IF USED AS A PROMPT FOR TESTING
 		isdeceased = true
 	end 
 	j_hospital_death = ConstantRateJump( ratehospitaldeath, aff_hosp_death! )
@@ -791,14 +778,6 @@ function Infection(p; pid = "0"
 		tstepdown = int.t 
 	end 
 	j_icu_stepdown = ConstantRateJump( rate_icu_stepdown, aff_icu_stepdown! )
-
-	## TODO icu discharge to hospital ward 
-	#rate_icu_discharge(u,p,t) = (( (carestage in (:icu)) & (severity in (:severe,)) )) ? p.icu_disch_rate : 0.0 
-	#aff_icu_disch!(int) = begin 
-	#	carestage = :hospital_stepdown  
-	#	ticu = int.t 
-	#end 
-	#j_icu_discharge = ConstantRateJump( rate_icu_discharge, aff_icu_disch! )
 
 	## Hospital general ward (ICU Stepdown) -> Recovery
 	rate_stepdown_recovery(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
@@ -979,9 +958,6 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 	G = g 
 	H = g[1].H 
 	
-	println(g)
-	println(length(g))
-
 	for igen in 2:maxgenerations
 		g = simgeneration(p, g, maxtime = maxtime)
 		# g = [infection for infection in g if infection.tinf < maxtime]
@@ -1024,7 +1000,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 			, :importedinfection ]
 	)
 	
-	H.simid .= simid 
+	H.simid .= simid
 	D.simid .= simid 
 	Gdf.simid .= simid 
 
@@ -1034,7 +1010,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 		 G = Gdf 
 		, D = D 
 		, infections = G 
-		, H = H 
+		, H = H_new # H
 	)
 	
 end
@@ -1121,4 +1097,4 @@ sampleforest(fo::NamedTuple, p::NamedTuple) = begin
 		, firstsample = (n>0) ? minimum(tsample) : missing
 	)
 end
-sampleforest(fo, psampled::Real) = begin  P = merge(NBPMscape.P,(;psampled=psampled)); sampleforest(fo,P) end 
+sampleforest(fo, psampled::Real) = begin  P = merge(NBPMscape.P,(;psampled=psampled)); sampleforest(fo,P) end
