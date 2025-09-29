@@ -935,8 +935,6 @@ function simgeneration(p, prevgen::Array{Infection}; maxtime = Inf)
 	)
 end
 
-# TODO IN SIMTREE NEED TO RECORD IF INFECTION IS AN IMPORTATION OR NOT BECAUSE IMPORTATION MAY PROMPT
-# INVESTIGATION UNDER NON-METAGENOMIC SURVEILLANCE X% OF THE TIME
 function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H)
 	# clustthreshold::Float64 = 0.005,
 	
