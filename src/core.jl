@@ -1013,7 +1013,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 		 G = Gdf 
 		, D = D 
 		, infections = G 
-		, H = H_new # H
+		, H = H
 	)
 	
 end

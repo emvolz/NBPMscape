@@ -24,7 +24,7 @@ Function: icu_v_pc_td
     - ICU
 
 # Arguments
-    'sim_object_type':          Dscription of the format of the underlying simulation data. 
+    'sim_object_type':          Description of the format of the underlying simulation data. 
                                 There are two options: 
                                 -   "full", which is the data as output from {simtree} or {simforest}. 
                                     This option requires an input for "sims_file" and no input for 
