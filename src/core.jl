@@ -722,8 +722,8 @@ function Infection(p; pid = "0"
 	ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == false) )) ? p.hosp_recovery_rate : 0.0 
 	aff_hosp_disch!(int) = begin 
 		carestage = :discharged
-		infstage = :recovered # TODO assuming discharged and recovered are the same
-		trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
+		#infstage = :recovered # TODO assuming discharged and recovered are the same
+		#trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_hospital_discharge = ConstantRateJump( ratehospitaldischarge, aff_hosp_disch! )
 
@@ -754,8 +754,8 @@ function Infection(p; pid = "0"
 	rate_icu_recovery(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false ) )) ? p.icu_to_recovery_rate : 0.0 
 	aff_icu_recovery!(int) = begin 
 		carestage = :discharged
-		infstage = :recovered  
-		trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
+		#infstage = :recovered  
+		#trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_icu_recovery = ConstantRateJump( rate_icu_recovery, aff_icu_recovery! )
 
@@ -784,8 +784,8 @@ function Infection(p; pid = "0"
 	rate_stepdown_recovery(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
 	aff_stepdown_recovery!(int) = begin 
 		carestage = :discharged # TODO discharged is not necessarily the same as recovery
-		infstage = :recovered
-		trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
+		#infstage = :recovered
+		#trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_stepdown_recovery = ConstantRateJump( rate_stepdown_recovery, aff_stepdown_recovery! )
 
@@ -830,6 +830,7 @@ function Infection(p; pid = "0"
 	j_importhome = ConstantRateJump( rateimporthome, aff_importhome! )
 
 	## TODO ADD SET OF RATES AND AFFECTS FOR SAMPLING UNDER CURRENT SURVEILLANCE ASSUMPTIONS: DEATHS, ICU AGE, TRAVEL etc
+	## OR this could be done using an overlay once the outbreak has been simulated
 	
 	## TODO long distance occasional travel 
 	
