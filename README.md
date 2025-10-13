@@ -6,7 +6,7 @@ A Julia package for simulating disease transmission and cluster growth.
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/emvolz/NBPMscape.jl")
+Pkg.add(url="https://github.com/emvolz/NBPMscape")
 ```
 
 ## Usage
