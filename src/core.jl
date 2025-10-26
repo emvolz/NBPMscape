@@ -308,6 +308,7 @@ P = (
 	#############################################################
 
 	, psampled = .05  # prop sampled from icu 
+	, sample_target_prob = 0.90 # # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
 	, turnaroundtime = 3 # days TODO HOW DOES THIS LINK TO lagseqdblb and lagsseqdbub?
 
 	, commuterate = 2.0
@@ -341,6 +342,11 @@ P = (
 	, non_mg_inv_prob_icu_age = vcat( fill(1,40), collect(1.0:-0.01:0.8), fill(0,40))# DUMMY VALUE TODO ADD SOURCE 
 	# TODO NEED TIMINGS AROUND TESTING AND RESULTS FOR NON-METAGENOMIC SURVEILLANCE - WILL BE LONGER - AND DIFFERENTIATE BETWEEN CURRENT ICU AND DECEASED
 
+	# Sensitivity of metagenomic testing 
+	# see Alcolea-Medina et al (2025), "Rapid pan-microbial metagenomics for pathogen detection and personalised therapy in the intensive care unit: a single-centre prospective observational study", Lancet Microbe, 
+	, sensitivity_mg_virus = 0.89
+	, sensitivity_mg_bacteria = 0.97
+	, sensitivity_mg_fungi = 0.89
 )
 #typeof(P)
 
@@ -935,17 +941,17 @@ function simgeneration(p, prevgen::Array{Infection}; maxtime = Inf)
 	)
 end
 
-function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H)
+function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, max_cases=50000)
 	# clustthreshold::Float64 = 0.005,
 	
 	#TEST
 	#p=P
 	#region="TLJ1"
 	#initialtime=23.59195186679564
-	#maxtime=60.0
+	#maxtime=90.0
 	#maxgenerations=100
 	#initialcontact=:import
-
+	
 	@assert maxgenerations > 0
 	@assert maxtime > initialtime
 
@@ -960,12 +966,21 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 	G = g 
 	H = g[1].H 
 	
-	for igen in 2:maxgenerations
+	# Initialise mc
+	mc = "$(max_cases) max cases NOT reached"
+
+	for igen in 2:maxgenerations #igen=4
+		#println(igen)
 		g = simgeneration(p, g, maxtime = maxtime)
 		# g = [infection for infection in g if infection.tinf < maxtime]
 		if length(g) > 0 
 			H = vcat(H, vcat([x.H for x in g]...))
-			G = vcat(G, g)
+			G = vcat(G, g) #println(G) size(G)
+			# Stop simtree if max_cases reached
+			if size(G,1) > max_cases
+				mc = "$(max_cases) max cases reached, max tinf = $(maximum([(u.tinf) for u in G]))"
+				break
+			end
 		else 
 			break
 		end
@@ -1006,13 +1021,14 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 	D.simid .= simid 
 	Gdf.simid .= simid 
 
-	println("Finished simtree run")
+	isequal(mc, "$(max_cases) max cases reached") ? "Finished simtree run but $(max_cases) max cases reached" : println("Finished simtree run")
 
 	(
 		 G = Gdf 
 		, D = D 
 		, infections = G 
 		, H = H
+		, mc
 	)
 	
 end
@@ -1027,9 +1043,9 @@ sampleimportregion() = begin
 end
 
 # simulate continuous importation 
-function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, importmodel=:TDist)
+function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, importmodel=:TDist, max_cases=50000)
 #TEST
-#simforest(p=NBPMscape.P; initialtime=0.0, maxtime=60.0, maxgenerations=100)
+#simforest(p=NBPMscape.P; initialtime=0.0, maxtime=90.0, maxgenerations=100, initialcontact=:H, importmodel=:TDist, max_cases=1000)
 	if importmodel == :Poisson # for testing  
 		nimports = rand(Poisson((maxtime-initialtime)*p.importrate))
 		nimports = max(1, nimports )
@@ -1052,12 +1068,13 @@ function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, i
 
 	simtree(p; region=r.regionentry #r.region
 					, initialtime=t
-					, maxtime=maxtime, maxgenerations=maxgenerations, initialcontact=:import)
+					, maxtime=maxtime, maxgenerations=maxgenerations, initialcontact=:import
+					,max_cases=max_cases)
 
 	end
 	G = reduce( vcat, map(x-> x.G,trs))
 	D = reduce( vcat, map(x-> x.D,trs))
-	(; G = G, D = D, nimports = nimports, timports = timports  )
+	(; G = G, D = D, nimports = nimports, timports = timports, mc = mc )
 end
 
 infectivitytoR(ν::Real; nsims = 1000) = begin
