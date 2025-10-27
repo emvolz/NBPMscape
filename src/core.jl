@@ -986,7 +986,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 			, max_cases_df.max_cases[1] # total maximum number of cases
 			, max_cases_df.n_imports[1] # total number of importations
 			, max_cases_per_import #max_cases_df.max_cases_per_import[1] # maximum number of cases for particular importation, linked to the time of importation
-			, "$(max_cases) max cases NOT reached" # comment on whether the maximum was reached
+			, "max cases NOT reached" # comment on whether the maximum was reached
 			, Inf # the maximum time of infection, so can see what impact the max cases had on right censoring infections
 			, Inf)) # the number of generations from the particular importation, so can see what impact the max cases had on right censoring infections
 			
@@ -1000,7 +1000,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 			
 			# Stop simtree if max_cases reached and record comment and maximum time of infection
 			if size(G,1) > max_cases_df.max_cases_per_import[size(max_cases_df,1)]
-				max_cases_df[max_cases_df.simid .== simid, :comment] .= "$(max_cases) max cases reached"
+				max_cases_df[max_cases_df.simid .== simid, :comment] .= "max cases reached"
 				max_cases_df[max_cases_df.simid .== simid, :max_tinf] .= maximum([(x.tinf) for x in G])
 				max_cases_df[max_cases_df.simid .== simid, :generations] .= maximum([(x.generation) for x in G])
 				break
