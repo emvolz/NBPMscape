@@ -481,10 +481,10 @@ function sample_infectee_severity( p; age = infectee_age )
 	# Severe enough for hospitalisation? 
 	elseif rand() < ( p.symptomatic_ihr_by_age[age+1] )
 		severity = :severe
-		fatal = ( rand() < P.p_death_hosp[age+1] )
+		fatal = ( rand() < p.p_death_hosp[age+1] )
 		# Severe enough for hospital and then ICU?
 		# Determine if a hospitalised patient is then admitted to ICU
-		if rand() < ( P.icu_by_age[age+1] )
+		if rand() < ( p.icu_by_age[age+1] )
 			severity = :verysevere
 			fatal = ( rand() < (p.p_death_icu[age+1] + p.p_death_stepdown[age+1])) # Probability of death if infection is very severe is sum of p of death in ICU and p of death in stepdown ward
 		end
@@ -1181,10 +1181,10 @@ end
 
 # Exp growth parameters
 #N0 = 1.0 # Initial number of cases
-#R = infectivitytoR(NBPMscape.P.infectivity; nsims = 1000) # Reproduction number
+#R = 2infectivitytoR(NBPMscape.P.infectivity; nsims = 1000) # Reproduction number
 #Tg = 6.0              # Generation time in days
 #t = 0:1:30            # Time vector from day 0 to day 30
 #t = 0:1:maxtime            # Time vector from day 0 to day 30
-#t = 0:1:maxtime            # Time vector from day 0 to day 30
+#t = 0:1:200            # Time vector from day 0 to day 30
 #t = (maxtime.-timports)            # Time vector from day 0 to day 30
-
+# exponential_growth(;N0=1.0,R=2.0,Tg=6.0,t=150.0)
