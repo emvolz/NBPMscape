@@ -40,7 +40,10 @@ Arguments:  p                           Set of parameters relating to the outbre
                                                 sample_icu_cases respectively. The difference is that the former samples ICU cases using a specific number 
                                                 of samples per week and requires sampling sites to be specified, while the latter samples a proportion of
                                                 all ICU cases. 
-            n_icu_samples_per_week::Int      Total number of metagenomic samples to be taken per week across all sites
+            n_icu_samples_per_week::Int     Total number of metagenomic samples to be taken per week across all sites
+            only_sample_before_death::Bool  true or false. Modelled sampling period is a uniform distribution between time of admission to ICU (ticu) 
+                                            and 3 days after admission (ticu+3). It is possible for the time of death (tdeceased) to be before the sample time.
+                                            Setting only_sample_before_death = true constrains the upper limit on tsample to be equal to tdeceased.
             p_icu::Float                ICU sampling proportion. Only relevant for sample_icu_cases_version = "proportion".
             icu_ari_admissions::Int     Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated), e.g. 793 mean in summer 2024 and
                                         1440 in winter 2024/25 in England
@@ -100,8 +103,8 @@ function icu_td(; p = NBPMscape.P
                 , site_stage = "current" 
                 , sample_icu_cases_version = "number" # or "proportion"
                 , n_icu_samples_per_week
+                , only_sample_before_death = true
                 , p_icu = 0.15 # ICU sampling proportion
-                #, icu_ari_admissions = 793 # 1440 # Weekly ICU admission numbers [summer,winter]
                 , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
                 , icu_ari_admissions::Int # Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated)
                 , icu_ari_admissions_adult_p::Float64 # Proportion of ICU ARI admissions that are adults (16y and over)
@@ -214,7 +217,13 @@ function icu_td(; p = NBPMscape.P
                 TODO THIS MAY NEED TO BE UPDATED FOR LATER VERSIONS WITH MORE COMPLEX CARE PATHWAYS
             =#
             # Generate sample times
-            icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
+            if only_sample_before_death == true
+                # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1]+3 ) ) ) , eachrow(icu_cases_sub) )
+            else
+                # Set upper limit on sample time to ICU admission +3days
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
+            end
             icu_cases_sub.tsample = icu_tsample 
 
             # Simulate reports times
@@ -521,6 +530,9 @@ Description:    Function to compute times to detection for 1 case (TD) and 3 cas
                                                     or as loaded from .jld2 file
                 'icu_sample_type':      "regional" or "fixed". If "fixed" then p_icu will be used, note that test sensitivity and the practical sampling proportion are applied to this value so the positive sample proportion will be lower than p_icu. "regional" uses the {sample_icu_cases} function and is dependent on home region
                 'p_icu':                ICU sampling proportion
+                only_sample_before_death::Bool  true or false. Modelled sampling period is a uniform distribution between time of admission to ICU (ticu) 
+                                                and 3 days after admission (ticu+3). It is possible for the time of death (tdeceased) to be before the sample time.
+                                                Setting only_sample_before_death = true constrains the upper limit on tsample to be equal to tdeceased.
                 'icu_ari_admissions':   Weekly ICU admission numbers. Formatted in a 2-element vector: [summer,winter]
                 'icu_turnaround_time':  Time to process sample and report results / declare detection. 
                                         Formatted in a 2-element vector: [min,max]
@@ -580,6 +592,7 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                         , pathogen_type = "virus"
                         , site_stage = "current" 
                         , p_icu = 0.15 # ICU sampling proportion
+                        , only_sample_before_death == true
                         , icu_ari_admissions = 793 # 1440 # Weekly ICU admission numbers [summer,winter]
                         , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
                        # Parameters for existing Oxford-RCGP RSC primary care surveillance
@@ -750,7 +763,13 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                 TODO THIS MAY NEED TO BE UPDATED FOR LATER VERSIONS WITH MORE COMPLEX CARE PATHWAYS
             =#
             # Generate sample times
-            icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
+            if only_sample_before_death == true
+                # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1]+3 ) ) ) , eachrow(icu_cases_sub) )
+            else
+                # Set upper limit on sample time to ICU admission +3days
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
+            end
             icu_cases_sub.tsample = icu_tsample 
 
             # Simulate reports times
