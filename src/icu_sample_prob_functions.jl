@@ -36,7 +36,7 @@ Description:    Samples an NHS Trust code based on the ITL2 region and the age o
                 emergency admissions in 2020 - see NBPMscape.jl for futher details on source.
 
 Arguments:  region::String (keyword argument):      The ITL2 region code used to determine the sampling distribution for NHS Trusts.
-            infectee_age::Int (keyword argument):   The age of the infectee. Determines whether to use the adult or child ICU trust distribution.
+            infectee_age::Int8 (keyword argument):   The age of the infectee. Determines whether to use the adult or child ICU trust distribution.
 
 Returns:    NHS_Trust_code::String: sampled NHS Trust code from the appropriate distribution (adult or child) based
                                     on the infectee's age.
@@ -52,7 +52,7 @@ Dependencies:   wsample: A weighted sampling function.
 Examples:   nhs_trust_cd_child = sample_nhs_trust( region = "TLI3", infectee_age = 5)
             nhs_trust_cd_adult = sample_nhs_trust( region = "TLI3", infectee_age = 50)
 """
-function sample_nhs_trust(; region::String, infectee_age::Int)
+function sample_nhs_trust(; region::String, infectee_age::Int8)
     @assert infectee_age ≥ 0 "Age must be non-negative"
     region_sym = Symbol(region)
 
@@ -75,7 +75,7 @@ Description:    Calculates the probability of sampling an ICU patient for metage
 Arguments:  p::NamedTuple (default: `NBPMscape.P`)  A parameter object containing sampling
                                                     and sensitivity values.
             nhs_trust_cd::String    Code identifying the NHS Trust containing the hospital site(s) that are sampling.
-            infectee_age::Int       Age of the patient being considered for sampling.
+            infectee_age::Int8       Age of the patient being considered for sampling.
             pathogen_type::String   (default: "virus")  Type of pathogen (`"virus"`, `"bacteria"`, or `"fungi"`) is used to 
                                                         determine the metagenomic test sensitivity and thereby the probability
                                                         of a true positive result given an infection is sampled.
@@ -119,7 +119,7 @@ function icu_sample_prob(; p = NBPMscape.P, nhs_trust_cd, infectee_age, pathogen
 
 
     # Helper function to get NHS Trust (NT) sample proportion
-    function get_nt_sample_prob(nhs_trust_cd::String, infectee_age::Int, site_stage::String)
+    function get_nt_sample_prob(nhs_trust_cd::String, infectee_age::Int8, site_stage::String)
         age_key = infectee_age > 16 ? "adult" : "child"
         stage_suffix = site_stage == "current" ? "" :
                        site_stage == "engagement" ? "_E" :
@@ -146,7 +146,7 @@ Description:    Returns probability of a positive metagenomic sample based on ho
 
 Arguments:  p::NamedTuple           (default: `NBPMscape.P`): A parameter object containing sampling and sensitivity values.
             region::String          Code identifying the ITL2 home region for infectee
-            infectee_age::Int64      Age of infected individual
+            infectee_age::Int8      Age of infected individual
             pathogen_type::String   (default: "virus")  Type of pathogen (`"virus"`, `"bacteria"`, or `"fungi"`) is used to 
                                                         determine the metagenomic test sensitivity and thereby the probability
                                                         of a true positive result given an infection is sampled.
@@ -162,7 +162,7 @@ Notes:      Metagenomic test sensitivity is pathogen-specific.
 Examples:   icu_sample_prob_region(; p = NBPMscape.P, region = "TLI3", infectee_age = 50
                                    , pathogen_type="virus", site_stage="current")
 """
-function icu_sample_prob_region(;p=NBPMscape.P, region::String, infectee_age::Int64
+function icu_sample_prob_region(;p=NBPMscape.P, region::String, infectee_age::Int8
                                 , pathogen_type::String="virus", site_stage::String="current")
     # Ensure pathogen_type and site_stage are in the correct format
     pathogen_type = lowercase(strip(pathogen_type))
@@ -187,7 +187,7 @@ function icu_sample_prob_region(;p=NBPMscape.P, region::String, infectee_age::In
 
     # Helper function to get sample proportion for a particular region, also taking account of 
     # infectee age, and sampling site stage
-    function get_region_sample_prob(region::String, infectee_age::Int64, site_stage::String)
+    function get_region_sample_prob(region::String, infectee_age::Int8, site_stage::String)
         age_key = infectee_age > 16 ? "adult" : "child"
         stage_prefix = site_stage == "current" ? "Cur" :
                        site_stage == "engagement" ? "Cur_Eng" :
@@ -256,7 +256,8 @@ function sample_icu_cases(; p=NBPMscape.P
     # Ensure only ICU cases included
     icu_cases = icu_cases[ isfinite.(icu_cases.ticu), : ] 
     if size(icu_cases,1) == 0
-        error("icu_cases dataframe contains no infections (rows)")
+        #error("icu_cases dataframe contains no infections (rows)")
+        return(icu_cases_sub = DataFrame())
     end
     
     # Two options for sampling method: "regional" and "fixed"
@@ -384,6 +385,15 @@ function sample_icu_cases_n(; p = NBPMscape.P
                           , nhs_trust_sampling_sites::DataFrame # List of NHS Trusts with sampling sites 
                           )
 
+    # Ensure only ICU cases included
+    icu_cases = icu_cases[ isfinite.(icu_cases.ticu), : ] 
+
+    # If there are no ICU cases then return an empty df, otherwise sample ICU cases
+    if size(icu_cases,1) == 0
+        #error("icu_cases dataframe contains no infections (rows)")
+        return(icu_cases_sub = empty( icu_cases ))
+    end
+
     # Load data on the number of critical care and ICU beds per NHS Trust (some filtering to remove non-ARI specialist units)
     nhs_trust_ari_cc_beds = copy(ARI_CC_BED_SITREP)
   
@@ -421,8 +431,10 @@ function sample_icu_cases_n(; p = NBPMscape.P
     icu_cases_at_sampling_sites = filter(row -> in( row[:icu_nhs_trust_cd], nhs_trust_site_sample_targets[:,:NHS_Trust_code]), icu_cases_Eng)
     # countmap(icu_cases_at_sampling_sites.icu_nhs_trust_cd)
 
-    if ( size(icu_cases_at_sampling_sites,1) > 0 )
-
+    if ( size(icu_cases_at_sampling_sites,1) == 0 )
+        # return an empty dataframe if the size of icu_cases_at_sampling_sites
+        icu_cases_sub = empty( icu_cases_at_sampling_sites )
+    else
         ### Compute what proportion of total critical care beds in the Trust are at the sampling site within that Trust
         # Trim NHS Trust bed data to minimal columns
         nhs_trusts_icu_ari_beds_trim = select(nhs_trust_ari_cc_beds, [:NHS_Trust_code, :Adult_critical_care_beds_available, :Paediatric_intensive_care_beds_available])
@@ -637,10 +649,6 @@ function sample_icu_cases_n(; p = NBPMscape.P
         # println(icu_cases)
         # minimum( icu_cases.ticu )
         # minimum( icu_cases_sub.ticu )
-    else
-        # return an empty dataframe if the size of icu_cases_at_sampling_sites was determined to be = 0 as per the start of this if statement
-        icu_cases_sub = empty( icu_cases_at_sampling_sites )
-
     end
 
     return( icu_cases_sub )
