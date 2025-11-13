@@ -102,14 +102,14 @@ function icu_td(; p = NBPMscape.P
                 , pathogen_type = "virus"
                 , site_stage = "current" 
                 , sample_icu_cases_version = "number" # or "proportion"
-                , n_icu_samples_per_week
+                , n_icu_samples_per_week = 300
                 , only_sample_before_death = true
                 , p_icu = 0.15 # ICU sampling proportion
                 , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
-                , icu_ari_admissions::Int # Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated)
-                , icu_ari_admissions_adult_p::Float64 # Proportion of ICU ARI admissions that are adults (16y and over)
-                , icu_ari_admissions_child_p::Float64 # Proportion of ICU ARI admissions that are children (<16y)
-                , nhs_trust_sampling_sites::DataFrame
+                , icu_ari_admissions::Int = 1440 # Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated)
+                , icu_ari_admissions_adult_p::Float64 = 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
+                , icu_ari_admissions_child_p::Float64 = 0.24 # Proportion of ICU ARI admissions that are children (<16y)
+                , nhs_trust_sampling_sites::DataFrame = DataFrame()
                 )
 
     n_replicates = length(sims)
@@ -133,7 +133,8 @@ function icu_td(; p = NBPMscape.P
     # Loop through simulation replicates, sampling infection cases (adapted from sampleforest() function in 'core.jl' and 'median_TD_by_region.jl'),
     # and computing times to detection
     for s in 1:n_replicates
-        #TESTprintln("$(s) of $(n_replicates) replicates")
+        #TEST
+        println("$(s) of $(n_replicates) replicates")
 
         # Add simulation number to results df
         #TEST s=1
