@@ -593,7 +593,7 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                         , pathogen_type = "virus"
                         , site_stage = "current" 
                         , p_icu = 0.15 # ICU sampling proportion
-                        , only_sample_before_death == true
+                        , only_sample_before_death = true
                         , icu_ari_admissions = 793 # 1440 # Weekly ICU admission numbers [summer,winter]
                         , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
                        # Parameters for existing Oxford-RCGP RSC primary care surveillance
