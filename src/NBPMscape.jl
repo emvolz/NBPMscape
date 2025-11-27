@@ -250,7 +250,7 @@ for r in eachrow(ae_12m)
     key = (r[:("Org Code")])
     if haskey(nt_changes_dict, key)
         new1 = nt_changes_dict[key]
-        println(new1)
+        #println(new1)
         r[:("Org Code")] = new1
     end
 end
@@ -280,5 +280,17 @@ export sample_nhs_trust, icu_sample_prob, icu_sample_prob_region, sample_icu_cas
 
 include("estimate_severity_age_weights.jl")
 export inf_severity_estimate, inf_age_estimate
+
+#= TODO 
+    Can potentially replace (some of) the functions in distribution_fitting.jl with a Julia version of
+    'fitting_censored_data_function.R'. This R function accounts for sparsity of samples and right 
+    censoring due to max simulation time, whereas the functions below currently only account for sparsity
+    of samples (by fitting truncated data).
+=#
+include("distribution_fitting.jl")
+export fit_multi_dist, dist_fit_plot, nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
+
+include("misc_functions.jl")
+export allocate_with_rounding
 
 end 
