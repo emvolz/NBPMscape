@@ -231,7 +231,6 @@ const NHS_TRUST_CATCHMENT_POP_ADULT_CHILD = combine(groupby(df_split, :TrustCode
 files_vec = ["Monthly-AE-April-2024-revised.csv","Monthly-AE-May-2024.csv","Monthly-AE-June-2024.csv","Monthly-AE-July-2024-revised.csv","Monthly-AE-August-2024.csv"
             ,"Monthly-AE-September-2024.csv","Monthly-AE-October-2024-revised.csv","Monthly-AE-November-2024-revised.csv","Monthly-AE-December-2024.csv","Monthly-AE-January-2025.csv"
             ,"Monthly-AE-February-2025-revised.csv","Monthly-AE-March-2025.csv"]
-#obj_name_vec = ["ae_24_04","ae_24_05","ae_24_06","ae_24_07","ae_24_08","ae_24_09","ae_24_10","ae_24_11","ae_24_12","ae_25_01","ae_25_02","ae_25_03"]
 # Read all files into a vector of DataFrames
 dfs = [CSV.read(joinpath( @__DIR__, "..", "data/NHS_England_AE", f ), DataFrame)[:, [:("Org Code"), :("A&E attendances Type 1")]] for f in files_vec]
 # Rename columns dynamically
