@@ -1,4 +1,6 @@
-#### Function to estimate frequency/percentage of infection in each severity category
+#### Functions to estimate post simulation infection severity and age distributions
+#(1) Function to estimate frequency/percentage of infection in each severity category
+#(2) Age distribution
 
 #using JLD2
 #using DataFrames
@@ -27,7 +29,7 @@ percentage value for the each infection severity category.
 
 # Example
     # Estimate infection severity weights
-    inf_severity_estimate( sims_file = "C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/primary_care_Sep_2025/955898/covidlike-1.3.1-sims-nrep1000_955898_2.jld2"
+    inf_severity_estimate( sims_file = "covidlike-1.3.1-sims-nrep1000_955898_2.jld2"
                         , sims_object_name = "sims" 
                         , infection_severity = [:asymptomatic, :mild, :moderate, :severe, :verysevere ]
                         )
@@ -41,7 +43,7 @@ percentage value for the each infection severity category.
        5 │ verysevere                                  0.541461
 
     # Save figure
-    savefig("scripts/primary_care_v_icu/infection_severity_weights.png")
+    savefig("examples/infection_severity_weights.png")
 
 """
 
@@ -116,3 +118,86 @@ end
 #violin(total_infections, legend=false, palette = colors
 #        , ylabel = "total infections per simulation"
 #        , yscale = :log10)
+
+
+"""
+Function: inf_age_estimate
+
+This function takes a .jld2 file containing a single simulation or multiple simulation replicates and
+plots the age distribution disaggregated by ICU and GP care stages.
+
+# Arguments
+    'sims_file':            .jld2 file containing simulation replicates as output by {simtree} or {simforest}
+                            For example, "sims", or "sims_G_gp_filter" or "sims_G_icu_filter" if pre-filtered for certain cases.
+    'sim_object_name':      The name of the object saved to the .jld2 file. 
+                            For example, "sims", "sims_G_icu_filter", or "sims_G_gp_filter" for files filtered using {sims_filter}.
+                            Without this name the data cannot be loaded. 
+    
+# Returns
+    Two histogram plots on screen, which can then be saved using the command in the example below
+    
+# Example
+    # Estimate infection age distribution disaggregated by ICU and GP
+    inf_age_estimate( sims_file = "covidlike-1.3.1-sims-nrep1000_955898_2.jld2"
+                        , sims_object_name = "sims" 
+                        )
+    # Save figure
+    savefig("examples/age_distribution_icu_gp.png")
+
+"""
+
+function inf_age_estimate(;  sims_file
+                                , sims_object_name = "sims"
+                                )
+
+    # Load simulation file
+    sims = load(sims_file, sims_object_name)
+    
+    # Initialise vectors to store results
+    infectee_age_gp = [] ; infectee_age_icu = []
+
+    # Loop through the simulation replicates and gather infectee ages by care pathway (note that individuals can visit a GP AND ICU but might be admitted to ICU without GP visit)
+    for s in sims #s=sims[2]
+        age_gp = s[ isfinite.(s.tgp), :infectee_age ]
+        infectee_age_gp = vcat(infectee_age_gp, age_gp)
+
+        age_icu = s[ isfinite.(s.ticu), :infectee_age ]
+        infectee_age_icu = vcat(infectee_age_icu, age_icu)
+    end
+
+plot1 = Plots.histogram(infectee_age_gp
+                #, bins=30
+                , title=""
+                , xlabel="Infectee age", ylabel="Number of infected individuals ($(length(sims)) sim reps)"
+                #, normalize = :pdf
+                , alpha = 0.3 
+                , label = "GP"
+                )
+    Plots.histogram!(infectee_age_icu
+                #, bins=30
+                #, title=""
+                #, xlabel="Infectee age", ylabel="Proportion"
+                #, normalize = :pdf
+                , alpha = 0.3 
+                , label = "ICU"
+                )
+
+plot2 = Plots.histogram(infectee_age_icu
+                , bins=21
+                , title=""
+                , xlabel="Infectee age", ylabel="Proportion"
+                , normalize = :pdf
+                , alpha = 0.3 
+                , label = "ICU"
+                )
+    Plots.histogram!(infectee_age_gp
+                , bins=21
+                #, title=""
+                #, xlabel="Infectee age", ylabel="Proportion"
+                , normalize = :pdf
+                , alpha = 0.3 
+                , label = "GP"
+                )
+    Plots.plot(plot1, plot2, layout = (1, 2), legend = false)
+
+end

@@ -4,6 +4,7 @@ using JumpProcesses
 using DifferentialEquations
 using Random
 using Distributions
+using HypothesisTests
 using DataFrames
 import UUIDs 
 import StatsBase
@@ -92,20 +93,77 @@ const IFR_BY_AGE = ihr_ifr_by_age[:,["age_single_year","IFR"]]
 #care_pathway_prob_by_age
 const CARE_PATHWAY_PROB_BY_AGE = load( joinpath( @__DIR__, "..", "data", "knock_care_pathway_prob_by_age.rds" ) )
 
+### Load probabilities of visiting a particular NHS Trust given residency in a particular ITL2 region
+# Computed from NHS Acute (Hospitals) Trust Catchment Populations compiled by Office for Health Improvement & Disparities 
+# at https://app.powerbi.com/view?r=eyJrIjoiODZmNGQ0YzItZDAwZi00MzFiLWE4NzAtMzVmNTUwMThmMTVlIiwidCI6ImVlNGUxNDk5LTRhMzUtNGIyZS1hZDQ3LTVmM2NmOWRlODY2NiIsImMiOjh9
+# using 'Hospital Episode Statistics Admitted Patient Care (HES APC)' data for 'Emergency' admissions
+# National Statistics Postcode Lookup (NSPL) used to convert from MSOA to ITL2 regions.
+itl2_to_nhs_trust_prob_adult = CSV.read( joinpath( @__DIR__, "..", "data", "NHS_Trust_prob_from_ITL2_regions_adult_2020.csv" ), DataFrame )
+rename!(itl2_to_nhs_trust_prob_adult, :Column1 => :NHS_Trust_code)
+const ITL2_TO_NHS_TRUST_PROB_ADULT = itl2_to_nhs_trust_prob_adult
+itl2_to_nhs_trust_prob_child = CSV.read( joinpath( @__DIR__, "..", "data", "NHS_Trust_prob_from_ITL2_regions_child_2020.csv" ), DataFrame )
+rename!(itl2_to_nhs_trust_prob_child, :Column1 => :NHS_Trust_code)
+const ITL2_TO_NHS_TRUST_PROB_CHILD = itl2_to_nhs_trust_prob_child
+#TEST wsample( ITL2_TO_NHS_TRUST_PROB_CHILD[:, :NHS_Trust_code], ITL2_TO_NHS_TRUST_PROB_CHILD[:, :TLI3], 1)
+
+### Load probabilities of sampling at particular NHS Trust
+nhs_trust_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "selected_ICU_prop_NHS_Trust.csv" ), DataFrame )
+rename!(nhs_trust_icu_sample_prob, Symbol("Org.Code") => :NHS_Trust_code)
+rename!(nhs_trust_icu_sample_prob, Symbol("Org.Name") => :NHS_Trust_name)
+const NHS_TRUST_ICU_SAMPLE_PROB = nhs_trust_icu_sample_prob
+
+### Load probabilities of being sampled in ICU given ITL2 home region
+#itl2_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "ICU_prob_sample_by_ITL2_2019.csv" ), DataFrame )
+#itl2_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "ICU_prob_sample_by_ITL2_2020.csv" ), DataFrame )
+itl2_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "ICU_prob_sample_by_ITL2_2020_mscapeOct25_sitrepJan25.csv" ), DataFrame )
+rename!(itl2_icu_sample_prob, Symbol("Column1") => :site_stage_age) 
+const ITL2_ICU_SAMPLE_PROB = itl2_icu_sample_prob
+
+### Load critical care bed data
+# Downloaded from https://www.england.nhs.uk/statistics/statistical-work-areas/uec-sitrep/
+cc_bed_sitrep = CSV.read( joinpath( @__DIR__, "..", "data", "202501-January-2025-beds-sitrep-data-FINAL-revised.csv" ), DataFrame )
+# Filter for NHS Trusts 
+cc_bed_sitrep_nt = filter(row -> !ismissing(row[:Level]) && row[:Level] == "Provider", cc_bed_sitrep)
+# Filter for critical care beds
+metric_filtered = [ "Adult critical care beds available" #"Adult critical care beds occupied","Adult critical care occupancy rate"
+                   ,"Paediatric intensive care beds available"]#, "Paediatric intensive care beds occupied", "Paediatric intensive care occupancy rate"
+cc_bed_sitrep_nt = filter(row -> !ismissing(row[:Metric]) && in( row[:Metric], metric_filtered), cc_bed_sitrep_nt)
+#unique(cc_bed_sitrep_nt[:,:Metric])
+# Trim df
+cc_bed_sitrep_nt = cc_bed_sitrep_nt[:,3:end]
+# Reformat so Adult and Paediatric bed numbers are in separate columns
+rename!(cc_bed_sitrep_nt, "Org Code" => :NHS_Trust_code)
+rename!(cc_bed_sitrep_nt, "Org Name" => :NHS_Trust_name)
+cc_bed_sitrep_nt.Value = parse.(Int, cc_bed_sitrep_nt.Value)
+cc_bed_sitrep_nt = unstack(cc_bed_sitrep_nt, [:Region,:ICB, :NHS_Trust_code, :NHS_Trust_name, :Type], :Metric, :Value)
+rename!(cc_bed_sitrep_nt, "Adult critical care beds available" => :Adult_critical_care_beds_available)
+rename!(cc_bed_sitrep_nt, "Paediatric intensive care beds available" => :Paediatric_intensive_care_beds_available)
+# Remove specialist NHS Trusts that are unlikely to admit ARI to ICU
+cc_bed_sitrep_nt = filter(row -> in(row[:NHS_Trust_code], ITL2_TO_NHS_TRUST_PROB_ADULT[:,:NHS_Trust_code]), cc_bed_sitrep_nt) # Note that ITL2_TO_NHS_TRUST_PROB_ADULT[:,:NHS_Trust_code] == ITL2_TO_NHS_TRUST_PROB_CHILD[:,:NHS_Trust_code]
+## Compute proportion of total critical care beds at each NHS Trust and add to df
+cc_beds_total_adult = sum(cc_bed_sitrep_nt.Adult_critical_care_beds_available) 
+cc_beds_total_child = sum(cc_bed_sitrep_nt.Paediatric_intensive_care_beds_available) 
+cc_bed_sitrep_nt.p_adult = cc_bed_sitrep_nt.Adult_critical_care_beds_available ./ cc_beds_total_adult
+cc_bed_sitrep_nt.p_child = cc_bed_sitrep_nt.Paediatric_intensive_care_beds_available ./ cc_beds_total_child
+const ARI_CC_BED_SITREP = cc_bed_sitrep_nt
+
 export simtree, simforest, sampleforest, simgendist, Infection, infectivitytoR
 export transmissionrate, sampdegree, REGKEY, COMMUTEPROB #TODO 
 include("core.jl")
 
-include("sampling_infections.jl")
-export icu_v_pc_td, analyse_td_columns, plot_hist
+include("combine_small_sim_reps.jl")
+export combine_sim_reps, n_sims_w_results, n_sims_w_results_icu_gp
 
 include("sims_filter.jl")
 export sims_filter
 
-include("estimate_severity_weights.jl")
-export inf_severity_estimate
+include("sampling_infections.jl")
+export icu_v_pc_td, analyse_td_columns, plot_hist
 
-include("combine_small_sim_reps.jl")
-export combine_sim_reps, n_sims_w_results, n_sims_w_results_icu_gp
+include("icu_sample_prob_functions.jl")
+export sample_nhs_trust, icu_sample_prob, icu_sample_prob_region, sample_icu_cases, sample_icu_cases_n
+
+include("estimate_severity_age_weights.jl")
+export inf_severity_estimate, inf_age_estimate
 
 end 
