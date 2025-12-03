@@ -11,7 +11,8 @@ import StatsBase
 #using Statistics
 using Interpolations
 import SpecialFunctions as SF 
-using Plots 
+using Plots
+using Plots.PlotMeasures 
 using LinearAlgebra
 #using Pkg
 #Pkg.add("NamedArrays")
@@ -291,7 +292,7 @@ include("distribution_fitting.jl")
 export fit_multi_dist, dist_fit_plot, nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
 
 include("misc_functions.jl")
-export allocate_with_rounding, generation_time, severity_rolling_mean
+export allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
 
 
 

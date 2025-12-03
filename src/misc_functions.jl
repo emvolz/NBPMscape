@@ -20,6 +20,11 @@
                             - computing the rolling mean age between time of importation to the UK and the 
                               maximum time of infection in the simulation (maxtime)
 
+- tinf_by_age   Generate three plots:
+                (1) boxplots of time of infection vs age group for individual simulation replicates
+                (2) boxplots of time of infection vs age group for individual simulation replicates combined
+                (3) boxplots of time of infection vs age group disaggregated by infection severity
+
 =#
 
 """
@@ -206,5 +211,102 @@ function severity_rolling_mean(; sims, rolling_window = 3, maxtime = 90, plot_sa
 
     # Save plot to file
     Plots.savefig( plot_save_name )
+
+end
+
+"""
+Function        tinf_by_age
+
+Description     Generate three plots:
+                (1) boxplots of time of infection vs age group for individual simulation replicates
+                (2) boxplots of time of infection vs age group for individual simulation replicates combined
+                (3) boxplots of time of infection vs age group disaggregated by infection severity
+                
+Arguments   - sims                      object containing simulation data output from simtree or simforest, including G dataframes
+            - age_group_width::Integer  bin width (e.g., 5 years)
+            - min_age::Integer          minimum age
+            - max_age::Integer          maximum age
+            - plot_file_prefix          path and filename prefix to save plots    
+
+Returns     Three plots in .png files as described above
+
+Example     
+            # Load file
+            sims = load("covidlike-1.3.6-sims-nreps10.jld2", "sims")
+            # Run function to generate plots
+            tinf_by_age(; sims = sims, age_group_width = 5, min_age = 0, max_age = 100
+                     , plot_file_prefix = "examples/test_prefix"
+                     )
+"""
+function tinf_by_age(; sims
+                     , age_group_width::Integer = 5, min_age::Integer = 0, max_age::Integer = 100
+                     , plot_file_prefix
+                     )
+    
+    # Collate G dataframes from each simulation replicate in sims and store in a vector
+    # Also trim columns to only those required: tinf, infectee_age and severity
+    
+    tinf_age_severity_dfs = Vector{DataFrame}(undef, length(sims)) 
+    for i in 1:length(sims)
+        tinf_age_severity_dfs[i] = sims[i].G[:,[:tinf,:infectee_age,:severity]]
+    end
+    
+    # Compute age bins and labels
+    age_bins = collect( min_age : age_group_width : (max_age + age_group_width))
+    labels = ["$(age_bins[i])-$(age_bins[i+1]-1)" for i in 1:length(age_bins)-1]
+
+    # Assign age groups
+    for i in 1:length(sims)
+        tinf_age_dfs[i][!, :age_group] = CategoricalArrays.cut(tinf_age_dfs[i].infectee_age, age_bins; labels=labels)
+        tinf_age_severity_dfs[i][!, :age_group] = CategoricalArrays.cut(tinf_age_severity_dfs[i].infectee_age, age_bins; labels=labels)
+    end
+    
+    ## Plot infection time against age group for each individual simulation replicate
+
+    # Violin plots
+    #plots = [@df tinf_age_severity_dfs[i] StatsPlots.violin(:age_group, :tinf, legend=false) for i in 1:length(tinf_age_severity_dfs)]
+    #Plots.plot(plots..., layout=(10,1), size=(1000, 1000))
+    
+    # Boxplots
+    #using Plots.PlotMeasures
+    plots = [@df tinf_age_dfs[i] StatsPlots.boxplot(:age_group, :tinf
+                                                    #, xlabel="Age Group", ylabel="Infection Time (days)"
+                                                    #, title="Distribution of Infection Times by Age Group"
+                                                    , size=(1000,400), legend = false, left_margin=10mm) for i in 1:length(tinf_age_dfs)]
+    Plots.plot(plots..., layout=(10,1), size=(1200, 2000), left_margin = 10mm)
+    
+    # Save plot to file
+    Plots.savefig("$(plot_file_prefix)_tinf_age.png")
+
+    # Plot data combined from all sim reps
+    combined_df = vcat(tinf_age_severity_dfs...)
+
+    @df combined_df StatsPlots.boxplot(:age_group, :tinf
+                                                    #, xlabel="Age Group", ylabel="Infection Time (days)"
+                                                    #, title="Distribution of Infection Times by Age Group"
+                                                    , size=(1000,400), legend = false, left_margin=10mm)
+    # Save plot to file
+    Plots.savefig("$(plot_file_prefix)_tinf_age_nrep$(length(sims)).png")
+
+    ## Plot infection time against age group disggregated by severity but with simulation replicates combined
+
+    # Group by severity
+    severity_dict = Dict(unique(combined_df.severity) .=> [g for g in groupby(combined_df, :severity)])
+    # Add separate dataframes for each infection severity level to a vector of dataframes
+    severity_dfs_vec = collect(values(severity_dict))
+
+    for i in 1:1:length(severity_dfs_vec)
+        severity_types[i] = only(unique( severity_dfs_vec[i][:,:severity] ))
+    end
+    
+    plots = [@df severity_dfs_vec[i] StatsPlots.boxplot(:age_group, :tinf
+                                                        #, xlabel="Age Group", ylabel="Infection Time (days)"
+                                                        , title = severity_types[i]#string(only(unique( severity_dfs_vec[i][:,:severity] )))
+                                                        , size=(1000,400), legend = false, left_margin=10mm, color = :lightgreen) for i in 1:length(severity_dfs_vec)]
+    
+    Plots.plot(plots..., layout=(length(severity_dfs_vec),1), size=(1200, 2000), left_margin = 10mm)
+    
+    # Save plot to file
+    Plots.savefig("$(plot_file_prefix)_tinf_age_severity_nrep$(length(sims)).png")
 
 end
