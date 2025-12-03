@@ -6,6 +6,20 @@
                             allocated across NHS Trusts but the allocations must be integer values
                             and the sum must be equal to the total
 
+- generation_time:  Computes generation times from df containing data on infector (:donor), infectee (:recipient) and time
+                    of infection (:timetransmission) for multiple simulation replicates.
+                    A Gamma distribution is fitted to the generation times and plotted.
+                    Mean and median generation times are computed from the fitted distribution and
+                    the raw results.
+
+- severity_rolling_mean     Produces a line plot of the rolling mean age of infected individuals disaggregated by
+                            infection severity. This is done by:
+                            - combining data in the G dataframe from multiple simulation replicates in an object
+                              named 'sims'
+                            - disaggregating by infection severity
+                            - computing the rolling mean age between time of importation to the UK and the 
+                              maximum time of infection in the simulation (maxtime)
+
 =#
 
 """
@@ -106,5 +120,91 @@ function generation_time(; tinf_df )
                     , Gamma_fit = [ mean_gt, median_gt ] 
                     )
     return(df)
+
+end
+
+"""
+Function        severity_rolling_mean
+
+Description     Produces a line plot of the rolling mean age of infected individuals disaggregated by infection severity.
+                This is done by:
+                - combining data in the G dataframe from multiple simulation replicates in an object named 'sims'
+                - disaggregating by infection severity
+                - computing the rolling mean age between time of importation to the UK and the maximum time of infection
+                    in the simulation (maxtime)
+
+Arguments   sims            object containing simulation data output from simtree or simforest, including G dataframes
+            rolling_window  Number of days to include in the rolling window
+            maxtime         maxtime used when running simulation to create sims
+            plot_save_name  path and filename for output plot .png file
+
+Returns     Line plot of the rolling mean age of infected individuals by time since importation to the UK.
+            Plot is saved to .png file
+
+Examples
+            # Load file
+            sims = load("covidlike-1.3.6-sims-nreps10.jld2", "sims")
+            # Run function
+            severity_rolling_mean(; sims = sims, rolling_window = 3, maxtime = 90, plot_save_name = "examples/tinf_age_rolling_mean_3d.png")    
+            severity_rolling_mean(; sims = sims, rolling_window = 10, maxtime = 90, plot_save_name = "examples/tinf_age_rolling_mean_10d.png")    
+
+"""    
+
+function severity_rolling_mean(; sims, rolling_window = 3, maxtime = 90, plot_save_name)    
+
+    ### Combine data from simulation replicates
+    nreps = length(sims)
+    tinf_age_severity_dfs = Vector{DataFrame}(undef, nreps) 
+    for i in 1:length(sims)
+        tinf_age_severity_dfs[i] = sims[i].G[:,[:tinf,:infectee_age,:severity]]
+    end
+    combined_df = vcat(tinf_age_severity_dfs...)
+
+    ### Split out by severity
+    #groups = groupby(combined_df, :severity)
+    severity_dict = Dict(unique(combined_df.severity) .=> [g for g in groupby(combined_df, :severity)])
+    # Create vector of dfs split out by severity
+    severity_dfs_vec = collect(values(severity_dict))
+
+    ### Compute rolling averages and plot
+    for j in 1:length(severity_dfs_vec) #j=1
+        
+        # Create temporary df
+        df = severity_dfs_vec[j]
+
+        # Create df to be filled
+        rolling_avg_age = DataFrame( time = collect(1:1:maxtime) # maxtime = 90
+                                    ,rolling_10d_mean_age = Vector{Float64}(undef, maxtime) 
+                                    )
+
+        # Calculate rolling mean age based on time of infection
+        for i in 1:maxtime # i=89
+            # Define start of rolling window
+            start_window = i - rolling_window +1 # +1 because includeing the current day
+            # Select ages where time of infection (tinf) is within the window
+            ages_in_window = df.infectee_age[(df.tinf .>= start_window) .& (df.tinf .<= i)]
+            # Compute mean for rolling window
+            rolling_avg_age[i,:rolling_10d_mean_age] = mean(ages_in_window)
+        end
+        
+        # Plot rolling means
+        if j == 1 # First plot includes labels and titles
+            Plots.plot(rolling_avg_age[:,:time], rolling_avg_age[:,:rolling_10d_mean_age], xlimit=[0,maxtime], ylimit=[0,100]
+                                ,label = string(only(unique( df[:,:severity] )))
+                                ,linewidth=2
+                                , xlabel = "Time since importation into the UK (days)"
+                                , ylabel = "$(rolling_window)-day rolling mean age of \n infected individuals (years)"
+                            )
+        else
+            Plots.plot!(rolling_avg_age[:,:time], rolling_avg_age[:,:rolling_10d_mean_age], xlimit=[0,maxtime], ylimit=[0,100]
+                             ,label = string(only(unique( df[:,:severity] )))
+                            ,linewidth = 2
+                            )
+        end
+
+    end
+
+    # Save plot to file
+    Plots.savefig( plot_save_name )
 
 end

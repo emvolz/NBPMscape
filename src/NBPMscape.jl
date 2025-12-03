@@ -261,7 +261,7 @@ ae_12m.mean_12m = mean.(eachrow(ae_12m[:, 2:end]))
 mean_total = sum(skipmissing(ae_12m.mean_12m))
 ae_12m.mean_12m_prop = ae_12m.mean_12m ./ mean_total
 const AE_12M = ae_12m
-
+#println(AE_12M)
 export simtree, simforest, sampleforest, simgendist, Infection, infectivitytoR
 export transmissionrate, sampdegree, REGKEY, COMMUTEPROB #TODO 
 include("core.jl")
@@ -291,6 +291,8 @@ include("distribution_fitting.jl")
 export fit_multi_dist, dist_fit_plot, nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
 
 include("misc_functions.jl")
-export allocate_with_rounding
+export allocate_with_rounding, generation_time, severity_rolling_mean
+
+
 
 end 
