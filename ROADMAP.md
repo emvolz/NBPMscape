@@ -1,4 +1,4 @@
-# Version 0.2.0 
+# Version 0.2.0 (implemented)
 
 ## Age structure 
 
@@ -9,24 +9,35 @@
 
 ## Update model compartments
 - Split 'Removed' compartments into 'Death' and 'Recovered'
-- 'Death' compartment to be used as pathway for detections in non-metagenomic surveillance model
-
-## International travel
-- Incorporate imported cases as potential trigger for detection in non-metagenomic surveillance model
 
 
 
 # Version 0.3.0 
 
-## More realistic importation dynamics 
+## Adapt care pathways
+- Add new infection severity level to enable modelling of secondary care sampling
 
+## Configuration files 
+- For editing pathogen parameter input values and sampling parameters
+
+## Standardise analaysis of sampling strategies
+- Adapt analysis scripts to standard format enabling ease of use
+
+## Incorporate analysis in R into Julia
+- In particular the fitting of statistical distributions to adjust for right-censoring of simulation results
+- This should make analysis easier
+
+## More realistic importation dynamics 
 - Short-duration contacts at port-of-entry (similar to commuter dynamics)
 - Home region should be drawn prop-to population density (or possibly derived from ONS International Passenger Survey)
     * simulate 1-way migration from port-of-entry to home region
 
 ## Long distance migration 
-
 - Scalable migration matrix for occasional long-distance travel 
+
+## Non-metagenomic surveillance model
+- 'Death' compartment to be used as pathway for detections in non-metagenomic surveillance model
+- Incorporate imported cases as potential trigger for detection in non-metagenomic surveillance model
 
 
 

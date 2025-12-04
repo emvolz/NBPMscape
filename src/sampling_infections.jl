@@ -11,10 +11,10 @@
     under different scenarios. The functions are:
     - icu_td             - computes times to detection for simulated outbreaks with ICU sampling 
     - gp_td              - computes times to detection for simulated outbreaks with GP sampling 
-    - secondary_care_td  - TODO - computes times to detection for simulated outbreaks with sampling from hospitals in the HARISS network
-    - icu_v_pc_td        - TODO - used in previous analyses but superseded by icu_td and gp_td - TODO - computes the times to detection for simulated outbreaks
+    - secondary_care_td  - computes times to detection for simulated outbreaks with sampling from hospitals in the HARISS network
+    - icu_v_pc_td        - used in previous analyses but superseded by icu_td and gp_td - computes the times to detection for simulated outbreaks
     - analyse_td_columns - computes median values across simulation replicates and % of sim reps that have a (time to) detection
-    - clean_td_results   - TODO NOT YET WORKING - removes some rows (simulation replicates) and converts type of Inf from string
+    - clean_td_results   - used in previous analyses but superseded - removes some rows (simulation replicates) and converts type of Inf from string
     - plot_hist          - plots a basic histogram for results of a chosen column of data after performing some data cleaning tasks 
                           (similar to those in {clean_TD_results})
 =#
@@ -190,9 +190,8 @@ function icu_td(; p = NBPMscape.P
 
         end
         # Record number of cases in the sim rep and the number that were tested AND returned positive results
-        # TODO change here when amend for number of samples rather than proportion
         sim_tds[s,:n_ICU_cases] = size(icu_cases,1)
-        sim_tds[s,:n_ICU_cases_sampled] = size(icu_cases_sub,1) #n_icu TODO CAN SPLIT THIS INTO SAMPLED AND POSITIVE SAMPLES
+        sim_tds[s,:n_ICU_cases_sampled] = size(icu_cases_sub,1)
 
         if size(icu_cases_sub,1) == 0
                 
@@ -214,9 +213,6 @@ function icu_td(; p = NBPMscape.P
 
         elseif size(icu_cases_sub,1) > 0 
                 
-            #= Sample time has uniform distribution between time of admission to ICU and time of recovery
-                TODO THIS MAY NEED TO BE UPDATED FOR LATER VERSIONS WITH MORE COMPLEX CARE PATHWAYS
-            =#
             # Generate sample times
             if only_sample_before_death == true
                 # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
@@ -231,9 +227,6 @@ function icu_td(; p = NBPMscape.P
             icu_treport = (icu_tsample .+ rand(Uniform(icu_turnaround_time[1], icu_turnaround_time[2])) )
             icu_cases_sub.treport = icu_treport
             
-            ##### TODO #####
-            # ADD statistical distribution fit function here to account for truncation of tinf at maxtime
-
             # Find cases with 3 shortest times to detection (TD)
             icu_cases_sub_top3_td = first(sort(icu_cases_sub, :treport), 3) #println(icu_cases_sub_top3_td.treport)
 
@@ -487,12 +480,12 @@ Examples:
 
 
 """
-# TODO # 
 
 
 
 
-# TODO # icu_vs_pc_td was used in a previous analysis but has been superseded by icu_td and gp_td
+
+# icu_vs_pc_td was used in a previous analysis but has been superseded by icu_td and gp_td
 """
 Function: icu_v_pc_td 
 
@@ -578,7 +571,7 @@ Description:    Function to compute times to detection for 1 case (TD) and 3 cas
                                             , sims_G_icu_filter_object_name = "sims_G_icu_filter" 
                                             , gp_swabs_mg = 100 , gp_ari_swabs = 319, gp_ari_consults = 180 )
 """
-# TODO # icu_vs_pc_td was used in a previous analysis but has been superseded by icu_td and gp_td
+# icu_vs_pc_td was used in a previous analysis but has been superseded by icu_td and gp_td
 function icu_v_pc_td(  ;  p=NBPMscape.P
                         , sim_object_type # = "full" #"G_filtered_icu_gp_combined" "G_filtered_icu_gp_separate"
                         , file_or_object # "file" or "object"
@@ -760,9 +753,6 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
 
         elseif size(icu_cases_sub,1) > 0 
             
-            #= Sample time has uniform distribution between time of admission to ICU and time of recovery
-                TODO THIS MAY NEED TO BE UPDATED FOR LATER VERSIONS WITH MORE COMPLEX CARE PATHWAYS
-            =#
             # Generate sample times
             if only_sample_before_death == true
                 # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
@@ -973,7 +963,7 @@ function analyse_td_columns(df::DataFrame)
 end
 
 
-# TODO NOT YET COMPLETED
+# used in previous analyses but superseded
 """
 Function: clean_td_results
     
@@ -998,7 +988,7 @@ Arguments:  'df':   A dataframe as output from the {icu_v_pc_td} function contai
 Examples:   td_results_test_1_clean = clean_TD_results(td_results_test_1)#[:, 2:11])
             println( td_results_test_1_analysis )
 """
-# TODO NOT YET COMPLETED
+# used in previous analyses but superseded
 
 function clean_td_results(df::DataFrame)
     result = df

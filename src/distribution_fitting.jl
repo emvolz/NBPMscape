@@ -11,9 +11,6 @@ List of functions in this file:
         - nll_trunc_gamma       Computes negative log-likelihood for truncated Gamma distribution fit
         - nll_trunc_normal      Computes negative log-likelihood for truncated Normal distribution fit
         - nll_trunc_weibull     Computes negative log-likelihood for truncated Weibull distribution fit
-        # TODO - COULD MERGE THE nll_trunc_gamma, nll_trunc_weibull and nll_trunc_normal functions by 
-        # having the statistical distribution type as an argument
-
         - discretise_gamma_pmf  Discretise the Gamma distribution into a probability mass function (PMF) over 
                                 specified bins.
         - assign_bins           Assign values to bins using searchsortedlast (faster than manual loop)

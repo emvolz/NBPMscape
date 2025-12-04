@@ -65,7 +65,6 @@ const CONTACT_DISTRIBUTIONS = filter(:age_group => !=("all"), contact_distributi
 
 ### Load contact matrices (disaggregated by age group)
 # Generated using socialmixr R package and UK POLYMOD survey data
-# TODO double check and remove any double counting of individual contacts made in multiple settings
 const CONTACT_MATRIX_AGE_GROUPS = load( joinpath( @__DIR__, "..", "data", "polymod_contact_matrix_age_groups.rds" ) )
 #contact_matrix_home_df = load( joinpath( @__DIR__, "..", "data", "polymod_contact_matrix_home.rds" ) , convert = true )
 contact_matrix_home = load( joinpath( @__DIR__, "..", "data", "polymod_contact_matrix_home.rds" ) , convert = true )
@@ -263,8 +262,9 @@ mean_total = sum(skipmissing(ae_12m.mean_12m))
 ae_12m.mean_12m_prop = ae_12m.mean_12m ./ mean_total
 const AE_12M = ae_12m
 #println(AE_12M)
+
 export simtree, simforest, sampleforest, simgendist, Infection, infectivitytoR
-export transmissionrate, sampdegree, REGKEY, COMMUTEPROB #TODO 
+export transmissionrate, sampdegree, REGKEY, COMMUTEPROB
 include("core.jl")
 
 include("combine_small_sim_reps.jl")
@@ -282,18 +282,21 @@ export sample_nhs_trust, icu_sample_prob, icu_sample_prob_region, sample_icu_cas
 include("estimate_severity_age_weights.jl")
 export inf_severity_estimate, inf_age_estimate
 
-#= TODO 
-    Can potentially replace (some of) the functions in distribution_fitting.jl with a Julia version of
-    'fitting_censored_data_function.R'. This R function accounts for sparsity of samples and right 
-    censoring due to max simulation time, whereas the functions below currently only account for sparsity
-    of samples (by fitting truncated data).
-=#
 include("distribution_fitting.jl")
 export fit_multi_dist, dist_fit_plot, nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
 
 include("misc_functions.jl")
 export allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
 
+
+# Use configuration file(s) to load P
+#using YAML
+
+#cfg = YAML.load_file("config/NBPMscape.yaml")
+#P = NamedTuple(Symbol.(keys(cfg["P"])) .=> values(cfg["P"]))
+
+#include("config.jl")
+#using .NBPMscapeConfig
 
 
 end 

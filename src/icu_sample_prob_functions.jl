@@ -63,9 +63,6 @@ function sample_nhs_trust(; region::String, infectee_age::Int8)
 end
 
 
-# TODO If want to do deeper analysis using NHS Trust then could add nhs_trust to Infection struct - as at 12 Nov 2025 added after simulation during ICU sampling
-# TODO Could add this code to the jump when enter ICU or maybe hospital (as long as have to be in hospital before move to ICU)
-
 """
 Function: icu_sample_prob(p=NBPMscape.P; nhs_trust_cd, infectee_age, pathogen_type="virus", site_stage="current")
 
@@ -137,7 +134,7 @@ function icu_sample_prob(; p = NBPMscape.P, nhs_trust_cd, infectee_age, pathogen
 end
 
 
-#TODO add function description
+
 """
 Function: icu_sample_prob_region
 
@@ -195,7 +192,7 @@ function icu_sample_prob_region(;p=NBPMscape.P, region::String, infectee_age::In
 
         #row_name = Symbol("prop_$(age_key)_NT_beds_at_selected_ICU$(stage_suffix)")
         row_name = "$(stage_prefix)_$(age_key)"
-        return ITL2_ICU_SAMPLE_PROB[ITL2_ICU_SAMPLE_PROB.site_stage_age .== row_name, region][1] # TODO ITL2_ICU_SAMPLE_PROB might need to brought into the function via an argument, e.g. itl2_icu_sample_prob = NBPMscape.ITL2_ICU_SAMPLE_PROB
+        return ITL2_ICU_SAMPLE_PROB[ITL2_ICU_SAMPLE_PROB.site_stage_age .== row_name, region][1] 
     end
     
     # Probability of being sampled at a particular NHS Trust given a particular home region
@@ -264,7 +261,7 @@ function sample_icu_cases(; p=NBPMscape.P
     if icu_sample_type == "regional"
         icu_cases_sampled_ix = [] # Initialise vector of indices for ICU cases to be sampled
         
-        wales_regions = ["TLL3", "TLL4", "TLL5"] #TODO investigate whether can get catchment data for ITL2 in Wales 
+        wales_regions = ["TLL3", "TLL4", "TLL5"]
                 
         # Loop through ICU cases and determine whether they will be sampled and return a positive result
         for i in 1:nrow(icu_cases)
@@ -398,9 +395,9 @@ function sample_icu_cases_n(; p = NBPMscape.P
     nhs_trust_ari_cc_beds = copy(ARI_CC_BED_SITREP)
   
     ### NHS Trust catchment data is curently only for England
-    wales_regions = ["TLL3", "TLL4", "TLL5"] #TODO investigate whether can get catchment data for ITL2 in Wales 
+    wales_regions = ["TLL3", "TLL4", "TLL5"]
     icu_cases_Eng = filter(row -> !in( row[:homeregion], wales_regions), icu_cases)
-    # Remove sites with no NHS Trust Code TODO look at how to incorporate sites without NHS Trust codes, i.e. non-NHS England sites
+    # Remove sites with no NHS Trust Code
     nhs_trust_site_sample_targets = copy(nhs_trust_sampling_sites[:,1:5]) #copy( NHS_TRUST_SITE_SAMPLES_TARGETS )
     nhs_trust_site_sample_targets = nhs_trust_site_sample_targets[nhs_trust_site_sample_targets[:, 1] .!= "NA", :]
     ## Allocate sample target across sites (pro rata to critical care bed numbers)
@@ -487,7 +484,6 @@ function sample_icu_cases_n(; p = NBPMscape.P
         #CSV.write("nhs_trusts_icu_ari_beds.csv",nhs_trusts_icu_ari_beds)
         
         # Check that totals for ICU ARI admissions approximately match - particularly if using
-        # TODO could allocate or remove any difference randomly across the NHS Trusts
         #icu_ari_admissions == sum( nhs_trust_ari_cc_beds[:,:est_weekly_icu_ari_admissions_adult] ) + sum( nhs_trust_ari_cc_beds[:,:est_weekly_icu_ari_admissions_child])
         
         ## Determine weekly totals for pathogen X ICU ARI admissions per NHS Trust (specifically, NHS Trusts that have a site taking sampling)

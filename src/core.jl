@@ -16,10 +16,8 @@ mutable struct Infection
 	tdischarge::Float64 # time discharged from hospital (general ward, ICU, or stepdown)
 	trecovered::Float64 # time recovered - either community, discharge from hospital, ICU, or stepdown ward
 	tdeceased::Float64 # time of death - either in hospital, ICU, or stepdown ward
-	# tsampled::Float64 # time
-	# tseqdeposition::Float64 # time for sequencing + qc + bioninf 
 	contacttype::Symbol # cause of infection
-	degree::Tuple{Int64,Int64,Float64} # TODO add a 4th type if change the number of contact types
+	degree::Tuple{Int64,Int64,Float64}
 	iscommuter::Bool
 	initialregion::String
 	homeregion::String
@@ -28,26 +26,18 @@ mutable struct Infection
 	severity::Symbol #severity::NamedTuple{(:severity, :fatal), Tuple{Symbol, Bool}} # severity of infection and whether it will be fatal
 	fatal::Bool # Will the infection be fatal {true,false}. Only possible to be true for severity = verysevere or severe
 	generation::Int64
-	isdeceased::Bool # TODO whether individual has died (default = FALSE). Assume all individuals that die have been admitted to ICU. 
+	isdeceased::Bool # Whether individual has died (default = FALSE). Assume all individuals that die have been admitted to ICU. 
 	donor_age::Union{Int8,Missing} # Age of infector
 	infectee_age::Union{Int8,Missing} # using single year age so can incorporate different age groupings for different data inputs, e.g. contact number distributions may have different age groups to the number of ICU admissions
-	importedinfection::Bool # TODO record whether individual was infected when arrived in UK - if they are admitted to ICU, this may prompt further investigation
+	importedinfection::Bool # Record whether individual was infected when arrived in UK - if they are admitted to ICU, this may prompt further investigation
 end
 
-#const AGEGROUPS = (:youth, :youngadult, :adult, :old, :elderly) # TODO POSSIBLY CHANGE BASED ON SC2 / NO LONGER NEEDED AS USING SINGLE YEAR AGES
+
 const CARE  = (:undiagnosed, :GP, :admittedhospital, :admittedicu, :stepdown, :discharged, :deceased)
 const SEVERITY = [:asymptomatic, :mild, :moderate, :severe, :verysevere ] #const SEVERITY = [:mildorasymptomatic, :moderate, :severe, :verysevere ]
 const STAGE = (:latent, :infectious, :recovered, :deceased)
 
-const CONTACTTYPES = (:F, :G, :H) # TODO POSSIBLY SPLIT INTO 4 (OR MORE) CONTACT TYPES: HOME, WORK/SCHOOL, TRAVEL, OTHER
-
-# # temporary migration matrix 
-# MIGMATRIX = fill( 1.0, NREGIONS, NREGIONS )
-# for i in 1:NREGIONS
-# 	MIGMATRIX[i,i] = 100.0 
-# 	MIGMATRIX[i,:] ./= sum( MIGMATRIX[i,:] )
-# end
-# MIGRATES = [ sum(MIGRATES[i,:])-MIGRATES[i,i] for i in 1:NREGIONS ]
+const CONTACTTYPES = (:F, :G, :H)
 
 ## Function to convert age range strings (e.g. "0-18") to Range type (e.g. 0:18)
 function parse_range(str::String)
@@ -61,35 +51,17 @@ contact_age_groups = replace.( sort( unique( CONTACT_DISTRIBUTIONS.age_group ) ,
 contact_age_groups_range = parse_range.( contact_age_groups )  # Convert from String to Range type
 
 # Build dataframe containing contact number distributions by age group
-#=
-TODO
-Currently includes contact types: home, work/school, and other
-Potentially change to: home, work, school, leisure, transport, other as per POLYMOD
-If split work and school, may need to account for profession, i.e. teachers would have a high contact number with children 
-at work everyone else would be low so would not make sense to use the average of these which would still be quite low
-=#
 contact_rate_dist_par_age_groups = DataFrame(
     age_group    = contact_age_groups_range
 	# f is household size distribution 
-	# TODO Could replace distribution derived from POLYMOD UK with that derived from ONS 
-	# TODO disaggregate ONS by age
-    ,fnegbinomr   = sort( filter( row -> row.contact_setting =="home", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
+	,fnegbinomr   = sort( filter( row -> row.contact_setting =="home", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
     ,fnegbinomp   = sort( filter( row -> row.contact_setting =="home", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
 	# g is Work / School contact number distribution
 	# POLYMOD approximate work or school contact number distribution
-	# TODO disaggregate work and school because very different when disaggregated by age
+	
     ,gnegbinomr   = sort( filter( row -> row.contact_setting =="work_school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
     ,gnegbinomp   = sort( filter( row -> row.contact_setting =="work_school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
-	# TODO Consider splitting out School contacts in rest of model
-	#,srateshape  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
-    #,sratescale  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
-	#,snegbinomr  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
-    #,snegbinomp  = sort( filter( row -> row.contact_setting =="school", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
-	# TODO Consider splitting out Work contacts in rest of model
-	#,wrateshape  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
-    #,wratescale  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
-	#,wnegbinomr  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
-    #,wnegbinomp  = sort( filter( row -> row.contact_setting =="work", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
+    
 	# Other contact number distribution
 	# POLYMOD approximate contact number distributions for combined settings: transport, leisure, otherplace
     ,oorateshape  = sort( filter( row -> row.contact_setting =="other_t_l_o", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
@@ -97,23 +69,6 @@ contact_rate_dist_par_age_groups = DataFrame(
     # excess rate distribution (also gamma) oorateshape1 = oorateshape + 1 and ooratescale1 = ooratescale
 	,oorateshape1 = sort( filter( row -> row.contact_setting =="other_t_l_o", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape .+ 1
 	,ooratescale1 = sort( filter( row -> row.contact_setting =="other_t_l_o", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
-	# TODO Possibly add more contact types
-	# TODO Need to choose distribution
-	## Transport contact number distribution (POLYMOD)
-    #,trateshape  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
-    #,tratescale  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
-	#,tnegbinomr  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
-    #,tnegbinomp  = sort( filter( row -> row.contact_setting =="transport", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
-	## Leisure contact number distribution (POLYMOD)
-    #,lrateshape  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
-    #,lratescale  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
-	#,lnegbinomr  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
-    #,lnegbinomp  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p
-	## Otherplace contact number distribution (POLYMOD)
-    #,lrateshape  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_shape
-    #,lratescale  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).gamma_scale
-	#,lnegbinomr  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_r
-    #,lnegbinomp  = sort( filter( row -> row.contact_setting =="leisure", CONTACT_DISTRIBUTIONS ), :age_group, rev = false ).nbinom_p	
 )
 
 # Create expanded contact number distribution parameter vectors
@@ -134,10 +89,6 @@ for row in eachrow( contact_rate_dist_par_age_groups )
         contact_rate_dist_par_all_ages[param][age_range .+ 1] .= row[param] 
     end
 end
-
-# TODO Note that some of these distribution parameters may not yield sensible numbers of contacts when sampled
-# e.g. work/school contacts for 75plus age group
-# Need way to deal with this
 
 ### Define assortativity for contact ages
 
@@ -173,181 +124,150 @@ const CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR = cont_matrix_age_group_to_single_y
 const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( contact_matrix_by_age_group = CONTACT_MATRIX_OTHER
 																			, single_year_ages = single_year_ages )
 
-# default parameters 
-global P
-P = ( 
-	# Relative contact rates
-	# Normalised to 1 from the 10.76 contact hours in Table S2 of 
-	# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
-	fcont = 10.76 / 10.76   # for flinks (household) 
-	, gcont = 6.71 / 10.76  # for glinks (work/school)
-	, oocont = 8.09 / 10.76 # for other
-	# TODO POSSIBLY ADD 4TH CONTACT TYPE (TRAVEL) AS PER WARWICK UNI SOCIAL CONTACT SURVEY (Danon et al (2013))
-	#, tcont = 0.45 / 10.76  # for travel links
+### Define parameters, P
+# First try to load from config file, otherwise load defaul parameters below
+#include("config_yaml.jl")
+#using .NBPMscapeYAMLConfig
 
-	# Scale adjustment for contact rates by day of the week (Sun-Sat)
-	# Sourced from POLYMOD - Mossong et al (2008), PLOS Medicine, 5(3)
-	# TODO COULD DISAGGREGATE THIS BY CONTACT TYPE, E.G. SCHOOL/WORK WOULD BE VERY DIFFERENT FROM LEISURE
-	#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
-	, dowcont = (0.1043502, 0.1402675, 0.1735913, 0.1437642, 0.1596205, 0.1445298, 0.1338766) 
-	# Sourced from 'Social Contact Survey' 
-	# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
-	# Table S1 mean degree
-	#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
-	#, dowcont = ([28.00,25.39,30.53,27.21,26.82,28.80,21.76]/sum([28.00,25.39,30.53,27.21,26.82,28.80,21.76])) 
-	# [0.1485, 0.1347, 0.1620, 0.1443, 0.1423, 0.1528, 0.1154]
-	# Table S1 contact hours
-	#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
-	#, dowcont = ([25.80,24.51,26.47,27.40,26.72,26.50,26.46]/sum([25.80,24.51,26.47,27.40,26.72,26.50,26.46])) 
-	# [0.1403, 0.1333, 0.1439, 0.1490, 0.1453, 0.1441, 0.1439]
-	
+#const Q = NBPMscapeYAMLConfig.validate!(NBPMscapeYAMLConfig.load_P())
 
-	# TODO introduce population variation in infectiousness 
-	, infectivity = 2.00 #1.25 # scales transmission rate # Updated to 2.00 after incorporation of age disaggregated parameters # Use infectivitytoR() to check R value for current parameters
-	, infectivity_shape = 2.2 * 0.75 # TODO 
-	, infectivity_scale = 2.5 * 0.75
-	# , infectivity_shape = 1.72 # Jones & Drosten, Science 2021 
-	# , infectivity_scale = 5.95
+#global P																			
+#try
+#	const P = NBPMscapeConfig.validate!(NBPMscapeConfig.load_P())
+#catch e
+#	@warn "Failed to load config, falling back to defaults"
+	# default parameters 
+	global P
+	P = ( 
+		# Relative contact rates
+		# Normalised to 1 from the 10.76 contact hours in Table S2 of 
+		# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
+		fcont = 10.76 / 10.76   # for flinks (household) 
+		, gcont = 6.71 / 10.76  # for glinks (work/school)
+		, oocont = 8.09 / 10.76 # for other
 
-	# TODO STRATIFY BY AGE?
-	# , latent_shape = 4.24 # Galmiche Lancet Microbe 2023, mean ~ 5d
-	# , latent_scale = 1.08 
-	, latent_shape = 3.26 # Zhao 2021 
-	, latent_scale = 0.979
-	, infectious_shape = 8.16 # Verity 2020 , mean 24d 
-	, infectious_scale = 3.03 
+		# Scale adjustment for contact rates by day of the week (Sun-Sat)
+		# Sourced from POLYMOD - Mossong et al (2008), PLOS Medicine, 5(3)
+		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+		, dowcont = (0.1043502, 0.1402675, 0.1735913, 0.1437642, 0.1596205, 0.1445298, 0.1338766) 
+		# Sourced from 'Social Contact Survey' 
+		# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
+		# Table S1 mean degree
+		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+		#, dowcont = ([28.00,25.39,30.53,27.21,26.82,28.80,21.76]/sum([28.00,25.39,30.53,27.21,26.82,28.80,21.76])) 
+		# [0.1485, 0.1347, 0.1620, 0.1443, 0.1423, 0.1528, 0.1154]
+		# Table S1 contact hours
+		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+		#, dowcont = ([25.80,24.51,26.47,27.40,26.72,26.50,26.46]/sum([25.80,24.51,26.47,27.40,26.72,26.50,26.46])) 
+		# [0.1403, 0.1333, 0.1439, 0.1490, 0.1453, 0.1441, 0.1439]
+		
+		, infectivity = 2.00 #1.25 # scales transmission rate # Updated to 2.00 after incorporation of age disaggregated parameters # Use infectivitytoR() to check R value for current parameters
+		, infectivity_shape = 2.2 * 0.75 
+		, infectivity_scale = 2.5 * 0.75
+		
+		, latent_shape = 3.26 # Distribution parameters inferred in 'latent_period_estimate.R' from results reported in Zhao et al (2021), Epidemics, 36, 100482 - mean latent period of 3.3 days (95% CI 0.2, 7.9)
+		, latent_scale = 0.979
+		, infectious_shape = 8.16 # Verity 2020 , mean 24d 
+		, infectious_scale = 3.03 
 
-	, ρ_hosp = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
-	, ρ_asymptomatic = 0.223 #  transmission reduction for asymptomatic individuals - see Knock et al (2021) Supplementary Information
+		, ρ_hosp = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
+		, ρ_asymptomatic = 0.223 #  transmission reduction for asymptomatic individuals - see Knock et al (2021) Supplementary Information
 
-	, frate = 0.0 # rate of gaining & losing flinks
-	, grate = 1/30.0 # rate of gaining and losing
-	# TODO DO WE NEED TO ADD RATES FOR OTHER AND TRAVEL?
-	#, orate = TODO
-	#, trate = TODO
+		, frate = 0.0 # rate of gaining & losing flinks
+		, grate = 1/30.0 # rate of gaining and losing
 
-	# Contact rate distributions stratified by age of individual and contact type
-	# Based on POLYMOD UK - Mossong et al (2008), PLOS Medicine, 5(3)
-	# Note that element 1 is for age = 0 years
-	, fnegbinomr   = contact_rate_dist_par_all_ages[:fnegbinomr]
-	, fnegbinomp   = contact_rate_dist_par_all_ages[:fnegbinomp]
-	, gnegbinomr   = contact_rate_dist_par_all_ages[:gnegbinomr]
-	, gnegbinomp   = contact_rate_dist_par_all_ages[:gnegbinomp]
-	#, trateshape  = contact_rate_dist_par_all_ages[:trateshape]
-	#, tratescale  = contact_rate_dist_par_all_ages[:tratescale]
-	, oorateshape  = contact_rate_dist_par_all_ages[:oorateshape]
-	, ooratescale  = contact_rate_dist_par_all_ages[:ooratescale]
-	, oorateshape1 = contact_rate_dist_par_all_ages[:oorateshape1]
-	, ooratescale1 = contact_rate_dist_par_all_ages[:ooratescale1]
+		# Contact rate distributions stratified by age of individual and contact type
+		# Based on POLYMOD UK - Mossong et al (2008), PLOS Medicine, 5(3)
+		# Note that element 1 is for age = 0 years
+		, fnegbinomr   = contact_rate_dist_par_all_ages[:fnegbinomr]
+		, fnegbinomp   = contact_rate_dist_par_all_ages[:fnegbinomp]
+		, gnegbinomr   = contact_rate_dist_par_all_ages[:gnegbinomr]
+		, gnegbinomp   = contact_rate_dist_par_all_ages[:gnegbinomp]
+		, oorateshape  = contact_rate_dist_par_all_ages[:oorateshape]
+		, ooratescale  = contact_rate_dist_par_all_ages[:ooratescale]
+		, oorateshape1 = contact_rate_dist_par_all_ages[:oorateshape1]
+		, ooratescale1 = contact_rate_dist_par_all_ages[:ooratescale1]
 
-	# Contact rate matrix by age
-	# Based on POLYMOD UK - Mossong et al (2008), PLOS Medicine, 5(3)
-	# TODO COULD SPLIT INTO MORE CONTACT TYPES
-	, f_contact_matrix_age = CONTACT_MATRIX_HOME_SINGLE_YEAR
-	, g_contact_matrix_age = CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR
-	, o_contact_matrix_age = CONTACT_MATRIX_OTHER_SINGLE_YEAR
+		# Contact rate matrix by age
+		# Based on POLYMOD UK - Mossong et al (2008), PLOS Medicine, 5(3)
+		, f_contact_matrix_age = CONTACT_MATRIX_HOME_SINGLE_YEAR
+		, g_contact_matrix_age = CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR
+		, o_contact_matrix_age = CONTACT_MATRIX_OTHER_SINGLE_YEAR
 
-	# Estimated uniform delay from sampling to sequencing+bioinformatics+database
-	# TODO SEARCH FOR SOURCE
-	, lagseqdblb  = 3 # lower bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
-	, lagsseqdbub = 7 # upper bound TODO THIS DOESN'T SEEM TO BE USED ANYWHERE
-	
-	#######################################################
-	### UPDATING INFECTION SEVERITY AGE DISAGGREGATION ####
-	
-	## Single values calculated using disaggregated probabilities and
-	## weighted by population age distribution
-	#, propverysevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
-	#, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
-	#, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
-	#, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
-	#, propmildorasymptomatic = 0.507 + (1 - 0.008 - 0.03 - 0.053 - 0.507) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
-	# CHECK
-	#propverysevere + propsevere + propmoderate + propmildorasymptomatic
-	
-	## Infection severity probabilities disaggregated by age
-	## Sourced from Knock et al (2021)
-	, symptomatic_prob_by_age = SYMPTOMATIC_PROB_BY_AGE
- 	, ihr_by_age = IHR_BY_AGE[:,"IHR"]
-	, symptomatic_ihr_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_hosp_sympt"])
-	, icu_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_ICU_hosp"]) # Prob of admission to ICU if already admitted to hospital
-	# Severity probabilities with no age disaggregation
-	# TODO prop_moderate is based on a survey of people with ILI and so may be different from GP seeking behaviour 
-	#      of individuals with Covid-like illness. Ideally find data from initial wave of Covid in UK.
-	# Note that mild and moderate sum to 1. They are both symptomatic but the distinction is whether they consult a GP (in person or via phone).
-	, prop_moderate = 0.10825 # Will visit a GP but won't go to hospital. Estimated from FluSurvey data, combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
-	, prop_mild     = 0.89175 # = 1 - prop_moderate # Symptomatic but won't visit a GP or go to hospital
-	
-	## Probability of death by age and care stage
-	## Sourced from Knock et al (2021)
-	, ifr_by_age = IFR_BY_AGE[:,"IFR"] # Infection fatality ratio
-	, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
-	, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
-	, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
-	# TODO DOES NOT INCLUDE DEATH IN THE COMMUNITY OR CARE HOMES
-	#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
+		# Estimated uniform delay from sampling to sequencing+bioinformatics+database
+		, lagseqdblb  = 3 # lower bound
+		, lagsseqdbub = 7 # upper bound
+		
+		### Infection severity disaggregated by age
+		
+		## Single values calculated using disaggregated probabilities (see below) and
+		## weighted by population age distribution
+		#, propverysevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+		#, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+		#, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
+		#, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
+		#, propmildorasymptomatic = 0.507 + (1 - 0.008 - 0.03 - 0.053 - 0.507) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
+		# CHECK: propverysevere + propsevere + propmoderate + propmildorasymptomatic == 1
+		
+		## Infection severity probabilities disaggregated by age
+		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
+		, symptomatic_prob_by_age = SYMPTOMATIC_PROB_BY_AGE
+		, ihr_by_age = IHR_BY_AGE[:,"IHR"]
+		, symptomatic_ihr_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_hosp_sympt"])
+		, icu_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_ICU_hosp"]) # Prob of admission to ICU if already admitted to hospital
+		# Severity probabilities with no age disaggregation
+		# Note that mild and moderate sum to 1. They are both symptomatic but the distinction is whether they consult a GP (in person or via phone).
+		, prop_moderate = 0.10825 # Will visit a GP but won't go to hospital. Estimated from FluSurvey data (people with ILI - not COVID specific), combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
+		, prop_mild     = 0.89175 # = 1 - prop_moderate # Symptomatic but won't visit a GP or go to hospital
+		
+		## Probability of death by age and care stage
+		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
+		, ifr_by_age = IFR_BY_AGE[:,"IFR"] # Infection fatality ratio
+		, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
+		, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
+		, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
+		#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
 
-	# TODO STRATIFY BY AGE GROUP
-	, gprate = 1/5 # TODO Could replace this with 3-7 days (perhaps 1/5?) between symptom onset and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025)), although this is non-virus specific. Would need to make sure it is consistent with the hospadmitrate
-	, hospadmitrate = 1/4 # Docherty 2020 # Also in Knock et al (2021) "mean time from symptom onset to admission to hospital" = 4 days
-	#, icurate = 1/2.5 # Knock 2021
-	#, hosp_disch_rate # TODO - SEE KNOCK ET AL (2021)
-	## Rate (= 1 / duration) in different care stages for different pathways - source Knock et al (2021) Table S2
-	# General ward rates
-	, hosp_recovery_rate = 1 / 10.7 # 'Hospitalised on general ward leading to recovery' 10.7 days (95% CI: 0.3-39.4). Erlang(k=1,gamma=0.09). Knock et al (2021). 
-	, hosp_death_rate    = 1 / 10.3 # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
-	, triage_icu_rate    = 1 /  2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
-	# ICU rates
-	, icu_to_recovery_rate  = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4-57.6). Erlang(k=1,gamma=0.06). Knock et al (2021). 
-	, icu_to_death_rate  = 1 / 11.8 # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
-	, icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). 
-	# ICU stepdown rates
-	, stepdown_to_recovery_after_icu_rate  = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
-	, stepdown_to_death_after_icu_rate = 1 / 8.1 # 'Stepdown period before death after leaving ICU' 8.1 (95% CI: 0.2-29.7). Erlang(k=1,gamma=0.12)
+		, gprate = 1/5 # Typical lag of 3-7 days between ARI symptom onset (not pathogen specific) and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025))
+		, hospadmitrate = 1/4 # Docherty et al (2020), BMJ, 369:m1985, doi: 10.1136/bmj.m1985 # Also in Knock et al (2021), Science Translational Medicine, 13(602) "mean time from symptom onset to admission to hospital" = 4 days
+		## Rate (= 1 / duration) in different care stages for different pathways - source Knock et al (2021), Science Translational Medicine, 13(602), Table S2
+		# General ward rates
+		, hosp_recovery_rate = 1 / 10.7 # 'Hospitalised on general ward leading to recovery' 10.7 days (95% CI: 0.3-39.4). Erlang(k=1,gamma=0.09). Knock et al (2021). 
+		, hosp_death_rate    = 1 / 10.3 # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
+		, triage_icu_rate    = 1 /  2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
+		# ICU rates
+		, icu_to_recovery_rate  = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4-57.6). Erlang(k=1,gamma=0.06). Knock et al (2021). 
+		, icu_to_death_rate  = 1 / 11.8 # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
+		, icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). 
+		# ICU stepdown rates
+		, stepdown_to_recovery_after_icu_rate  = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
+		, stepdown_to_death_after_icu_rate = 1 / 8.1 # 'Stepdown period before death after leaving ICU' 8.1 (95% CI: 0.2-29.7). Erlang(k=1,gamma=0.12)
 
-	#############################################################
+		, psampled = .05  # prop sampled from icu 
+		, sample_target_prob = 0.90 # # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
+		, turnaroundtime = 3 # days
 
-	, psampled = .05  # prop sampled from icu 
-	, sample_target_prob = 0.90 # # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
-	, turnaroundtime = 3 # days TODO HOW DOES THIS LINK TO lagseqdblb and lagsseqdbub?
+		, commuterate = 2.0
 
-	, commuterate = 2.0
+		, importrate = .5 # if using constant rate 
+		, nimports = 1000 # du plessis 2020
+		# t distribution
+		, import_t_df = 2.48 # personal analysis of lineages studied in Volz et al. Cell 2020 
+		, import_t_s = 8.75
+	#      df           m           s    
+	#   2.482146   -1.074888    8.749736 
+	# ( 1.226155) ( 1.608095) ( 1.978287)
 
-	, importrate = .5 # if using constant rate 
-	, nimports = 1000 # du plessis 2020
-	# t distribution
-	, import_t_df = 2.48 # personal analysis of lineages studied in Volz et al. Cell 2020 
-	, import_t_s = 8.75
- #      df           m           s    
- #   2.482146   -1.074888    8.749736 
- # ( 1.226155) ( 1.608095) ( 1.978287)
+		, μ = 0.001 # mean clock rate -- additive relaxed clock
+		, ω = 0.5 # variance inflation
 
-	, μ = 0.001 # mean clock rate -- additive relaxed clock
-	, ω = 0.5 # variance inflation
-
-	## Assumptions regarding current non-metagenomic surveillance
-	# Proportion of ICU admissions with history of international travel that would be 
-	# further investigated (with non-metagenomic surveillance)
-	, non_mg_inv_prob_int_travel = 0.8 # ESTIMATE TODO ADD SOURCE. HOW RECENT MUST INT'L TRAVEL BE. NEED DATA ON INT'L TRAVEL FOR POPULATION.
-	# How recent must the international travel have been to prompt further investigation?
-	, int_travel_history_threshold_time = 30 # days DUMMY VALUE TODO ADD SOURCE
-	# Probability of prompting further investigation upon death
-	# TODO ANY DEATH OR ONLY IF COMBINED WITH YOUNGER AGE AND/OR INT'L TRAVEL
-	, non_mg_inv_prob_death = 0.8 # ESTIMATE TODO ADD SOURCE
-	# Probability of prompting further investigation based on age of individual in ICU
-	# TODO PERHAPS USE A SLIDING SCALE - YOUNGER THE INDIVIDUAL, HIGHER THE PROBABILITY OF INVESTIGATION
-	# E.G. all respiratory admissions to ICU aged 40 and under prompt investigation of pathogenesis
-	# and 60+ do not, with 80% probability of investigation linear decline in probability between the two ages
-	# FIND SOURCE FOR ICU ARI AGES - CAN THEN DEFINE VALUE FOR UNUSUAL AGE, E.G. X% QUANTILE OR X SDs FROM MEAN
-	, non_mg_inv_prob_icu_age = vcat( fill(1,40), collect(1.0:-0.01:0.8), fill(0,40))# DUMMY VALUE TODO ADD SOURCE 
-	# TODO NEED TIMINGS AROUND TESTING AND RESULTS FOR NON-METAGENOMIC SURVEILLANCE - WILL BE LONGER - AND DIFFERENTIATE BETWEEN CURRENT ICU AND DECEASED
-
-	# Sensitivity of metagenomic testing 
-	# see Alcolea-Medina et al (2025), "Rapid pan-microbial metagenomics for pathogen detection and personalised therapy in the intensive care unit: a single-centre prospective observational study", Lancet Microbe, 
-	, sensitivity_mg_virus = 0.89
-	, sensitivity_mg_bacteria = 0.97
-	, sensitivity_mg_fungi = 0.89
-)
+		# Sensitivity of metagenomic testing 
+		# see Alcolea-Medina et al (2025), "Rapid pan-microbial metagenomics for pathogen detection and personalised therapy in the intensive care unit: a single-centre prospective observational study", Lancet Microbe, 
+		, sensitivity_mg_virus = 0.89
+		, sensitivity_mg_bacteria = 0.97
+		, sensitivity_mg_fungi = 0.89
+	)
+#end # End of P
 #typeof(P)
 
 # Function to sample age of infectee, which is conditional on the age of the infector
@@ -372,14 +292,15 @@ function samp_infectee_age(p; contacttype, donor_age)# = :nothing, donor_age = :
 								  , p.o_contact_matrix_age[ donor_age + 1,:] ) )
 		elseif isnothing( contacttype )
 			infectee_age = nothing #Int8( usample )
-			#TODO DO WE WANT TO RETURN SOMETHING IF CONTACT TYPE NOT DEFINED
-			# E.G. SAMPLE FROM CONTACT MATRIX INCLUDING ALL CONTACT TYPES? 
+		elseif contacttype == :nothing
+			infectee_age = nothing #Int8( usample )
 		end
 	end
 	return (infectee_age)
 end
 # Test
-# samp_infectee_age(P; contacttype = :nothing, donor_age = 1) # TODO contacttype = :nothing CURRENTLY RETURNS AN ERROR
+# samp_infectee_age(P; contacttype = :nothing, donor_age = 1) 
+#samp_infectee_age(P; contacttype = nothing, donor_age = 1) 
 #samp_infectee_age(P; contacttype = :G, donor_age = 1)
 #samp_infectee_age(P; contacttype = :H, donor_age = 1)
 #samp_infectee_age(P; contacttype = :F, donor_age = 1)
@@ -395,7 +316,6 @@ function sampdegree(p; contacttype = :nothing, age = :nothing)
 	end
 	#Test
 	#age=1
-	# TODO CHECK HOW WORKING WITH DISTRIBUTIONS INCLUDING A PDF FOR ZERO CONTACTS
 	r  = Gamma( p.oorateshape[age+1], p.ooratescale[age+1] ) |> Base.rand 
 	kf = rand( NegativeBinomial(p.fnegbinomr[age+1], p.fnegbinomp[age+1]) )
 	kg = rand( NegativeBinomial(p.gnegbinomr[age+1], p.gnegbinomp[age+1]) )
@@ -418,7 +338,6 @@ end
 #Test
 #println( dayofweek( 7, 1, 1) )
 
-# TODO POSSIBLY STRATIFY BY AGE GROUP / SINGLE YEAR AGE
 function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious, initialdow, p, age, severity)
 	dow = dayofweek(t,tinf,initialdow) 
 	ρ = 1.0 # 0.250 
@@ -443,7 +362,6 @@ function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious
 	end
 
 	return ρ * p.dowcont[dow] * p.infectivity * pdf( Gamma(p.infectivity_shape, p.infectivity_scale), t-tinfectious )
-	# ρ * p.dowcont[dow] * p.infectivity * pdf( Gamma(p.infectivity_shape, p.infectivity_scale), t-tinf) # TODO clarify if this is docked to tinf or tinfectious
 end
 
 function simgendist(t0, t1, p; s = 1000)
@@ -460,15 +378,11 @@ function simgendist(tuv, p; s = 1000)
 end
 
 # Function to determine the severity of an infection
-# Based on probabilities reported in Knock et al (2021)
+# Based on probabilities reported in Knock et al (2021), Science Translational Medicine, 13(602)
 # Note that among patients over 65yo the probability of admission to ICU decreases with age
 # but this may not be repeated in a future outbreak
-#= TODO SEVERITY COULD BE DEVELOPED FURTHER WITH:
-   - MORE CATEGORIES (e.g. triaged directly to ICU, ICU via general ward, care home residents/workers, etc)
-   - DIFFERENT TRANSMISSION RATES (e.g. symptomatic has lower transmission rate)
-=#
 # ASSUMES THAT NO-ONE DIES FROM INFECTION OUTSIDE OF HOSPITAL OR ICU (NOT IN LINE WITH COVID-19)
-# Assume that ifr_by_age = p_death_icu + p_death_hosp_D + p_death_stepdown (note that )
+# Assume that ifr_by_age = p_death_icu + p_death_hosp_D + p_death_stepdown (note that this does not include deaths outside of hospital)
 function sample_infectee_severity( p; age = infectee_age )
 	# Begin with blank severity and fatal as false by default
 	severity = nothing
@@ -520,7 +434,6 @@ function Infection(p; pid = "0"
 		infectee_age = samp_infectee_age( P; contacttype = contacttype
 										   , donor_age = isnothing(donor) ? nothing : donor.infectee_age )
 		# ONS Commuting data only for ages 16 and above 
-		# TODO COULD TRY TO FURTHER STRATIFY COMMUTING BY AGE IF REQUIRED
 		iscommuter = infectee_age < 16 ? false : rand() < COMMUTEPROB[homeregion]["na"] 
 		#iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
@@ -528,26 +441,16 @@ function Infection(p; pid = "0"
 		commuteregion = iscommuter ? wsample( prd.index2name, prd.data ) : region
 	elseif contacttype == :import 
 		importedinfection = true
-		homeregion = wsample( ITL2SIZE.ITL225CD, ITL2SIZE.total_population_2022 ) # TODO COULD STRATIFY BY AGE BUT PERHAPS NOT WORTHWHILE
+		homeregion = wsample( ITL2SIZE.ITL225CD, ITL2SIZE.total_population_2022 )
 		
 		# Age of individual in imported infection is determined by age distribution of international travellers
-		# entering the UK. Two possible methods: TODO CHOOSE ONE
-		# (1) Weighted sample of single year age weighted by age group and adjusted by single year in 
+		# entering the UK. 
+		# Weighted sample of single year age weighted by age group and adjusted by single year in 
 		# line with UK ONS population data for that age group
 		infectee_age = Int8( StatsBase.wsample( INT_TRAVELLERS_AGE_SINGLE_YR[:,"age"]
 				  							  , INT_TRAVELLERS_AGE_SINGLE_YR[:,"intl_travel_prop_adj"] ) )
-		# OR
-		# (2) Weighted sample of age group... 
-		#age_group = StatsBase.wsample( INT_TRAVELLERS_AGE_GROUP[:,"Age"], INT_TRAVELLERS_AGE_GROUP[:,"percent"] ) 
-		# ... then uniform sample of single year age from age group range
-		#if age_group == "65 & over"
-		#	age = Int8( rand(65:100) )
-		#else
-		#	age = Int8( rand( parse_range( age_group ) ) )# Returns error for oldest age group "65 & over"
-		#end
 
 		# ONS Commuting data only for ages 16 and above 
-		# TODO COULD TRY TO FURTHER STRATIFY COMMUTING BY AGE IF REQUIRED (categories in ONS data: 16-24, 25-34, 35-44, 45-54, 55-64, 65+)
 		iscommuter = infectee_age < 16 ? false : rand() < COMMUTEPROB[homeregion]["na"] 
 		#iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
@@ -557,7 +460,6 @@ function Infection(p; pid = "0"
 	else # G or H 
 		infectee_age = samp_infectee_age(P; contacttype = contacttype, donor_age = isnothing(donor) ? nothing : donor.infectee_age )
 		# ONS Commuting data only for ages 16 and above 
-		# TODO COULD TRY TO FURTHER STRATIFY COMMUTING BY AGE IF REQUIRED
 		iscommuter = infectee_age < 16 ? false : true 
 		#iscommuter = true 
 		prd = deepcopy( COMMUTEINPROB[region] )
@@ -584,8 +486,7 @@ function Infection(p; pid = "0"
 	sampled = false 
 	carestage = :undiagnosed 
 	infstage = :latent # jump process will actually start with this :infectious
-	isdeceased = false # TODO NEED TO ADD DECEASED COMPARTMENT IN MODEL
-	#isrecovered = false # TODO IS THIS REQUIRED?
+	isdeceased = false
 	
 	# initial contact network 
 	flinks, glinks, hr = sampdegree(p; contacttype = contacttype , age = infectee_age )
@@ -602,8 +503,6 @@ function Infection(p; pid = "0"
 	ticu = Inf # icu admit 
 	tgp = Inf # gp attend 
 	thospital = Inf # time admitted to hospital general ward
-	tsampled = Inf # sampled 
-	tseqdeposition = Inf # sequence db 
 	tstepdown = Inf # time at which patient care stepped down from ICU to general ward
 	tdischarge = Inf # time discharged from hospital (general ward, ICU, or stepdown after ICU)
 	trecovered = Inf # time recovered - either community, discharge from hospital, ICU, or stepdown ward
@@ -628,9 +527,9 @@ function Infection(p; pid = "0"
 	R = 0 
 
 	# Determine length of infectious period
-	gammalatent = Gamma(p.latent_shape, p.latent_scale)
+	gammalatent = Gamma(p.latent_shape, p.latent_scale) # median( Gamma(P.latent_shape, P.latent_scale) ) = 3.19154
 	latenthazard(t) = pdf(gammalatent,t) / (1 - cdf(gammalatent,t))
-	gammarecovery = Gamma(p.infectious_shape, p.infectious_scale)
+	gammarecovery = Gamma(p.infectious_shape, p.infectious_scale) # median( Gamma(P.infectious_shape, P.infectious_scale) )
 	recoveryhazard(t) = pdf(gammarecovery ,t) / (1 - cdf(gammarecovery,t)) 
 	
 	laglatent = rand( gammalatent )
@@ -667,7 +566,7 @@ function Infection(p; pid = "0"
 	j_loseg = ConstantRateJump(rate_loseg, aff_loseg!) 
 
 	# transmissions 
-	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t, tinf, tinfectious, initialdow, p, infectee_age, severity) : 0.0 # TODO transmissionrate not currently disaggregated by age - also when/if it is then this should possibly be donor.infectee_age rather than infectee_age
+	rate_transmf(u,p,t) = (region==homeregion) ? Kf*transmissionrate(carestage, infstage, :F, t, tinf, tinfectious, initialdow, p, infectee_age, severity) : 0.0
 	hrate_transmf(u,p,t) = max(1.2*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age, severity) )
 	lrate_transmf(u,p,t) = min(0.8*rate_transmf(u,p,t), Kf*transmissionrate(carestage, infstage, :F, t+3,tinf,  tinfectious, initialdow, p, infectee_age, severity) )
 	aff_transmf!(int) = begin 
@@ -724,12 +623,9 @@ function Infection(p; pid = "0"
 	j_hospital = ConstantRateJump( ratehospital, aff_hosp! )
 
 	## hospital -> discharged rate 
-	#ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital)) & (severity in (:severe,)) )) ? p.hosp_disch_rate : 0.0 
 	ratehospitaldischarge(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe,)) & (severity.fatal == false) )) ? p.hosp_recovery_rate : 0.0 
 	aff_hosp_disch!(int) = begin 
 		carestage = :discharged
-		#infstage = :recovered # TODO assuming discharged and recovered are the same
-		#trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_hospital_discharge = ConstantRateJump( ratehospitaldischarge, aff_hosp_disch! )
 
@@ -738,7 +634,7 @@ function Infection(p; pid = "0"
 	aff_hosp_death!(int) = begin 
 		carestage = :deceased
 		infstage = :deceased  
-		tdeceased = int.t # TODO DO WE NEED TO DIFFERENTIATE CARE PATHWAY BEFORE DEATH (OR RECOVERY)?? i.e. IF USED AS A PROMPT FOR TESTING
+		tdeceased = int.t
 		isdeceased = true
 	end 
 	j_hospital_death = ConstantRateJump( ratehospitaldeath, aff_hosp_death! )
@@ -754,14 +650,10 @@ function Infection(p; pid = "0"
 	end 
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
-	# TODO PROBABLY CAN REMOVE THIS AS LIKELY THAT THERE IS ALWAYS STEPDOWN TO GENERAL WARD BETWEEN ICU AND DISCHARGE / RECOVERY
-	# TODO discharged is not necessarily the same as recovery
 	## ICU -> Recovery
 	rate_icu_recovery(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false ) )) ? p.icu_to_recovery_rate : 0.0 
 	aff_icu_recovery!(int) = begin 
 		carestage = :discharged
-		#infstage = :recovered  
-		#trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
 	end 
 	j_icu_recovery = ConstantRateJump( rate_icu_recovery, aff_icu_recovery! )
 
@@ -775,11 +667,8 @@ function Infection(p; pid = "0"
 	end 
 	j_icu_death = ConstantRateJump( rate_icu_death, aff_icu_death! )
 
-	# TODO Only have time in ICU before stepdown for infections leading to death
-	# icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). ??
-	# TODO Need to decide whether to assume that the ICU stepdown rate is the same regardless of final outcome being death or recovery
 	## ICU -> Stepdown (to hospital general ward)
-	rate_icu_stepdown(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_resulting_in_death_rate : 0.0 
+	rate_icu_stepdown(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_resulting_in_death_rate : 0.0
 	aff_icu_stepdown!(int) = begin 
 		carestage = :stepdown  
 		tstepdown = int.t 
@@ -789,9 +678,7 @@ function Infection(p; pid = "0"
 	## Hospital general ward (ICU Stepdown) -> Recovery
 	rate_stepdown_recovery(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
 	aff_stepdown_recovery!(int) = begin 
-		carestage = :discharged # TODO discharged is not necessarily the same as recovery
-		#infstage = :recovered
-		#trecovered = int.t # TODO ALSO DETERMINED BASED ON DISTRIBUTION (not age disaggregated whereas the jump are age disaggregated)
+		carestage = :discharged
 	end 
 	j_stepdown_recovery = ConstantRateJump( rate_stepdown_recovery, aff_stepdown_recovery! )
 
@@ -804,15 +691,6 @@ function Infection(p; pid = "0"
 		isdeceased = true 
 	end 
 	j_stepdown_death = ConstantRateJump( rate_stepdown_death, aff_stepdown_death! )
-
-	# # sampling 
-	# ratesample(u,p,t) = (carestage == :icu & sampled=false) ? p.samplerate : 0.0 
-	# aff_sample!(int) = begin 
-	# 	sampled = true 
-	# 	tsampled = int.t 
-	# end
-	# j_sample = ConstantRateJump( ratesample, aff_sample! )
-	
 
 	# migration  
 	## model commuter traffic and return journeys 
@@ -835,19 +713,6 @@ function Infection(p; pid = "0"
 	end 
 	j_importhome = ConstantRateJump( rateimporthome, aff_importhome! )
 
-	## TODO ADD SET OF RATES AND AFFECTS FOR SAMPLING UNDER CURRENT SURVEILLANCE ASSUMPTIONS: DEATHS, ICU AGE, TRAVEL etc
-	## OR this could be done using an overlay once the outbreak has been simulated
-	
-	## TODO long distance occasional travel 
-	
-	# ratemigration(u,p,t) = MIGRATES[region] 
-	# aff_migration!(int) = begin 
-	# 	w = MIGMATRIX[region, :] 
-	# 	w[region] = 0.0 
-	# 	region = StatsBase.wsample( 1:NREGIONS, w )
-	# end
-	# j_migration = ConstantRateJump( ratemigration, aff_migration! )
-
 	# simulate 
 	## set to infectious; tspan starts from this point 
 	infstage = :infectious
@@ -869,7 +734,6 @@ function Infection(p; pid = "0"
 			, j_icu_stepdown
 			, j_stepdown_recovery
 			, j_stepdown_death
-		    #, j_migration
 		    , j_commute
 			]
 	### include imported related jump (port-of-entry to home) 
@@ -904,8 +768,6 @@ function Infection(p; pid = "0"
 				, tdischarge
 				, trecovered
 				, tdeceased
-				# , tsampled 
-				# , tseqdeposition 
 				, contacttype
 				, (flinks,glinks,hr)
 				, iscommuter 
@@ -1012,8 +874,6 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 	end
 	
 	max_cases_df[max_cases_df.simid .== simid, :generations] .= maximum([(x.generation) for x in G])
-
-	# TODO POSSIBLY ADD MORE VARIABLES TO REPORT IN D AND G NOW THAT AGE STRATIFIED SEVERITY AND ADDED MORE CARE PATHWAYS
 
 	# removed the if statement at the end because it was stopping simforest() working after age disaggregation added
 	dfargs = [(u.dpid, u.pid, u.tinf, u.contacttype, u.initialregion, u.donor_age, u.infectee_age) for u in G]# if !ismissing(u.dpid)]
@@ -1127,9 +987,9 @@ end
 
 infectivitytoR(ν::Real; nsims = 1000) = begin
 	P = merge(NBPMscape.P, (;infectivity=ν))
-	infsF = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:F), 1:nsims); # TODO add donor = nothing?
-	infsG = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:G), 1:nsims); # TODO add donor = nothing?
-	infsH = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:H), 1:nsims); # TODO add donor = nothing?
+	infsF = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:F), 1:nsims);
+	infsG = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:G), 1:nsims);
+	infsH = map(i->Infection(P; pid="$(i)", tinf=0.0, contacttype=:H), 1:nsims);
 	inftoR(inf) = begin 
 		cmh = StatsBase.countmap( inf.H.transmissiontype )
 		map( k-> (k in keys(cmh)) ? cmh[k] : 0, [:F, :G, :H] )
@@ -1157,7 +1017,6 @@ sampleforest(fo::NamedTuple, p::NamedTuple) = begin
 	tsample = (size(G1,1)>0) ? map( g -> rand(Uniform(g.ticu,g.trecovered)) , eachrow(G1) ) : []
 	G1.tsample = tsample 
 
-
 	(; 
 		tsample = sort( tsample  )
 		, treport = sort( tsample .+ p.turnaroundtime )
@@ -1167,7 +1026,6 @@ sampleforest(fo::NamedTuple, p::NamedTuple) = begin
 	)
 end
 sampleforest(fo, psampled::Real) = begin  P = merge(NBPMscape.P,(;psampled=psampled)); sampleforest(fo,P) end
-
 
 # Function for estimating possible number of cases for individual importations so can allocate the 
 # maximum case limit between multiple importations with different timport in simtree 

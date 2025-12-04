@@ -73,7 +73,7 @@ sims_G_icu_filter = load("covidlike-1.3.1-sims_filtered_G_icu_combined_nrep64000
 sims_G_gp_filter = load("covidlike-1.3.1-sims_filtered_G_gp_combined_nrep64000_955898.jld2", "sims_G_gp_filter")
 
 # Obtain population of England from constant in NBPMscape
-# TODO not currently defined in Main
+# (not currently defined in Main)
 #ITL225CD_wales = ITL2SIZE[37:39,:ITL225CD]
 #ITL2SIZE_eng = ITL2SIZE[.!in(ITL2SIZE.ITL225CD, ITL225CD_wales), :]
 #ITL2SIZE_eng = ITL2SIZE[ ITL2SIZE.ITL225CD .!= , :]
@@ -341,8 +341,8 @@ results_df_gp300.PC_only_winter     = [df[2, :Median_TD] for df in TD_results_df
 results_df_gp300.Combined_winter    = [df[3, :Median_TD] for df in TD_results_dfs_winter_gp300]
 results_df_gp300.Improvement_winter = [df[3, :Median_TD] for df in TD_results_dfs_winter_gp300] - [df[1, :Median_TD] for df in TD_results_dfs_winter_gp300]
 results_df_gp300[4,3:5] = [-1,-1,-1]
-# TODO println(results_df_gp300)
-# TODO CSV.write("scripts/primary_care_v_icu/TDs_3cases_w_gp_300.csv", results_df_gp300) 
+# println(results_df_gp300)
+# CSV.write("scripts/primary_care_v_icu/TDs_3cases_w_gp_300.csv", results_df_gp300) 
 
 # % of replicates with times to detection 1 case
 
