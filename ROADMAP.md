@@ -27,6 +27,10 @@
 - In particular the fitting of statistical distributions to adjust for right-censoring of simulation results
 - This should make analysis easier
 
+## Fit joint distributions 
+- Enables adjustment for right-censoring when combining simulation results for sampling from more than one healthcare setting
+- Possibly using a copula
+
 ## More realistic importation dynamics 
 - Short-duration contacts at port-of-entry (similar to commuter dynamics)
 - Home region should be drawn prop-to population density (or possibly derived from ONS International Passenger Survey)
