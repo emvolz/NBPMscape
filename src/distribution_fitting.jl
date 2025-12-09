@@ -21,6 +21,7 @@ List of functions in this file:
         - dist_fit_plot     Plots data and fitted distribution
         - fit_multi_dist    Function to compare results for fitting Gamma and Weibull statistical distributions to data
                             Note that this could potentially be extended to include other statistical distributions.
+        - erlang_truncated_means    Splits an Erlang distribution into two parts and returns the mean x value of each part
 
 Description of regional time to detection (TD) estimation and requirement for distribution fitting:
         Extract region specific information from each forest in the outbreak simulation. 
@@ -454,4 +455,54 @@ function fit_multi_dist(; times, init_gamma, init_weibull #,init_nbinom, init_lo
 
     return( [fit_results] )
 
+end
+
+
+"""
+Function:    erlang_truncated_means
+
+Description     Splits an Erlang distribution into two parts and returns the mean x value of each part
+
+Arguments   k::Int          Shape parameter for Erlang distribution (integer value makes it a special case of the Gamma distribution)  
+            rate::Float64   Rate parameter for Erlang distribution
+            lower_limit     Lower limit in x of the left hand split part of the distribution
+            mid_limit       Upper limit in x of the left hand split part of the distribution and lower limit of the right hand split part
+            upper_limit     Upper limit in x of the right hand split part of the distribution
+Returns     Two Float64 values representing the mean x values of the two split parts of the distribution
+
+Example     # Used to split the Erlang distribution reported in Knock et al (2021) fitted to the recovery time
+            # for patients hospitalised with COVID-19. The mean of the whole distribution is 10.7 days. 
+            # However, we want to split this into two: patients discharged within 24 hours and patients discharged
+            # beyond 24 hours.
+            erlang_truncated_means( k = 1, rate = 0.09, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf)   
+            # Returns (0.49250101230477183, 12.111111111110802)
+            # Check also returns the mean from the original single distribution
+            erlang_truncated_means( k = 1, rate = 0.09, lower_limit = 0.0, mid_limit = 10000, upper_limit = Inf)   
+            # returns (11.11111, NaN)
+            # Not quite the same as the 10.7 reported, but it is the same as E[t] = k / rate = 1/0.09 = 11.1111, so 
+            # it is likely due to rounding of the rate paramter 1/0.0935 = 10.695
+
+"""
+function erlang_truncated_means(; k::Int
+                                , rate::Float64
+                                , lower_limit#::Union{Float64,Int,Inf}
+                                , mid_limit#::Union{Float64,Int,Inf}
+                                , upper_limit#::Union{Float64,Int,Inf}
+                                )
+    d = Gamma(k, 1/rate) # Erlang(k, λ)
+    # pdf and cdf
+    f(x) = pdf(d, x)
+    F(x) = cdf(d, x)
+
+    # (a) E[X | 0 ≤ X ≤ 1]
+    num_a, _ = quadgk(x -> x * f(x), lower_limit, mid_limit) #quadgk(x -> x * f(x), 0.0, 1.0)
+    den_a = F(mid_limit) - F(lower_limit)        # F(0.0) is 0 for Erlang
+    mean_a = num_a / den_a
+
+    # (b) E[X | X ≥ 1]
+    num_b, _ = quadgk(x -> x * f(x), mid_limit, upper_limit) #quadgk(x -> x * f(x), 1.0, Inf)
+    den_b = F(upper_limit) - F(mid_limit)
+    mean_b = num_b / den_b
+
+    return mean_a, mean_b
 end

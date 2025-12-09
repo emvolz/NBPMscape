@@ -27,6 +27,7 @@ using StatsPlots
 using JLD2
 
 using XLSX
+using QuadGK
 
 const COMMUTERPROBPATH = joinpath(@__DIR__, "..", "data",  "commuting_ITL2_prob_list.rds")
 const COMMUTEPROB = load( COMMUTERPROBPATH )   
@@ -283,8 +284,10 @@ include("estimate_severity_age_weights.jl")
 export inf_severity_estimate, inf_age_estimate
 
 include("distribution_fitting.jl")
-export fit_multi_dist, dist_fit_plot, nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
-
+export fit_multi_dist, dist_fit_plot
+export nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
+export erlang_truncated_means
+ 
 include("misc_functions.jl")
 export allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
 
