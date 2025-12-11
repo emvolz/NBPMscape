@@ -810,7 +810,7 @@ function Infection(p; pid = "0"
 	end 
 	j_commute = ConstantRateJump( ratecommute, aff_commute! )
 
-	rateimporthome(u,p,t) = (importedinfection & (region!=homeregion)) ? p.commuterate : 0.0 
+	rateimporthome(u,p,t) = (importedinfection & (region!=homeregion) & (region!=commuteregion)) ? p.commuterate : 0.0 
 	aff_importhome!(int) = begin 
 		region = homeregion 
 	end 
