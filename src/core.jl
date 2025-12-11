@@ -786,15 +786,6 @@ function Infection(p; pid = "0"
 	end 
 	j_stepdown_discharge = ConstantRateJump( rate_stepdown_discharge, aff_stepdown_discharge! )
 
-	## Recovery (no longer infectious) determined by draw from distribution of times to recovery but implement via this jump
-	# The two options of 1e10 and 0.0 make the jump effectively instantaneous and deterministic when the conditions are met rather than stochastic as in the other jumps 
-	rate_recovered(u,p,t) = (( (infstage in (:infectious,)) & (severity.fatal == false) & (t >= trecovered) ) ) ? 1e10 : 0.0 
-	aff_recovered!(int) = begin 
-		#carestage = :discharged # Could still be in hospital despite no longer being infectious (which we label recovered here)
-		infstage = :recovered
-	end 
-	j_recovered = ConstantRateJump( rate_recovered, aff_recovered! )
-
 	# migration  
 	## model commuter traffic and return journeys 
 	ratecommute(u,p,t) = iscommuter ? p.commuterate : 0.0 
@@ -841,7 +832,6 @@ function Infection(p; pid = "0"
 			, j_icu_death
 			, j_icu_stepdown
 			, j_stepdown_discharge
-			, j_recovered
 			, j_commute
 			]
 	### include imported related jump (port-of-entry to home) 
