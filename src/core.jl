@@ -163,12 +163,12 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		# [0.1403, 0.1333, 0.1439, 0.1490, 0.1453, 0.1441, 0.1439]
 		
 		, infectivity = 2.00 #1.25 # scales transmission rate # Updated to 2.00 after incorporation of age disaggregated parameters # Use infectivitytoR() to check R value for current parameters
-		, infectivity_shape = 2.2 * 0.75 
+		, infectivity_shape = 2.2 * 0.75 # TODO source
 		, infectivity_scale = 2.5 * 0.75
 		
 		, latent_shape = 3.26 # Distribution parameters inferred in 'latent_period_estimate.R' from results reported in Zhao et al (2021), Epidemics, 36, 100482 - mean latent period of 3.3 days (95% CI 0.2, 7.9)
 		, latent_scale = 0.979
-		, infectious_shape = 8.16 # Verity 2020 , mean 24d 
+		, infectious_shape = 8.16 # mean 24d from Verity et al (2020), The Lancet Infectious Diseases, 20(6)
 		, infectious_scale = 3.03 
 
 		, ρ_hosp = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
@@ -195,10 +195,6 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		, g_contact_matrix_age = CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR
 		, o_contact_matrix_age = CONTACT_MATRIX_OTHER_SINGLE_YEAR
 
-		# Estimated uniform delay from sampling to sequencing+bioinformatics+database
-		, lagseqdblb  = 3 # lower bound
-		, lagsseqdbub = 7 # upper bound
-		
 		### Infection severity disaggregated by age
 		
 		## Single values calculated using disaggregated probabilities (see below) and
@@ -252,16 +248,16 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		, hosp_death_rate    = 1 / 10.3 # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
 		, triage_icu_rate    = 1 /  2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
 		# ICU rates
-		, icu_to_recovery_rate  = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4-57.6). Erlang(k=1,gamma=0.06). Knock et al (2021). 
 		, icu_to_death_rate  = 1 / 11.8 # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
-		, icu_to_stepdown_resulting_in_death_rate  = 1 / 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2-25.7). Erlang(k=1,gamma=0.14). Knock et al (2021). 
+		, icu_to_stepdown_leading_to_recovery_rate = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4, 57.6). Erlang(k=1, gamma=0.06) . Knock et al (2021)
 		# ICU stepdown rates
 		, stepdown_to_recovery_after_icu_rate  = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
-		, stepdown_to_death_after_icu_rate = 1 / 8.1 # 'Stepdown period before death after leaving ICU' 8.1 (95% CI: 0.2-29.7). Erlang(k=1,gamma=0.12)
-
+		
 		, psampled = .05  # prop sampled from icu 
 		, sample_target_prob = 0.90 # # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
-		, turnaroundtime = 3 # days
+		, turnaroundtime_icu = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+		, turnaroundtime_rcgp = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+		, turnaroundtime_hariss = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
 
 		, commuterate = 2.0
 
@@ -282,6 +278,23 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		, sensitivity_mg_virus = 0.89
 		, sensitivity_mg_bacteria = 0.97
 		, sensitivity_mg_fungi = 0.89
+
+		## Experimental features yet to be incorporated into model
+		## Assumptions regarding current non-metagenomic surveillance
+		# Proportion of ICU admissions with history of international travel that would be 
+		# further investigated (with non-metagenomic surveillance)
+		, non_mg_inv_prob_int_travel = 0.8 # ESTIMATE
+		# How recent must the international travel have been to prompt further investigation?
+		, int_travel_history_threshold_time = 30 # days DUMMY VALUE
+		# Probability of prompting further investigation upon death
+		, non_mg_inv_prob_death = 0.8 # ESTIMATE. May want to link this to age as well, i.e. only a prompt at younger ages.
+		# Probability of prompting further investigation based on age of individual in ICU
+		# PERHAPS USE A SLIDING SCALE - YOUNGER THE INDIVIDUAL, HIGHER THE PROBABILITY OF INVESTIGATION
+		# e.g. all respiratory admissions to ICU aged 40 and under prompt investigation of pathogenesis
+		# and 60+ do not, with 80% probability of investigation linear decline in probability between the two ages
+		# FIND SOURCE FOR ICU ARI AGES - CAN THEN DEFINE VALUE FOR UNUSUAL AGE, e.g. X% QUANTILE OR X SDs FROM MEAN
+		, non_mg_inv_prob_icu_age = vcat( fill(1,40), collect(1.0:-0.01:0.8), fill(0,40))# DUMMY VALUE TODO ADD SOURCE 
+		# WOULD ALSO NEED TIMINGS AROUND TESTING AND RESULTS FOR NON-METAGENOMIC SURVEILLANCE - WILL BE LONGER - AND DIFFERENTIATE BETWEEN CURRENT ICU AND DECEASED
 	)
 #end # End of P
 #typeof(P)
@@ -306,10 +319,8 @@ function samp_infectee_age(p; contacttype, donor_age)# = :nothing, donor_age = :
 		elseif contacttype == :H
 			infectee_age = Int8( wsample( 0:(dim(P.o_contact_matrix_age) - 1)
 								  , p.o_contact_matrix_age[ donor_age + 1,:] ) )
-		elseif isnothing( contacttype )
-			infectee_age = nothing #Int8( usample )
-		elseif contacttype == :nothing
-			infectee_age = nothing #Int8( usample )
+		elseif !(contacttype in CONTACTTYPES)
+			error("Error in 'samp_infectee_age' function. Contact type required to return infectee age")
 		end
 	end
 	return (infectee_age)
@@ -327,8 +338,7 @@ function sampdegree(p; contacttype = :nothing, age = :nothing)
 	# gnegbinomp = p.gnegbinomp/(p.gnegbinomp + (1-p.gnegbinomp))
 	# Note that element 1 of p.oorateshape (and other distribution parameter vectors) is for age = 0 years
 	if age+1 > length(p.oorateshape)
-		println("No contact distribution parameters are available for individuals of this age: ", age, " years")
-		return
+		error("Error in 'sampdegree' function. No contact distribution parameters are available for individuals of this age: ", age, " years")
 	end
 	#Test
 	#age=1
@@ -346,6 +356,8 @@ function sampdegree(p; contacttype = :nothing, age = :nothing)
 end
 #Test
 #println( sampdegree(P, contacttype=:H, age = 0) )
+#println( sampdegree(P, contacttype=:nothing, age = 0) ) 
+#println( sampdegree(P, contacttype=:nothing, age = :nothing) )
 
 function dayofweek(t, tinf, initialdow)
 	d = Int( floor( (initialdow-1) + t-tinf ) % 7  ) + 1
@@ -358,7 +370,7 @@ function transmissionrate(carestage, infstage, contacttype, t, tinf, tinfectious
 	dow = dayofweek(t,tinf,initialdow) 
 	ρ = 1.0 # 0.250 
 	# Reduced transmission while in hospital
-	if carestage in (:admittedhospital,:admittedicu)
+	if carestage in (:admittedhospital,:admittedicu,:stepdown)
 		ρ *= p.ρ_hosp
 	end
 	# Non-infectious stages
@@ -459,8 +471,8 @@ function Infection(p; pid = "0"
 # ("na" ∉ keys(COMMUTEPROB[homeregion])) && ( @bp  )
 		infectee_age = samp_infectee_age( P; contacttype = contacttype
 										   , donor_age = isnothing(donor) ? nothing : donor.infectee_age )
-		# ONS Commuting data only for ages 16 and above 
-		iscommuter = infectee_age < 16 ? false : rand() < COMMUTEPROB[homeregion]["na"] 
+		# ONS Commuting data only for ages 16 and above. Only small numbers of commuters in the 'Aged 65y and older' category  
+		iscommuter = ( infectee_age < 16 || infectee_age >= 65 ) ? false : rand() < COMMUTEPROB[homeregion]["na"] # Test # infectee_age = 10 # infectee_age = 65 # infectee_age = 64
 		#iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
 		("na" in prd.index2name) && (delete!( prd, "na" ))
@@ -476,8 +488,8 @@ function Infection(p; pid = "0"
 		infectee_age = Int8( StatsBase.wsample( INT_TRAVELLERS_AGE_SINGLE_YR[:,"age"]
 				  							  , INT_TRAVELLERS_AGE_SINGLE_YR[:,"intl_travel_prop_adj"] ) )
 
-		# ONS Commuting data only for ages 16 and above 
-		iscommuter = infectee_age < 16 ? false : rand() < COMMUTEPROB[homeregion]["na"] 
+		# ONS Commuting data only for ages 16 and above. Only small numbers of commuters in the 'Aged 65y and older' category 
+		iscommuter = ( infectee_age < 16 || infectee_age >= 65 ) ? false : rand() < COMMUTEPROB[homeregion]["na"] # Test # infectee_age = 10 # infectee_age = 65 # infectee_age = 64
 		#iscommuter = rand() < COMMUTEPROB[homeregion]["na"] 
 		prd = deepcopy( COMMUTEPROB[region] ) 
 		("na" in prd.index2name) && (delete!( prd, "na" ))
@@ -485,8 +497,8 @@ function Infection(p; pid = "0"
 		contacttype = :H
 	else # G or H 
 		infectee_age = samp_infectee_age(P; contacttype = contacttype, donor_age = isnothing(donor) ? nothing : donor.infectee_age )
-		# ONS Commuting data only for ages 16 and above 
-		iscommuter = infectee_age < 16 ? false : true 
+		# ONS Commuting data only for ages 16 and above. Only small numbers of commuters in the 'Aged 65y and older' category 
+		iscommuter = ( infectee_age < 16 || infectee_age >= 65 ) ? false : true # Test # infectee_age = 10 # infectee_age = 65 # infectee_age = 64
 		#iscommuter = true 
 		prd = deepcopy( COMMUTEINPROB[region] )
 		("na" in prd.index2name) && (delete!( prd, "na" ))
@@ -558,7 +570,7 @@ function Infection(p; pid = "0"
 	# Determine length of infectious period
 	gammalatent = Gamma(p.latent_shape, p.latent_scale) # median( Gamma(P.latent_shape, P.latent_scale) ) = 3.19154
 	latenthazard(t) = pdf(gammalatent,t) / (1 - cdf(gammalatent,t))
-	gammarecovery = Gamma(p.infectious_shape, p.infectious_scale) # median( Gamma(P.infectious_shape, P.infectious_scale) )
+	gammarecovery = Gamma(p.infectious_shape, p.infectious_scale) # median( Gamma(P.infectious_shape, P.infectious_scale) ) = 23.7
 	recoveryhazard(t) = pdf(gammarecovery ,t) / (1 - cdf(gammarecovery,t)) 
 	
 	laglatent = rand( gammalatent )
@@ -574,6 +586,11 @@ function Infection(p; pid = "0"
 	end 
 	tspan = (tinfectious, tfin)
 	
+	# TODO possibly define infstage = :recovered here
+	#if t >= trecovered
+	#	infstage = :recovered
+	#end
+
 	# rate interval for variable rate jumps
 	rint(u,p,t) = 1.0 
 
@@ -674,11 +691,14 @@ function Infection(p; pid = "0"
 	## Hospital admission direct without visit to GP
 	rate_hosp_admit_direct(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) )) ? p.hosp_admit_direct_rate : 0.0 
 	aff_hosp_admit_direct!(int) = begin 
-		carestage = :admittedhospital  
-		thospital = int.t 
+		carestage = :admittedhospital
+		thospital = int.t
 		if severity.severity == :severe_hosp_short_stay
+			# tdischarge = thospital + random x value between 0 and 1 from the Erlang(1, 0.0935) = Gamma(1,1/0.0935)
+			#tdischarge = thospital + quantile( Erlang(1, 0.0935), rand() * cdf( Erlang(1, 0.0935), 1.0 ) ) # Short stay admission to hospital is <24h (1day), which can be computed as the quantile of the Erlang distribution from Knock et al (2021) at the % using the CDF at x=1 multiplied by a random number, thereby giving a random value from the Erlang distribution between 0 and 1
+			# However, the difference between this and rand(Uniform(0,1)) is not large and so the simpler form is used. The simpler form will also not need changing for different pathogens.
 			tdischarge = thospital + rand(Uniform(0,1)) # Short stay admission to hospital is <24h (1day)
-			carestage = :discharged # Individual is moved to this carestage prematurely but it stops them being available to move to ICU or to :deceased care stage
+			carestage = :discharged # Individual is moved to this carestage prematurely but it stops them being available to move to :ICU or to :deceased care stages
 		end
 	end 
 	j_hosp_admit_direct = ConstantRateJump( rate_hosp_admit_direct, aff_hosp_admit_direct! )
@@ -689,9 +709,10 @@ function Infection(p; pid = "0"
 		carestage = :admittedhospital  
 		thospital = int.t 
 		if severity.severity == :severe_hosp_short_stay
-			tdischarge = thospital + rand(Uniform(0,1)) # Short stay admission to hospital is <24h (1day)
 			# tdischarge = thospital + random x value between 0 and 1 from the Erlang(1, 0.0935) = Gamma(1,1/0.0935)
 			#tdischarge = thospital + quantile( Erlang(1, 0.0935), rand() * cdf( Erlang(1, 0.0935), 1.0 ) ) # Short stay admission to hospital is <24h (1day), which can be computed as the quantile of the Erlang distribution from Knock et al (2021) at the % using the CDF at x=1 multiplied by a random number, thereby giving a random value from the Erlang distribution between 0 and 1
+			# However, the difference between this and rand(Uniform(0,1)) is not large and so the simpler form is used. The simpler form will also not need changing for different pathogens.
+			tdischarge = thospital + rand(Uniform(0,1)) # Short stay admission to hospital is <24h (1day)
 			carestage = :discharged # Individual is moved to this carestage prematurely but it stops them being available to move to ICU or to :deceased care stage
 		end
 	end 
@@ -708,18 +729,19 @@ function Infection(p; pid = "0"
 	end 
 	j_hosp_disch_long_stay = ConstantRateJump( rate_hosp_disch_long_stay, aff_hosp_disch_long_stay! )
 
+	# This jump has been removed (possibly temporarily) because the same care stage jump and tdischarge definition is given by j_hosp_admit_from_gp and j_hosp_admit_direct
 	## hospital -> discharged rate (for short-stay patients)
 	#rate_hosp_disch_short_stay(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_short_stay,)) & (severity.fatal == false) )) ? p.hosp_short_stay_recovery_rate : 0.0 
 	#aff_hosp_disch_short_stay!(int) = begin 
 	#	carestage = :discharged
-	#	# If time in hospital is longer than 1 day (24h) based on this jump process then force discharge time to be 1day (24h) after admission (the limit for a 'short-stay' by definition)
+		# If time in hospital is longer than 1 day (24h) based on this jump process then force discharge time to be 1day (24h) after admission (the limit for a 'short-stay' by definition)
 	#	tdischarge = int.t > (thospital + 1) ? thospital + 1 : int.t 
 	#end 
 	#j_hosp_disch_short_stay = ConstantRateJump( rate_hosp_disch_short_stay, aff_hosp_disch_short_stay! )
 
 	## hospital -> death rate 
 	#ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay)) & (severity.fatal == true) )) ? P.hosp_death_rate : 0.0 
-	ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_long_stay,)) & (severity.fatal == true) )) ? P.hosp_death_rate : 0.0 
+	ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_long_stay,)) & (severity.fatal == true) )) ? p.hosp_death_rate : 0.0 
 	aff_hosp_death!(int) = begin 
 		carestage = :deceased
 		infstage = :deceased  
@@ -739,13 +761,6 @@ function Infection(p; pid = "0"
 	end 
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
-	## ICU -> Recovery
-	rate_icu_recovery(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false ) )) ? p.icu_to_recovery_rate : 0.0 
-	aff_icu_recovery!(int) = begin 
-		carestage = :discharged
-	end 
-	j_icu_recovery = ConstantRateJump( rate_icu_recovery, aff_icu_recovery! )
-
 	## ICU -> Death
 	rate_icu_death(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true ) )) ? p.icu_to_death_rate : 0.0 
 	aff_icu_death!(int) = begin 
@@ -756,30 +771,29 @@ function Infection(p; pid = "0"
 	end 
 	j_icu_death = ConstantRateJump( rate_icu_death, aff_icu_death! )
 
-	## ICU -> Stepdown (to hospital general ward)
-	rate_icu_stepdown(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_resulting_in_death_rate : 0.0
+	## ICU -> Stepdown (to hospital general ward) (leading to recovery)
+	rate_icu_stepdown(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_leading_to_recovery_rate : 0.0 
 	aff_icu_stepdown!(int) = begin 
 		carestage = :stepdown  
 		tstepdown = int.t 
 	end 
 	j_icu_stepdown = ConstantRateJump( rate_icu_stepdown, aff_icu_stepdown! )
 
-	## Hospital general ward (ICU Stepdown) -> Recovery
-	rate_stepdown_recovery(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
-	aff_stepdown_recovery!(int) = begin 
+	## Hospital general ward (ICU Stepdown) -> Discharge
+	rate_stepdown_discharge(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
+	aff_stepdown_discharge!(int) = begin 
 		carestage = :discharged
 	end 
-	j_stepdown_recovery = ConstantRateJump( rate_stepdown_recovery, aff_stepdown_recovery! )
+	j_stepdown_discharge = ConstantRateJump( rate_stepdown_discharge, aff_stepdown_discharge! )
 
-	## Hospital general ward (ICU Stepdown) -> Death
-	rate_stepdown_death(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true)) ) ? p.stepdown_to_death_after_icu_rate : 0.0 
-	aff_stepdown_death!(int) = begin 
-		carestage = :deceased
-		infstage = :deceased
-		tdeceased = int.t
-		isdeceased = true 
+	## Recovery (no longer infectious) determined by draw from distribution of times to recovery but implement via this jump
+	# The two options of 1e10 and 0.0 make the jump effectively instantaneous and deterministic when the conditions are met rather than stochastic as in the other jumps 
+	rate_recovered(u,p,t) = (( (infstage in (:infectious,)) & (severity.fatal == false) & (t >= trecovered) ) ) ? 1e10 : 0.0 
+	aff_recovered!(int) = begin 
+		#carestage = :discharged # Could still be in hospital despite no longer being infectious (which we label recovered here)
+		infstage = :recovered
 	end 
-	j_stepdown_death = ConstantRateJump( rate_stepdown_death, aff_stepdown_death! )
+	j_recovered = ConstantRateJump( rate_recovered, aff_recovered! )
 
 	# migration  
 	## model commuter traffic and return journeys 
@@ -814,25 +828,21 @@ function Infection(p; pid = "0"
 		    , j_transmf
 		    , j_transmg
 		    , j_transmh 
-		    #, j_gp 
 			, j_gp_only
 			, j_gp_before_hosp
 			, j_ed_direct
 			, j_ed_from_gp
-		    #, j_hospital
 			, j_hosp_admit_direct
 			, j_hosp_admit_from_gp
-			#, j_hospital_discharge
 			, j_hosp_disch_long_stay
-			#, j_hosp_disch_short_stay
+			#, j_hosp_disch_short_stay # same jump currently included in j_hosp_admit_direct and j_hosp_admit_from_gp
 			, j_hospital_death
 		    , j_icu
-			, j_icu_recovery
 			, j_icu_death
 			, j_icu_stepdown
-			, j_stepdown_recovery
-			, j_stepdown_death
-		    , j_commute
+			, j_stepdown_discharge
+			, j_recovered
+			, j_commute
 			]
 	### include imported related jump (port-of-entry to home) 
 	importedinfection && push!(jumps, j_importhome  )

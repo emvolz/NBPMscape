@@ -105,7 +105,7 @@ function icu_td(; p = NBPMscape.P
                 , n_icu_samples_per_week = 300
                 , only_sample_before_death = true
                 , p_icu = 0.15 # ICU sampling proportion
-                , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
+                , icu_turnaround_time = NBPMscape.P.turnaroundtime_icu #[2,4] # Time to process sample and report results / declare detection
                 , icu_ari_admissions::Int = 1440 # Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated)
                 , icu_ari_admissions_adult_p::Float64 = 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
                 , icu_ari_admissions_child_p::Float64 = 0.24 # Proportion of ICU ARI admissions that are children (<16y)
@@ -323,7 +323,7 @@ function gp_td(;  p=NBPMscape.P
                   , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
                   , gp_ari_consults = 180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                   , gp_ari_swabs = 319 # [319,747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-                  , pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
+                  , pc_swab_turnaround_time = NBPMscape.P.turnaroundtime_rcgp #[2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                   , pathogen_type = "virus"
                   )
     
@@ -588,7 +588,7 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                         , p_icu = 0.15 # ICU sampling proportion
                         , only_sample_before_death = true
                         , icu_ari_admissions = 793 # 1440 # Weekly ICU admission numbers [summer,winter]
-                        , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
+                        , icu_turnaround_time = NBPMscape.P.turnaroundtime_icu #[2,4] # Time to process sample and report results / declare detection
                        # Parameters for existing Oxford-RCGP RSC primary care surveillance
                         , gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
                         , gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
@@ -596,7 +596,7 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                         , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
                         , gp_ari_consults = 180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                         , gp_ari_swabs = 319 # 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-                        , pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
+                        , pc_swab_turnaround_time = NBPMscape.P.turnaroundtime_rcgp # [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                      )
     
     ### Probability of primary care surveillance events
