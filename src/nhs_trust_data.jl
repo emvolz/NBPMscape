@@ -12,17 +12,17 @@ const ITL2_TO_NHS_TRUST_PROB_CHILD = itl2_to_nhs_trust_prob_child
 #TEST wsample( ITL2_TO_NHS_TRUST_PROB_CHILD[:, :NHS_Trust_code], ITL2_TO_NHS_TRUST_PROB_CHILD[:, :TLI3], 1)
 
 ### Load probabilities of sampling at particular NHS Trust
-nhs_trust_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "selected_ICU_prop_NHS_Trust.csv" ), DataFrame )
-rename!(nhs_trust_icu_sample_prob, Symbol("Org.Code") => :NHS_Trust_code)
-rename!(nhs_trust_icu_sample_prob, Symbol("Org.Name") => :NHS_Trust_name)
-const NHS_TRUST_ICU_SAMPLE_PROB = nhs_trust_icu_sample_prob
+# nhs_trust_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "selected_ICU_prop_NHS_Trust.csv" ), DataFrame )
+# rename!(nhs_trust_icu_sample_prob, Symbol("Org.Code") => :NHS_Trust_code)
+# rename!(nhs_trust_icu_sample_prob, Symbol("Org.Name") => :NHS_Trust_name)
+# const NHS_TRUST_ICU_SAMPLE_PROB = nhs_trust_icu_sample_prob
 
 ### Load probabilities of being sampled in ICU given ITL2 home region
 #itl2_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "ICU_prob_sample_by_ITL2_2019.csv" ), DataFrame )
 #itl2_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "ICU_prob_sample_by_ITL2_2020.csv" ), DataFrame )
-itl2_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "ICU_prob_sample_by_ITL2_2020_mscapeOct25_sitrepJan25.csv" ), DataFrame )
-rename!(itl2_icu_sample_prob, Symbol("Column1") => :site_stage_age) 
-const ITL2_ICU_SAMPLE_PROB = itl2_icu_sample_prob
+# itl2_icu_sample_prob = CSV.read( joinpath( @__DIR__, "..", "data", "ICU_prob_sample_by_ITL2_2020_mscapeOct25_sitrepJan25.csv" ), DataFrame )
+# rename!(itl2_icu_sample_prob, Symbol("Column1") => :site_stage_age) 
+# const ITL2_ICU_SAMPLE_PROB = itl2_icu_sample_prob
 
 ### Load critical care bed data
 # Downloaded from https://www.england.nhs.uk/statistics/statistical-work-areas/uec-sitrep/
