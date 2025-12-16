@@ -258,6 +258,10 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		, turnaroundtime_icu = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
 		, turnaroundtime_rcgp = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
 		, turnaroundtime_hariss = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+		, icu_swab_lag_max = 1 # days. Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
+
+		, tdischarge_ed_upper_limit = 0.5 # days. People attending Emergency Department (ED) (and not admitted) will be discharged by this time.
+		, tdischarge_hosp_short_stay_upper_limit = 1.0 # days. People admitted to hospital for a short stay will be discharged by this time.
 
 		, commuterate = 2.0
 
@@ -671,7 +675,7 @@ function Infection(p; pid = "0"
 	aff_ed_direct!(int) = begin 
 		#carestage = :ED; 
 		ted = int.t 
-		tdischarge = ted + rand(Uniform(0,0.5)) # Assume discharged within half a day
+		tdischarge = ted + rand( Uniform(0, p.tdischarge_ed_upper_limit) ) # Assume discharged within half a day
 		carestage = :discharged # Individual is moved to this carestage because it removes the need for another jump process
 
 	end
@@ -683,7 +687,7 @@ function Infection(p; pid = "0"
 	aff_ed_from_gp!(int) = begin 
 		#carestage = :ED 
 		ted = int.t 
-		tdischarge = ted + rand(Uniform(0,0.5)) # Assume discharged within half a day
+		tdischarge = ted + rand( Uniform(0, p.tdischarge_ed_upper_limit) ) # Assume discharged within half a day
 		carestage = :discharged # Individual is moved to this carestage because it removes the need for another jump process
 	end
 	j_ed_from_gp = ConstantRateJump(rate_ed_from_gp, aff_ed_from_gp!)
@@ -697,7 +701,7 @@ function Infection(p; pid = "0"
 			# tdischarge = thospital + random x value between 0 and 1 from the Erlang(1, 0.0935) = Gamma(1,1/0.0935)
 			#tdischarge = thospital + quantile( Erlang(1, 0.0935), rand() * cdf( Erlang(1, 0.0935), 1.0 ) ) # Short stay admission to hospital is <24h (1day), which can be computed as the quantile of the Erlang distribution from Knock et al (2021) at the % using the CDF at x=1 multiplied by a random number, thereby giving a random value from the Erlang distribution between 0 and 1
 			# However, the difference between this and rand(Uniform(0,1)) is not large and so the simpler form is used. The simpler form will also not need changing for different pathogens.
-			tdischarge = thospital + rand(Uniform(0,1)) # Short stay admission to hospital is <24h (1day)
+			tdischarge = thospital + rand( Uniform(0, p.tdischarge_hosp_short_stay_upper_limit) ) # Short stay admission to hospital is <24h (1day)
 			carestage = :discharged # Individual is moved to this carestage prematurely but it stops them being available to move to :ICU or to :deceased care stages
 		end
 	end 
@@ -712,7 +716,7 @@ function Infection(p; pid = "0"
 			# tdischarge = thospital + random x value between 0 and 1 from the Erlang(1, 0.0935) = Gamma(1,1/0.0935)
 			#tdischarge = thospital + quantile( Erlang(1, 0.0935), rand() * cdf( Erlang(1, 0.0935), 1.0 ) ) # Short stay admission to hospital is <24h (1day), which can be computed as the quantile of the Erlang distribution from Knock et al (2021) at the % using the CDF at x=1 multiplied by a random number, thereby giving a random value from the Erlang distribution between 0 and 1
 			# However, the difference between this and rand(Uniform(0,1)) is not large and so the simpler form is used. The simpler form will also not need changing for different pathogens.
-			tdischarge = thospital + rand(Uniform(0,1)) # Short stay admission to hospital is <24h (1day)
+			tdischarge = thospital + rand( Uniform(0, p.tdischarge_hosp_short_stay_upper_limit) ) # Short stay admission to hospital is <24h (1day)
 			carestage = :discharged # Individual is moved to this carestage prematurely but it stops them being available to move to ICU or to :deceased care stage
 		end
 	end 
