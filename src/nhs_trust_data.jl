@@ -163,5 +163,6 @@ ae_12m = combine( groupby(ae_12m, :("Org Code")), names(ae_12m, 2:13) .=> (x -> 
 ae_12m.mean_12m = mean.(eachrow(ae_12m[:, 2:end]))
 mean_total = sum(skipmissing(ae_12m.mean_12m))
 ae_12m.mean_12m_prop = ae_12m.mean_12m ./ mean_total
+rename!(ae_12m, :("Org Code") => :NHS_Trust_code ) # names(ae_12m)
 const AE_12M = ae_12m
 #println(AE_12M)
