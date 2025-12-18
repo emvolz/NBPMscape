@@ -21,6 +21,7 @@ List of functions in this file:
         - dist_fit_plot     Plots data and fitted distribution
         - fit_multi_dist    Function to compare results for fitting Gamma and Weibull statistical distributions to data
                             Note that this could potentially be extended to include other statistical distributions.
+        - erlang_truncated_means    Splits an Erlang distribution into two parts and returns the mean x value of each part
 
 Description of regional time to detection (TD) estimation and requirement for distribution fitting:
         Extract region specific information from each forest in the outbreak simulation. 
@@ -454,4 +455,135 @@ function fit_multi_dist(; times, init_gamma, init_weibull #,init_nbinom, init_lo
 
     return( [fit_results] )
 
+end
+
+
+"""
+Function:    erlang_truncated_means
+
+Description     Splits an Erlang distribution into two parts and returns the mean x value of each part
+
+Arguments   k::Int          Shape parameter for Erlang distribution (integer value makes it a special case of the Gamma distribution)  
+            rate::Float64   Rate parameter for Erlang distribution
+            lower_limit     Lower limit in x of the left hand split part of the distribution
+            mid_limit       Upper limit in x of the left hand split part of the distribution and lower limit of the right hand split part
+            upper_limit     Upper limit in x of the right hand split part of the distribution
+Returns     Two Float64 values representing the mean x values of the two split parts of the distribution
+
+Example     # Used to split the Erlang distribution reported in Knock et al (2021) fitted to the recovery time
+            # for patients hospitalised with COVID-19. The mean of the whole distribution is 10.7 days. 
+            # However, we want to split this into two: patients discharged within 24 hours and patients discharged
+            # beyond 24 hours.
+            erlang_truncated_means( k = 1, rate = 0.09, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf)   
+            # Returns (0.49250101230477183, 12.111111111110802)
+            # Check also returns the mean from the original single distribution
+            erlang_truncated_means( k = 1, rate = 0.09, lower_limit = 0.0, mid_limit = 10000, upper_limit = Inf)   
+            # returns (11.11111, NaN)
+            # Not quite the same as the 10.7 reported, but it is the same as E[t] = k / rate = 1/0.09 = 11.1111, so 
+            # it is likely due to rounding of the rate paramter 1/0.0935 = 10.695
+
+"""
+function erlang_truncated_means(; k::Int
+                                , rate::Float64
+                                , lower_limit#::Union{Float64,Int,Inf}
+                                , mid_limit#::Union{Float64,Int,Inf}
+                                , upper_limit#::Union{Float64,Int,Inf}
+                                )
+    d = Gamma(k, 1/rate) # Erlang(k, λ)
+    # pdf and cdf
+    f(x) = pdf(d, x)
+    F(x) = cdf(d, x)
+
+    # (a) E[X | 0 ≤ X ≤ 1]
+    num_a, _ = quadgk(x -> x * f(x), lower_limit, mid_limit) #quadgk(x -> x * f(x), 0.0, 1.0)
+    den_a = F(mid_limit) - F(lower_limit)        # F(0.0) is 0 for Erlang
+    mean_a = num_a / den_a
+
+    # (b) E[X | X ≥ 1]
+    num_b, _ = quadgk(x -> x * f(x), mid_limit, upper_limit) #quadgk(x -> x * f(x), 1.0, Inf)
+    den_b = F(upper_limit) - F(mid_limit)
+    mean_b = num_b / den_b
+
+    return mean_a, mean_b
+end
+
+
+"""
+Function    gamma_params_from_mode_cdf(mode_val, cdf_at_2; lower_shape=1.0+1e-6, upper_shape=1e3)
+
+Description     Construct a `Gamma` distribution whose **mode** equals `mode_val` and whose
+                cumulative distribution function (CDF) at `x = 2` matches `cdf_at_2` as closely
+                as possible.
+
+                This function solves for the Gamma shape parameter using a one-dimensional
+                optimization over the domain `shape > 1`, which is required for the Gamma distribution
+                to have a well-defined mode. For each candidate shape value, the corresponding scale
+
+                mode = (shape - 1) * scale    ⇒    scale = mode_val / (shape - 1)
+
+                The objective minimized is:
+
+                abs( cdf(Gamma(shape, scale), 2) - cdf_at_2 )
+                
+Arguments   `mode_val::Real`:    Desired mode of the resulting Gamma distribution.
+            `cdf_at_2::Real`:    Target value for the CDF at `x = 2`.
+            `lower_shape::Real`: Lower bound for the shape parameter search (must be > 1).
+            `upper_shape::Real`: Upper bound for the shape parameter search.
+
+Returns   A `Gamma(shape, scale)` object from `Distributions.jl` whose mode equals
+          `mode_val` and whose CDF at 2 is close to `cdf_at_2`.
+
+Notes
+        - The optimization may fail or converge to a boundary if the provided `mode_val`
+          and `cdf_at_2` are incompatible with any Gamma distribution.
+        - The returned distribution satisfies the mode constraint exactly (up to
+          floating-point precision) and approximates the CDF constraint as closely as
+          possible within the search bounds.
+
+Example
+        swab_time_gamma_d = gamma_params_from_mode_cdf(mode_val = 0.25, cdf_at_2 = 0.9
+                                                        , lower_shape = 1.0 + 1e-6, upper_shape = 10)
+
+        # Reproducibility
+        Random.seed!(1234)
+
+        # Draw samples
+        N = 100_000
+        x = rand(swab_time_gamma_d, N)
+
+        # Quick diagnostics
+        println("Sample mean ≈ ", mean(x))
+        println("Sample variance ≈ ", var(x))
+        println("Analytic mean = ", swab_time_gamma_d.α*swab_time_gamma_d.θ)
+        println("Analytic variance = ", swab_time_gamma_d.α*swab_time_gamma_d.θ^2)
+        println("Analytic mode = ", (swab_time_gamma_d.α - 1) * swab_time_gamma_d.θ)
+        
+        # Visualise
+        Plots.histogram(x; bins=120, normalize=:pdf, alpha=0.5, label="ARI swab samples"
+          , title="Gamma(swab_time_shape ≈ dollarsign(round(swab_time_gamma_d.α, digits=2)),\n swab_time_scale ≈ dollarsign(round(swab_time_gamma_d.θ,digits=2)))"
+          , xlabel = "Time since hospital arrival (days)")
+        xs = range(0, stop=6, length=600)
+        plot!(xs, pdf.(swab_time_gamma_d, xs); label="Theoretical distribution", lw=2)
+        vline!([0.25]; label="Mode ≈ 0.25", color=:red, lw=2, ls=:dash)
+
+
+"""
+function gamma_params_from_mode_cdf(;mode_val::Real, cdf_at_2::Real, lower_shape=1.0 + 1e-6, upper_shape=1e3)
+    
+    # --- Input validation ---
+    @assert mode_val > 0 "mode_val must be > 0 so that scale = mode_val/(α-1) > 0."
+    @assert 0.0 <= cdf_at_2 <= 1.0 "cdf_at_2 must be in [0, 1]."
+    @assert lower_shape > 1.0 "lower_shape must be > 1."
+    @assert upper_shape > lower_shape "upper_shape must exceed lower_shape."
+
+    # Objective over shape > 1. Scale is determined by the mode constraint.
+    obj(shape) = begin
+        scale = mode_val / (shape - 1) # ensures given mode
+        abs(cdf(Gamma(shape, scale), 2.0) - cdf_at_2)
+    end
+
+    res = optimize(obj, lower_shape, upper_shape, Brent())
+    shape = Optim.minimizer(res)
+    scale = mode_val / (shape - 1)
+    return Gamma(shape, scale)
 end

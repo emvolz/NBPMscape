@@ -61,7 +61,7 @@ function allocate_with_rounding(;total, weights)
     idx = partialsortperm(fractional, rev=true, 1:remainder)
     # Add 1 to the allocations of categories/groups with the largest fractional parts
     allocation[idx] .+= 1
-    return allocation
+    return Int64.(allocation)
 end
 
 using DataFrames

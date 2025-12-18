@@ -42,8 +42,9 @@ Arguments:  p                           Set of parameters relating to the outbre
                                                 all ICU cases. 
             n_icu_samples_per_week::Int     Total number of metagenomic samples to be taken per week across all sites
             only_sample_before_death::Bool  true or false. Modelled sampling period is a uniform distribution between time of admission to ICU (ticu) 
-                                            and 3 days after admission (ticu+3). It is possible for the time of death (tdeceased) to be before the sample time.
-                                            Setting only_sample_before_death = true constrains the upper limit on tsample to be equal to tdeceased.
+                                            and a variable number days after admission which is set in p.icu_swab_lag_max. It is possible for the time
+                                            of death (tdeceased) to be before the sample time. Setting only_sample_before_death = true constrains the
+                                            upper limit on tsample to be equal to tdeceased.
             p_icu::Float                ICU sampling proportion. Only relevant for sample_icu_cases_version = "proportion".
             icu_ari_admissions::Int     Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated), e.g. 793 mean in summer 2024 and
                                         1440 in winter 2024/25 in England
@@ -105,7 +106,7 @@ function icu_td(; p = NBPMscape.P
                 , n_icu_samples_per_week = 300
                 , only_sample_before_death = true
                 , p_icu = 0.15 # ICU sampling proportion
-                , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
+                , icu_turnaround_time = NBPMscape.P.turnaroundtime_icu #[2,4] # Time to process sample and report results / declare detection
                 , icu_ari_admissions::Int = 1440 # Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated)
                 , icu_ari_admissions_adult_p::Float64 = 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
                 , icu_ari_admissions_child_p::Float64 = 0.24 # Proportion of ICU ARI admissions that are children (<16y)
@@ -117,14 +118,14 @@ function icu_td(; p = NBPMscape.P
     # Create df to store results
     col_any = Vector{Any}(undef, n_replicates)
     fill!(col_any, Inf)
-    sim_tds_cols = [copy(col_any) for _ in 1:8]
+    sim_tds_cols = [copy(col_any) for _ in 1:9]
     sim_tds = DataFrame( sim_tds_cols, ["sim_n"
                                         # Time to detection for 1 case
                                         ,"ICU_TD"     # ICU sampling only
                                         # Time to detection for 3 cases
                                         ,"ICU_3TD" # ICU sampling only
                                         # Number of cases and samples
-                                        ,"n_ICU_cases","n_ICU_cases_sampled"
+                                        ,"n_ICU_cases","n_ICU_cases_sampled","n_ICU_cases_sampled_positive"
                                         ,"ICU_simid"
                                         , "tinf_relating_to_ICU_TD" # useful for investigating impact of early termination of simtree within simforest
                                         , "last_tinf_relating_to_ICU_3TD" # useful for investigating impact of early termination of simtree within simforest
@@ -173,7 +174,12 @@ function icu_td(; p = NBPMscape.P
                                             , nhs_trust_sampling_sites = nhs_trust_sampling_sites
                                             , n_icu_samples_per_week = n_icu_samples_per_week
                                             )
-                                            # Obtain metagenomic test sensitivity for pathogen_type
+            
+            # Record number of cases in the sim rep and the number that were tested AND (below) returned positive results
+            sim_tds[s,:n_ICU_cases] = size(icu_cases,1)
+            sim_tds[s,:n_ICU_cases_sampled] = size(icu_cases_sub,1)
+
+            # Obtain metagenomic test sensitivity for pathogen_type
             # Additional sub-sampling to account for metagenomic test sensitivity
             sensitivities = Dict(
                             "virus" => p.sensitivity_mg_virus,
@@ -186,13 +192,14 @@ function icu_td(; p = NBPMscape.P
             # Positive sample sizes
             n_icu =  rand( Binomial( size(icu_cases_sub,1), mg_test_sensitivity ) )
             # Subsample of ICU cases
-            icu_cases_sub = icu_cases[sample( 1:size(icu_cases,1), n_icu, replace=false ), :]
+            #icu_cases_sub = icu_cases[sample( 1:size(icu_cases,1), n_icu, replace=false ), :]
+            icu_cases_sub = icu_cases_sub[sample( 1:size(icu_cases_sub,1), n_icu, replace=false ), :]
+            
+            # Record number of true positives returned from metagenomic testing
+            sim_tds[s,:n_ICU_cases_sampled_positive] = size(icu_cases_sub,1)
 
         end
-        # Record number of cases in the sim rep and the number that were tested AND returned positive results
-        sim_tds[s,:n_ICU_cases] = size(icu_cases,1)
-        sim_tds[s,:n_ICU_cases_sampled] = size(icu_cases_sub,1)
-
+        
         if size(icu_cases_sub,1) == 0
                 
             # Record zero cases and zero sampled
@@ -218,7 +225,7 @@ function icu_td(; p = NBPMscape.P
                 # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
                 icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1]+3 ) ) ) , eachrow(icu_cases_sub) )
             else
-                # Set upper limit on sample time to ICU admission +3days
+                # Set upper limit on sample time to ICU admission +3days #TODO CHANGE THE ticu, ticu+3 to be ticu+1 and the +1 should be taken from P
                 icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
             end
             icu_cases_sub.tsample = icu_tsample 
@@ -323,7 +330,7 @@ function gp_td(;  p=NBPMscape.P
                   , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
                   , gp_ari_consults = 180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                   , gp_ari_swabs = 319 # [319,747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-                  , pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
+                  , pc_swab_turnaround_time = NBPMscape.P.turnaroundtime_rcgp #[2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                   , pathogen_type = "virus"
                   )
     
@@ -480,6 +487,176 @@ Examples:
 
 
 """
+function secondary_care_td(; p = NBPMscape.P
+                            , sims
+                            , pathogen_type::String = "virus"
+                            , initial_dow::Int64 = 1
+                            #, hosp_cases::DataFrame # filtered from simulation of infections (G df filtered for value in thosp column)
+                            # Sampling parameters
+                            , hariss_courier_to_analysis::Float64 = 1.0 # Time between courier collection from PHL and beginning of analysis
+                            , hariss_turnaround_time = NBPMscape.P.turnaroundtime_hariss #[2,4] # Time to process sample and report results / declare detection
+                            , n_hosp_samples_per_week::Int # Total number of hospital samples to be taken per week
+                            , sample_allocation::String = "equal" # "equal" or "weighted"
+                            , sample_proportion_adult::Any = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target 
+                                                                    # between adults and children. "free" indicates that no split is specified
+                            , hariss_nhs_trust_sampling_sites::DataFrame # List of NHS Trusts in HARISS sampling network 
+                            , weight_samples_by = "ae_mean" # or "catchment_pop"
+                            , phl_collection_dow::Vector{Int64} = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+                            , swab_time_mode::Real = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
+                            , swab_proportion_at_48h::Real = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
+                            , proportion_hosp_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
+                            #, initial_dow::Int64 = 1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
+                            , only_sample_before_death::Bool = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+                            # Hospital parameters
+                            , ed_discharge_limit::Float64 = 0.25 # days. Assume that people attending the Emergency Department are discharged within this time limit.
+                            , nhs_trust_catchment_pop::DataFrame = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
+                            #, nhs_trust_ae_12m::DataFrame = AE_12M
+                            # Seasonal values
+                            , hosp_ari_admissions::Int # Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
+                            , hosp_ari_admissions_adult_p::Float64 = 0.52# Proportion of ED ARI admissions that are adults (18y and over)
+                            , hosp_ari_admissions_child_p::Float64 = 0.48 # Proportion of ED ARI admissions that are children (<18y)
+                            , ed_ari_destinations_adult::DataFrame = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                                , proportion_of_attendances = [0.628,0.030,0.342])
+                            , ed_ari_destinations_child::DataFrame = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                                , proportion_of_attendances = [0.861,0.014,0.125])
+                            )
+
+    n_replicates = length(sims)
+    
+    # Create df to store results
+    col_any = Vector{Any}(undef, n_replicates)
+    fill!(col_any, Inf)
+    sim_tds_cols = [copy(col_any) for _ in 1:9]
+    sim_tds = DataFrame( sim_tds_cols, ["sim_n"
+                                        # Time to detection for 1 case
+                                        ,"SC_TD"     # ICU sampling only
+                                        # Time to detection for 3 cases
+                                        ,"SC_3TD" # ICU sampling only
+                                        # Number of cases and samples
+                                        ,"n_SC_cases","n_SC_cases_sampled", "n_SC_cases_sampled_positive"
+                                        ,"SC_simid"
+                                        , "tinf_relating_to_ICU_TD" # useful for investigating impact of early termination of simtree within simforest
+                                        , "last_tinf_relating_to_ICU_3TD" # useful for investigating impact of early termination of simtree within simforest
+                                        ])
+
+    # Loop through simulation replicates, sampling infection cases (adapted from sampleforest() function in 'core.jl' and 'median_TD_by_region.jl'),
+    # and computing times to detection
+    for s in 1:n_replicates # s=1
+        #TEST
+        println("$(s) of $(n_replicates) replicates")
+
+        # Add simulation number to results df
+        #TEST s=1
+        sim_tds[s,:sim_n] = s
+        fo = sims[s]
+                   
+        # Filter for simulated hospital admissions and emergency department (ED) only  cases
+        hosp_cases = size(fo,1) == 0 ? DataFrame() : fo[ isfinite.(fo.ted) .| isfinite.(fo.thospital) , : ]
+        
+        # Add simids
+        if size(hosp_cases,1) > 0
+            simids_hosp = unique( hosp_cases.simid )  #unique( [hosp_cases[1,:simid]] ) 
+            sim_tds[s,:SC_simid] = simids_hosp #unique( [hosp_cases[1,:simid] ]) 
+        end
+    
+        ### Record infection time stats
+        # Note that metagenomic test sensitivity is not applied in sample_hosp_cases_n
+        hosp_cases_sub = sample_hosp_cases_n(; p = NBPMscape.P
+                                             , hosp_cases = hosp_cases
+                                             # Hospital parameters
+                                             , nhs_trust_catchment_pop = nhs_trust_catchment_pop
+                                             #, nhs_trust_ae_12m = nhs_trust_ae_12m
+                                             , ed_discharge_limit = ed_discharge_limit
+                                             # Seasonal parameters
+                                             , hosp_ari_admissions = hosp_ari_admissions
+                                             , hosp_ari_admissions_adult_p = hosp_ari_admissions_adult_p
+                                             , hosp_ari_admissions_child_p = hosp_ari_admissions_child_p
+                                             , ed_ari_destinations_adult = ed_ari_destinations_adult
+                                             , ed_ari_destinations_child = ed_ari_destinations_child
+                                             # Sample parameters
+                                             , n_hosp_samples_per_week = n_hosp_samples_per_week
+                                             , sample_allocation = sample_allocation
+                                             , sample_proportion_adult = sample_proportion_adult
+                                             , hariss_nhs_trust_sampling_sites = hariss_nhs_trust_sampling_sites
+                                             , weight_samples_by = weight_samples_by
+                                             , phl_collection_dow = phl_collection_dow
+                                             , swab_time_mode = swab_time_mode
+                                             , swab_proportion_at_48h = swab_proportion_at_48h
+                                             , proportion_hosp_swabbed = proportion_hosp_swabbed
+                                             , initial_dow = initial_dow
+                                             , only_sample_before_death = only_sample_before_death
+                                            )
+
+        # Record number of cases in the sim rep and the number that were tested (record number that returned positive results below)
+        sim_tds[s,:n_SC_cases] = size(hosp_cases,1)
+        sim_tds[s,:n_SC_cases_sampled] = size(hosp_cases_sub,1) # hosp_cases_sub = DataFrame()
+
+        # Obtain metagenomic test sensitivity for pathogen_type
+        # Additional sub-sampling to account for metagenomic test sensitivity
+        sensitivities = Dict(
+                        "virus" => p.sensitivity_mg_virus,
+                        "bacteria" => p.sensitivity_mg_bacteria,
+                        "fungi" => p.sensitivity_mg_fungi
+                        )
+        mg_test_sensitivity = get(sensitivities, pathogen_type) do
+            error("Unknown pathogen type: $pathogen_type")
+        end
+        # Positive sample sizes
+        n_hosp =  rand( Binomial( size(hosp_cases_sub,1), mg_test_sensitivity ) )
+        # Record number of sampled positive cases that returned positive results
+        sim_tds[s,:n_SC_cases_sampled_positive] = n_hosp
+        # Subsample of hospital & ED cases
+        hosp_cases_sub = hosp_cases_sub[sample( 1:size(hosp_cases_sub,1), n_hosp, replace=false ), :]
+        
+        if size(hosp_cases_sub,1) == 0
+                
+            # Record zero cases and zero sampled
+            #sim_tds[s,:n_SC_cases] = 0
+            #sim_tds[s,:n_SC_cases_sampled] = 0
+            #sim_tds[s,:n_SC_cases_sampled_positive] = 0
+
+            # Record Inf as time to detection for earliest:
+            # - 1 Secondary Care (SC) case
+            sim_tds[s,:SC_TD] = Inf
+            # - 3 Secondary Care (SC)  cases
+            sim_tds[s,:SC_3TD] = Inf
+            # and for tinf
+            #sim_tds[s,:tinf_relating_to_SC_TD] = Inf
+            #sim_tds[s,:last_tinf_relating_to_SC_3TD] = Inf
+
+            # Define empty vector for top 3 times to detection - to be used later
+            hosp_cases_sub_top3_td = []
+
+        elseif size(hosp_cases_sub,1) > 0 
+                
+            # Simulate reports times
+            hosp_treport = (hosp_cases_sub.tcourier .+ hariss_courier_to_analysis .+ rand(Uniform(hariss_turnaround_time[1], hariss_turnaround_time[2])) )
+            hosp_cases_sub.treport = hosp_treport
+            
+            # Find cases with 3 shortest times to detection (TD)
+            hosp_cases_sub_top3_td = first(sort(hosp_cases_sub, :treport), 3) #println(icu_cases_sub_top3_td.treport)
+
+            ## Add to results df for ICU times to detection
+            # Record the times to detection for earliest:
+            # - 1 ICU case
+            sim_tds[s,:SC_TD] = hosp_cases_sub_top3_td[1,:treport]
+            # and for tinf
+            #sim_tds[s,:tinf_relating_to_SC_TD] = hosp_cases_sub_top3_td[1,:tinf]
+            
+            # - 3 ICU cases
+            if size(hosp_cases_sub_top3_td,1) >= 3
+                sim_tds[s,:SC_3TD] = hosp_cases_sub_top3_td[3,:treport]
+                # and for tinf
+                #sim_tds[s,:last_tinf_relating_to_SC_3TD] = hosp_cases_sub_top3_td[3,:tinf]
+            else
+                sim_tds[s,:SC_3TD] = Inf
+                #sim_tds[s,:last_tinf_relating_to_SC_3TD] = Inf
+            end
+        end
+        
+    end # End of loop through different simulations
+    return sim_tds
+end # End of secondary_care_td function
 
 
 
@@ -588,7 +765,7 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                         , p_icu = 0.15 # ICU sampling proportion
                         , only_sample_before_death = true
                         , icu_ari_admissions = 793 # 1440 # Weekly ICU admission numbers [summer,winter]
-                        , icu_turnaround_time = [2,4] # Time to process sample and report results / declare detection
+                        , icu_turnaround_time = NBPMscape.P.turnaroundtime_icu #[2,4] # Time to process sample and report results / declare detection
                        # Parameters for existing Oxford-RCGP RSC primary care surveillance
                         , gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
                         , gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
@@ -596,7 +773,7 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                         , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
                         , gp_ari_consults = 180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                         , gp_ari_swabs = 319 # 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-                        , pc_swab_turnaround_time = [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
+                        , pc_swab_turnaround_time = NBPMscape.P.turnaroundtime_rcgp # [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                      )
     
     ### Probability of primary care surveillance events
@@ -756,10 +933,10 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
             # Generate sample times
             if only_sample_before_death == true
                 # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
-                icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1]+3 ) ) ) , eachrow(icu_cases_sub) )
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1]+ p.icu_swab_lag_max ) ) ) , eachrow(icu_cases_sub) )
             else
                 # Set upper limit on sample time to ICU admission +3days
-                icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+ p.icu_swab_lag_max)) , eachrow(icu_cases_sub) )
             end
             icu_cases_sub.tsample = icu_tsample 
 
