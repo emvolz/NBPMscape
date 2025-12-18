@@ -3,8 +3,10 @@ module NBPMscape
 # using Pkg.Artifacts
 using CSV 
 using DataFrames
+using DataFramesMeta
 using DifferentialEquations
 using Distributions
+using ForwardDiff
 using GLM
 using HypothesisTests
 using Interpolations
@@ -12,6 +14,7 @@ using JLD2
 using JumpProcesses 
 using LinearAlgebra
 using NamedArrays
+using Optim
 #using Pkg
 using Plots
 using Plots.PlotMeasures 
@@ -73,10 +76,13 @@ include("sims_filter.jl")
 export sims_filter
 
 include("sampling_infections.jl")
-export icu_v_pc_td, analyse_td_columns, plot_hist
+export icu_td, gp_td, secondary_care_td, icu_v_pc_td, analyse_td_columns, plot_hist
 
 include("icu_sample_prob_functions.jl")
 export sample_nhs_trust, icu_sample_prob, icu_sample_prob_region, sample_icu_cases, sample_icu_cases_n
+
+include("hosp_sampling_functions.jl")
+export sample_hosp_cases_n, courier_collection_days
 
 include("estimate_severity_age_weights.jl")
 export inf_severity_estimate, inf_age_estimate
@@ -84,7 +90,7 @@ export inf_severity_estimate, inf_age_estimate
 include("distribution_fitting.jl")
 export fit_multi_dist, dist_fit_plot
 export nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
-export erlang_truncated_means
+export erlang_truncated_means, gamma_params_from_mode_cdf
  
 include("misc_functions.jl")
 export allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
