@@ -1,5 +1,8 @@
 Plots.default(;lw = 4)
 
+# Include configuration functions
+include("config.jl")
+
 const MAXDURATION = 180.0
 
 mutable struct Infection
@@ -125,62 +128,57 @@ const CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR = cont_matrix_age_group_to_single_y
 const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( contact_matrix_by_age_group = CONTACT_MATRIX_OTHER
 																			, single_year_ages = single_year_ages )
 
-### Define parameters, P
-# First try to load from config file, otherwise load defaul parameters below
-#include("config_yaml.jl")
-#using .NBPMscapeYAMLConfig
 
-#const Q = NBPMscapeYAMLConfig.validate!(NBPMscapeYAMLConfig.load_P())
 
-#global P																			
-#try
-#	const P = NBPMscapeConfig.validate!(NBPMscapeConfig.load_P())
-#catch e
-#	@warn "Failed to load config, falling back to defaults"
-	# default parameters 
-	global P
-	P = ( 
-		# Relative contact rates
-		# Normalised to 1 from the 10.76 contact hours in Table S2 of 
-		# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
-		fcont = 10.76 / 10.76   # for flinks (household) 
-		, gcont = 6.71 / 10.76  # for glinks (work/school)
-		, oocont = 8.09 / 10.76 # for other
+"""
+    initialize_parameters(config_file::String="")
 
-		# Scale adjustment for contact rates by day of the week (Sun-Sat)
-		# Sourced from POLYMOD - Mossong et al (2008), PLOS Medicine, 5(3)
-		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
-		, dowcont = (0.1043502, 0.1402675, 0.1735913, 0.1437642, 0.1596205, 0.1445298, 0.1338766) 
-		# Sourced from 'Social Contact Survey' 
-		# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
-		# Table S1 mean degree
-		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
-		#, dowcont = ([28.00,25.39,30.53,27.21,26.82,28.80,21.76]/sum([28.00,25.39,30.53,27.21,26.82,28.80,21.76])) 
-		# [0.1485, 0.1347, 0.1620, 0.1443, 0.1423, 0.1528, 0.1154]
-		# Table S1 contact hours
-		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
-		#, dowcont = ([25.80,24.51,26.47,27.40,26.72,26.50,26.46]/sum([25.80,24.51,26.47,27.40,26.72,26.50,26.46])) 
-		# [0.1403, 0.1333, 0.1439, 0.1490, 0.1453, 0.1441, 0.1439]
-		
-		, infectivity = 2.00 #1.25 # scales transmission rate # Updated to 2.00 after incorporation of age disaggregated parameters # Use infectivitytoR() to check R value for current parameters
-		, infectivity_shape = 2.2 * 0.75 # TODO source
-		, infectivity_scale = 2.5 * 0.75
-		
-		, latent_shape = 3.26 # Distribution parameters inferred in 'latent_period_estimate.R' from results reported in Zhao et al (2021), Epidemics, 36, 100482 - mean latent period of 3.3 days (95% CI 0.2, 7.9)
-		, latent_scale = 0.979
-		, infectious_shape = 8.16 # mean 24d from Verity et al (2020), The Lancet Infectious Diseases, 20(6)
-		, infectious_scale = 3.03 
+Initialize the global parameter structure P, optionally loading from a config file.
+"""
+function initialize_parameters(config_file::String="")
+    global P
+    
+    # Create default parameters (data-dependent and configurable)
+    P = create_default_parameters()
+    
+    # Apply configuration if provided
+    if !isempty(config_file)
+        try
+            config_data = load_config(config_file)
+            warnings, errors = validate_config(config_data)
+            
+            for warning in warnings
+                @warn warning
+            end
+            
+            if !isempty(errors)
+                for error in errors
+                    @error error
+                end
+                throw(ArgumentError("Configuration validation failed"))
+            end
+            
+            P = update_configurable_parameters(P, config_data)
+            @info "Successfully loaded configuration from: $config_file"
+            
+        catch e
+            @error "Failed to load configuration from $config_file: $e"
+            @info "Using default parameters"
+        end
+    else
+        @info "Using default parameters (no config file specified)"
+    end
+    
+    return P
+end
 
-		, ρ_hosp = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
-		, ρ_asymptomatic = 0.223 #  transmission reduction for asymptomatic individuals - see Knock et al (2021) Supplementary Information
-
-		, frate = 0.0 # rate of gaining & losing flinks
-		, grate = 1/30.0 # rate of gaining and losing
-
+function create_default_parameters()
+    # Define parameters that depend on data objects
+	data_dependent_params = (
 		# Contact rate distributions stratified by age of individual and contact type
 		# Based on POLYMOD UK - Mossong et al (2008), PLOS Medicine, 5(3)
 		# Note that element 1 is for age = 0 years
-		, fnegbinomr   = contact_rate_dist_par_all_ages[:fnegbinomr]
+		  fnegbinomr   = contact_rate_dist_par_all_ages[:fnegbinomr]
 		, fnegbinomp   = contact_rate_dist_par_all_ages[:fnegbinomp]
 		, gnegbinomr   = contact_rate_dist_par_all_ages[:gnegbinomr]
 		, gnegbinomp   = contact_rate_dist_par_all_ages[:gnegbinomp]
@@ -212,6 +210,56 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		, ihr_by_age = IHR_BY_AGE[:,"IHR"]
 		, symptomatic_ihr_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_hosp_sympt"])
 		, icu_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_ICU_hosp"]) # Prob of admission to ICU if already admitted to hospital
+
+		## Probability of death by age and care stage
+		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
+		, ifr_by_age = IFR_BY_AGE[:,"IFR"] # Infection fatality ratio
+		, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
+		, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
+		, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
+		#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
+	)
+
+    
+    # Define configurable parameters
+	configurable_params = ( 
+		# Relative contact rates
+		# Normalised to 1 from the 10.76 contact hours in Table S2 of 
+		# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
+		fcont = 10.76 / 10.76   # for flinks (household) 
+		, gcont = 6.71 / 10.76  # for glinks (work/school)
+		, oocont = 8.09 / 10.76 # for other
+
+		# Scale adjustment for contact rates by day of the week (Sun-Sat)
+		# Sourced from POLYMOD - Mossong et al (2008), PLOS Medicine, 5(3)
+		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+		, dowcont = (0.1043502, 0.1402675, 0.1735913, 0.1437642, 0.1596205, 0.1445298, 0.1338766) 
+		# Sourced from 'Social Contact Survey' 
+		# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
+		# Table S1 mean degree
+		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+		#, dowcont = ([28.00,25.39,30.53,27.21,26.82,28.80,21.76]/sum([28.00,25.39,30.53,27.21,26.82,28.80,21.76])) 
+		# [0.1485, 0.1347, 0.1620, 0.1443, 0.1423, 0.1528, 0.1154]
+		# Table S1 contact hours
+		#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+		#, dowcont = ([25.80,24.51,26.47,27.40,26.72,26.50,26.46]/sum([25.80,24.51,26.47,27.40,26.72,26.50,26.46])) 
+		# [0.1403, 0.1333, 0.1439, 0.1490, 0.1453, 0.1441, 0.1439]
+		
+		, infectivity = 2.00 #1.25 # scales transmission rate # Updated to 2.00 after incorporation of age disaggregated parameters # Use infectivitytoR() to check R value for current parameters
+		, infectivity_shape = 2.2 * 0.75 # # Manually calibrated to give a generation time (Tg) of 5-6 days given the infectious period distribution (parameters below - Verity et al (2020)). Hart et al (2022), eLife, 11, DOI: 10.7554/eLife.70767. Lau et al (2021), The Journal of Infectious Diseases, 224(10), DOI:10.1093/infdis/jiab424. Chen et al (2022), Nature, 13, 7727, DOI:10.1038/s41467-022-35496-8. Xu et al (2023), BMC Medicine, 21:374, DOI:10.1186/s12916-023-03070-8.  Bi et al (2020), Lancet Infectious Diseases, 20(8), DOI:10.1016/S1473-3099(20)30287-5. 
+		, infectivity_scale = 2.5 * 0.75
+		
+		, latent_shape = 3.26 # Distribution parameters inferred in 'latent_period_estimate.R' from results reported in Zhao et al (2021), Epidemics, 36, 100482 - mean latent period of 3.3 days (95% CI 0.2, 7.9)
+		, latent_scale = 0.979
+		, infectious_shape = 8.16 # mean 24d from Verity et al (2020), The Lancet Infectious Diseases, 20(6)
+		, infectious_scale = 3.03 
+
+		, ρ_hosp = 0.250 #  transmission reduction, i.e. transmission rate is only 25% of normal
+		, ρ_asymptomatic = 0.223 #  transmission reduction for asymptomatic individuals - see Knock et al (2021) Supplementary Information
+
+		, frate = 0.0 # rate of gaining & losing flinks
+		, grate = 1/30.0 # rate of gaining and losing
+
 		# Severity probabilities with no age disaggregation
 		# Split 'severe' infections, which is defined by hospital admission, into short and long stay.
 		, prop_severe_hosp_short_stay = 0.40351 # Given admitted to hospital, will stay for <24h. Estimated using Knock et al (2021) and Saigal et al. (2025), BMC Emergency Medicine, 25:11. See 'HARISS_pathway_adjustment.jl' 
@@ -221,14 +269,6 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		, prop_moderate_GP = 0.11790 # Will visit a GP but won't go to hospital. Estimated from FluSurvey data (people with ILI - not COVID specific), combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
 		, prop_mild     = 0.75765 # = 1 - prop_moderate_GP - prop_moderate_ED  # Symptomatic but won't visit a GP or go to hospital
 		
-		## Probability of death by age and care stage
-		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
-		, ifr_by_age = IFR_BY_AGE[:,"IFR"] # Infection fatality ratio
-		, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
-		, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
-		, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
-		#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
-
 		## Rates (= 1 / duration) from symptom onset to various care stages
 		# Where a patient visits a GP before visiting hospital, the rates are such that the number of days is approximately the
 		# same as going directly to hospital (either ED and discharge or hospital admission).
@@ -300,8 +340,17 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		, non_mg_inv_prob_icu_age = vcat( fill(1,40), collect(1.0:-0.01:0.8), fill(0,40))# DUMMY VALUE TODO ADD SOURCE 
 		# WOULD ALSO NEED TIMINGS AROUND TESTING AND RESULTS FOR NON-METAGENOMIC SURVEILLANCE - WILL BE LONGER - AND DIFFERENTIATE BETWEEN CURRENT ICU AND DECEASED
 	)
-#end # End of P
-#typeof(P)
+
+    
+    return merge(data_dependent_params, configurable_params)
+end
+
+
+
+
+
+
+
 
 # Function to sample age of infectee, which is conditional on the age of the infector
 function samp_infectee_age(p; contacttype, donor_age)# = :nothing, donor_age = :nothing)

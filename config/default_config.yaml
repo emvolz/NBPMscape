@@ -1,0 +1,102 @@
+# NBPMscape Configuration File
+# Default parameters for the epidemiological model
+
+# Relative contact rates
+contact_rates:
+  fcont: 1.0                    # household contacts (normalized to 10.76/10.76)
+  gcont: 0.6237                 # work/school contacts (6.71/10.76)
+  oocont: 0.7518                # other contacts (8.09/10.76)
+
+# Scale adjustment for contact rates by day of the week (Sun-Sat)
+day_of_week_scaling:
+  dowcont: [0.1043502, 0.1402675, 0.1735913, 0.1437642, 0.1596205, 0.1445298, 0.1338766]
+
+# Transmission parameters
+transmission:
+  infectivity: 2.0              # scales transmission rate
+  infectivity_shape: 1.65       # 2.2 * 0.75
+  infectivity_scale: 1.875      # 2.5 * 0.75
+
+# Disease progression parameters
+disease_progression:
+  latent_shape: 3.26            # latent period distribution shape
+  latent_scale: 0.979           # latent period distribution scale
+  infectious_shape: 8.16        # infectious period distribution shape
+  infectious_scale: 3.03        # infectious period distribution scale
+
+# Transmission reduction factors
+transmission_reduction:
+  rho_hosp: 0.25               # transmission reduction in hospital (25% of normal)
+  rho_asymptomatic: 0.223      # transmission reduction for asymptomatic individuals
+
+# Network dynamics
+network_dynamics:
+  frate: 0.0                   # rate of gaining & losing flinks
+  grate: 0.033333              # rate of gaining and losing glinks (1/30.0)
+
+# Contact rate distributions (these reference data structures that should be loaded separately)
+contact_distributions:
+  use_age_stratified: true     # whether to use age-stratified contact distributions
+
+# Infection severity probabilities (age-independent)
+severity_probabilities:
+  prop_severe_hosp_short_stay: 0.40351  # hospital stay <24h
+  prop_severe_hosp_long_stay: 0.59649   # hospital stay >24h
+  prop_moderate_ED: 0.12445             # ED visit without admission
+  prop_moderate_GP: 0.11790             # GP visit only
+  prop_mild: 0.75765                    # symptomatic, no healthcare
+
+# Healthcare progression rates (1/duration in days)
+healthcare_rates:
+  # Onset to care
+  gp_only_rate: 0.2            # 1/5 days
+  ed_direct_rate: 0.2          # 1/5 days
+  gp_before_hosp_rate: 0.333   # 1/3 days
+  ed_from_gp_rate: 0.5         # 1/2 days
+  hosp_admit_direct_rate: 0.25 # 1/4 days
+  hosp_admit_from_gp_rate: 1.0 # 1/1 days
+  
+  # Hospital care rates
+  hosp_recovery_rate: 0.0935              # 1/10.7 days
+  hosp_short_stay_recovery_rate: 2.041    # 1/0.49 days
+  hosp_long_stay_recovery_rate: 0.0855    # 1/11.70 days
+  hosp_death_rate: 0.097                  # 1/10.3 days
+  triage_icu_rate: 0.4                    # 1/2.5 days
+  
+  # ICU rates
+  icu_to_death_rate: 0.0847                           # 1/11.8 days
+  icu_to_stepdown_leading_to_recovery_rate: 0.0641    # 1/15.6 days
+  stepdown_to_recovery_after_icu_rate: 0.082          # 1/12.2 days
+
+# Sampling and testing parameters
+sampling:
+  psampled: 0.05               # proportion sampled from ICU
+  sample_target_prob: 0.90     # target sampling probability
+  turnaroundtime_icu: [2, 4]   # ICU test turnaround time range
+  turnaroundtime_rcgp: [2, 4]  # RCGP test turnaround time range
+  turnaroundtime_hariss: [2, 4] # HARISS test turnaround time range
+  icu_swab_lag_max: 1          # max days between ICU admission and swab
+
+# Discharge timing
+discharge_timing:
+  tdischarge_ed_upper_limit: 0.5           # ED discharge time limit
+  tdischarge_hosp_short_stay_upper_limit: 1.0  # short stay discharge limit
+
+# Import parameters
+imports:
+  commuterate: 2.0             # commute rate
+  importrate: 0.5              # constant import rate
+  nimports: 1000               # number of imports
+  import_t_df: 2.48           # t-distribution degrees of freedom
+  import_t_s: 8.75            # t-distribution scale
+
+# Molecular evolution parameters
+evolution:
+  mu: 0.001                    # mean clock rate
+  omega: 0.5                   # variance inflation
+
+# Metagenomic testing sensitivity
+metagenomic_sensitivity:
+  sensitivity_mg_virus: 0.89
+  sensitivity_mg_bacteria: 0.97
+  sensitivity_mg_fungi: 0.89
