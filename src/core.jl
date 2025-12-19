@@ -163,7 +163,7 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 		# [0.1403, 0.1333, 0.1439, 0.1490, 0.1453, 0.1441, 0.1439]
 		
 		, infectivity = 2.00 #1.25 # scales transmission rate # Updated to 2.00 after incorporation of age disaggregated parameters # Use infectivitytoR() to check R value for current parameters
-		, infectivity_shape = 2.2 * 0.75 # TODO source
+		, infectivity_shape = 2.2 * 0.75 # Manually calibrated to give a generation time (Tg) of 5-6 days given the infectious period distribution (parameters below - Verity et al (2020)). Hart et al (2022), eLife, 11, DOI: 10.7554/eLife.70767. Lau et al (2021), The Journal of Infectious Diseases, 224(10), DOI:10.1093/infdis/jiab424. Chen et al (2022), Nature, 13, 7727, DOI:10.1038/s41467-022-35496-8. Xu et al (2023), BMC Medicine, 21:374, DOI:10.1186/s12916-023-03070-8 
 		, infectivity_scale = 2.5 * 0.75
 		
 		, latent_shape = 3.26 # Distribution parameters inferred in 'latent_period_estimate.R' from results reported in Zhao et al (2021), Epidemics, 36, 100482 - mean latent period of 3.3 days (95% CI 0.2, 7.9)
