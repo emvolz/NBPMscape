@@ -742,7 +742,7 @@ function Infection(p; pid = "0"
 	j_ed_from_gp = ConstantRateJump(rate_ed_from_gp, aff_ed_from_gp!)
 
 	## Hospital admission direct without visit to GP
-	rate_hosp_admit_direct(u,p,t) = (( (carestage in (:undiagnosed,:GP)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) )) ? p.hosp_admit_direct_rate : 0.0 
+	rate_hosp_admit_direct(u,p,t) = (( (carestage in (:undiagnosed,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) )) ? p.hosp_admit_direct_rate : 0.0 
 	aff_hosp_admit_direct!(int) = begin 
 		carestage = :admittedhospital
 		thospital = int.t
