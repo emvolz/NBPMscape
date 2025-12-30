@@ -99,18 +99,18 @@ Examples:    icu_tds = NBPMscape.icu_td(;  p=NBPMscape.P
 function icu_td(; p = NBPMscape.P
                 , sims
                 # ICU parameters
-                , icu_sample_type = "regional" # "regional" or "fixed". If "fixed" then p_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
-                , pathogen_type = "virus"
-                , site_stage = "current" 
-                , sample_icu_cases_version = "number" # or "proportion"
-                , n_icu_samples_per_week = 300
-                , only_sample_before_death = true
-                , p_icu = 0.15 # ICU sampling proportion
+                , icu_sample_type = NBPMscape.P.icu_sample_type #"regional" # "regional" or "fixed". If "fixed" then p_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
+                , pathogen_type = NBPMscape.P.pathogen_type # "virus"
+                , site_stage = NBPMscape.P.site_stage #"current" 
+                , sample_icu_cases_version = NBPMscape.P.sample_icu_cases_version #"number" # or "proportion"
+                , n_icu_samples_per_week = NBPMscape.P.n_icu_samples_per_week #300
+                , only_sample_before_death = NBPMscape.P.icu_only_sample_before_death #true
+                , p_icu = NBPMscape.P.p_sampled_icu #0.15 # ICU sampling proportion
                 , icu_turnaround_time = NBPMscape.P.turnaroundtime_icu #[2,4] # Time to process sample and report results / declare detection
-                , icu_ari_admissions::Int = 1440 # Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated)
-                , icu_ari_admissions_adult_p::Float64 = 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
-                , icu_ari_admissions_child_p::Float64 = 0.24 # Proportion of ICU ARI admissions that are children (<16y)
-                , nhs_trust_sampling_sites::DataFrame = DataFrame()
+                , icu_ari_admissions::Int = NBPMscape.P.icu_ari_admissions # 1440 # Estimate of weekly ICU ARI admissions (excluding pathogen X being simulated)
+                , icu_ari_admissions_adult_p::Float64 = NBPMscape.P.icu_ari_admissions_adult_p #0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
+                , icu_ari_admissions_child_p::Float64 = NBPMscape.P.icu_ari_admissions_child_p #0.24 # Proportion of ICU ARI admissions that are children (<16y)
+                , nhs_trust_sampling_sites::DataFrame = NBPMscape.P.icu_nhs_trust_sampling_sites #DataFrame()
                 )
 
     n_replicates = length(sims)
@@ -324,14 +324,14 @@ Examples:   gp_tds = NBPMscape.gp_td(; p = NBPMscape.P
 function gp_td(;  p=NBPMscape.P
                   , sims 
                   # Parameters for existing Oxford-RCGP RSC primary care surveillance
-                  , gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
-                  , gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
-                  , gp_swabs_mg = 100 # 200 [319, 747]#[25698,46685] # Assumed number of swabs that are metagenomic sequenced for investigating impact
-                  , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
-                  , gp_ari_consults = 180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-                  , gp_ari_swabs = 319 # [319,747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+                  , gp_practices_total = NBPMscape.P.gp_practices_total #6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
+                  , gp_practices_swab = NBPMscape.P.gp_practices_swab #300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
+                  , gp_swabs_mg = NBPMscape.P.gp_swabs_mg #100 # 200 [319, 747]#[25698,46685] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                  , pop_eng = NBPMscape.P.pop_eng #5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
+                  , gp_ari_consults = NBPMscape.P.gp_ari_consults #180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+                  , gp_ari_swabs = NBPMscape.P.gp_ari_swabs #319 # [319,747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                   , pc_swab_turnaround_time = NBPMscape.P.turnaroundtime_rcgp #[2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
-                  , pathogen_type = "virus"
+                  , pathogen_type = NBPMscape.P.pathogen_type #"virus"
                   )
     
     ### Probability of primary care surveillance events
@@ -489,36 +489,36 @@ Examples:
 """
 function secondary_care_td(; p = NBPMscape.P
                             , sims
-                            , pathogen_type::String = "virus"
-                            , initial_dow::Int64 = 1
+                            , pathogen_type::String = NBPMscape.P.pathogen_type #"virus"
+                            , initial_dow::Int64 = NBPMscape.P.initial_dow #1
                             #, hosp_cases::DataFrame # filtered from simulation of infections (G df filtered for value in thosp column)
                             # Sampling parameters
-                            , hariss_courier_to_analysis::Float64 = 1.0 # Time between courier collection from PHL and beginning of analysis
+                            , hariss_courier_to_analysis::Float64 = NBPMscape.P.hariss_courier_to_analysis #1.0 # Time between courier collection from PHL and beginning of analysis
                             , hariss_turnaround_time = NBPMscape.P.turnaroundtime_hariss #[2,4] # Time to process sample and report results / declare detection
-                            , n_hosp_samples_per_week::Int # Total number of hospital samples to be taken per week
-                            , sample_allocation::String = "equal" # "equal" or "weighted"
-                            , sample_proportion_adult::Any = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target 
+                            , n_hosp_samples_per_week::Int = NBPMscape.P.n_hosp_samples_per_week # Total number of hospital samples to be taken per week
+                            , sample_allocation::String = NBPMscape.P.sample_allocation #"equal" # "equal" or "weighted"
+                            , sample_proportion_adult::Any = NBPMscape.P.sample_proportion_adult #"free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target 
                                                                     # between adults and children. "free" indicates that no split is specified
-                            , hariss_nhs_trust_sampling_sites::DataFrame # List of NHS Trusts in HARISS sampling network 
-                            , weight_samples_by = "ae_mean" # or "catchment_pop"
-                            , phl_collection_dow::Vector{Int64} = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
-                            , swab_time_mode::Real = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
-                            , swab_proportion_at_48h::Real = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
-                            , proportion_hosp_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
+                            , hariss_nhs_trust_sampling_sites::DataFrame = NBPMscape.P.hariss_nhs_trust_sampling_sites # List of NHS Trusts in HARISS sampling network 
+                            , weight_samples_by = NBPMscape.P.weight_samples_by #"ae_mean" # or "catchment_pop"
+                            , phl_collection_dow::Vector{Int64} = NBPMscape.P.phl_collection_dow #[2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+                            , swab_time_mode::Real = NBPMscape.P.swab_time_mode #0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
+                            , swab_proportion_at_48h::Real = NBPMscape.P.swab_proportion_at_48h #0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
+                            , proportion_hosp_swabbed::Real = NBPMscape.P.proportion_hosp_swabbed #0.9 # Assume 90% of ARI attendances are swabbed
                             #, initial_dow::Int64 = 1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
-                            , only_sample_before_death::Bool = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+                            , only_sample_before_death::Bool = NBPMscape.P.hariss_only_sample_before_death #true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
                             # Hospital parameters
-                            , ed_discharge_limit::Float64 = 0.25 # days. Assume that people attending the Emergency Department are discharged within this time limit.
+                            , ed_discharge_limit::Float64 = NBPMscape.P.tdischarge_ed_upper_limit #0.25 # days. Assume that people attending the Emergency Department are discharged within this time limit.
                             , nhs_trust_catchment_pop::DataFrame = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
                             #, nhs_trust_ae_12m::DataFrame = AE_12M
                             # Seasonal values
-                            , hosp_ari_admissions::Int # Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
-                            , hosp_ari_admissions_adult_p::Float64 = 0.52# Proportion of ED ARI admissions that are adults (18y and over)
-                            , hosp_ari_admissions_child_p::Float64 = 0.48 # Proportion of ED ARI admissions that are children (<18y)
-                            , ed_ari_destinations_adult::DataFrame = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
-                                                                                , proportion_of_attendances = [0.628,0.030,0.342])
-                            , ed_ari_destinations_child::DataFrame = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
-                                                                                , proportion_of_attendances = [0.861,0.014,0.125])
+                            , hosp_ari_admissions::Int = NBPMscape.P.hosp_ari_admissions # Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
+                            , hosp_ari_admissions_adult_p::Float64 = NBPMscape.P.hosp_ari_admissions_adult_p #0.52# Proportion of ED ARI admissions that are adults (18y and over)
+                            , hosp_ari_admissions_child_p::Float64 = NBPMscape.P.hosp_ari_admissions_child_p #0.48 # Proportion of ED ARI admissions that are children (<18y)
+                            , ed_ari_destinations_adult::DataFrame = NBPMscape.P.ed_ari_destinations_adult #DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                                                                    #, proportion_of_attendances = [0.628,0.030,0.342])
+                            , ed_ari_destinations_child::DataFrame = NBPMscape.P.ed_ari_destinations_child #DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                                                                    #, proportion_of_attendances = [0.861,0.014,0.125])
                             )
 
     n_replicates = length(sims)
@@ -759,20 +759,20 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
                         , sims_G_gp_filter_object_name = "" # e.g. "sims_G_gp_filter" 
                         , sims_G_icu_filter_object_name = "" # e.g. "sims_G_icu_filter" 
                         # ICU parameters
-                        , icu_sample_type = "regional" # "regional" or "fixed". If "fixed" then p_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
-                        , pathogen_type = "virus"
-                        , site_stage = "current" 
-                        , p_icu = 0.15 # ICU sampling proportion
-                        , only_sample_before_death = true
-                        , icu_ari_admissions = 793 # 1440 # Weekly ICU admission numbers [summer,winter]
+                        , icu_sample_type = NBPMscape.P.icu_sample_type # "regional" # "regional" or "fixed". If "fixed" then p_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
+                        , pathogen_type = NBPMscape.P.pathogen_type #"virus"
+                        , site_stage = NBPMscape.P.icu_site_stage #"current" 
+                        , p_icu = NBPMscape.P.p_sampled_icu #0.15 # ICU sampling proportion
+                        , only_sample_before_death = NBPMscape.P.icu_only_sample_before_death #true
+                        , icu_ari_admissions = NBPMscape.P.icu_ari_admissions # 793 # 1440 # Weekly ICU admission numbers [summer,winter]
                         , icu_turnaround_time = NBPMscape.P.turnaroundtime_icu #[2,4] # Time to process sample and report results / declare detection
                        # Parameters for existing Oxford-RCGP RSC primary care surveillance
-                        , gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
-                        , gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
-                        , gp_swabs_mg = 100 # 200 [319, 747]#[25698,46685] # Assumed number of swabs that are metagenomic sequenced for investigating impact
-                        , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
-                        , gp_ari_consults = 180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
-                        , gp_ari_swabs = 319 # 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+                        , gp_practices_total = NBPMscape.P.gp_practices_total #6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
+                        , gp_practices_swab = NBPMscape.P.gp_practices_swab #300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
+                        , gp_swabs_mg = NBPMscape.P.gp_swabs_mg #100 # 200 [319, 747]#[25698,46685] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+                        , pop_eng = NBPMscape.P.pop_eng #5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
+                        , gp_ari_consults = NBPMscape.P.gp_ari_consults #180 # 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+                        , gp_ari_swabs = NBPMscape.P.gp_ari_swabs #319 # 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
                         , pc_swab_turnaround_time = NBPMscape.P.turnaroundtime_rcgp # [2,4] # [min,max] number of days between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing.
                      )
     

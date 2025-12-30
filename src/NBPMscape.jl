@@ -99,8 +99,9 @@ export allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_a
 
 ## Configure parameter input values
 include("config.jl")
-export load_config, get_config_path, flatten_dict, validate_config, get_parameter_mapping
-export update_configurable_parameters, debug_function_availability
+export load_config, validate_config, update_configurable_parameters
+#export get_parameter_mapping, get_config_path, flatten_dict
+#export debug_function_availability
 #using .config
 #export set_params!  # optional: re-export forexport set_params!
 

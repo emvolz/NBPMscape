@@ -131,14 +131,24 @@ const CONTACT_MATRIX_OTHER_SINGLE_YEAR = cont_matrix_age_group_to_single_yr( con
 
 
 """
-    initialize_parameters(config_file::String="")
+Function    initialize_parameters(config_file::String="")
 
-Initialize the global parameter structure P, optionally loading from a config file.
+Decription	Initialize the global parameter structure P. Location of .yaml file containing the required
+			parameters should be input as a string. If no argument is input then default parameters are used.
+
+Argument	config_file::String		Path and filename for .yaml file containing model parameters.
+
+Example 	initialize_parameters() # Returns default parameters
+			or
+			initialize_parameters("config/outbreak_params_covid19_like.yaml") # Updates parameters from file
+			config_file = "config/outbreak_params_covid19_like.yaml"
 """
 function initialize_parameters(config_file::String="")
     global P
     
-    # Create default parameters (data-dependent and configurable)
+    # Create default parameters
+	# There are two sets: data-dependent and configurable. 
+	# The latter can be replaced with values defined in the config_file while the former are not.
     P = create_default_parameters()
     
     # Apply configuration if provided
@@ -218,6 +228,10 @@ function create_default_parameters()
 		, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
 		, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
 		#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
+
+		# Hospital parameters
+        , nhs_trust_catchment_pop = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
+        #, nhs_trust_ae_12m = AE_12M
 	)
 
     
@@ -286,20 +300,13 @@ function create_default_parameters()
 		, hosp_short_stay_recovery_rate = 1 / 0.49 # hosp_recovery_rate above split into short stay (<24h) and long stay (>24h). Mean durations of the two periods computed using erlang_truncated_means( k = 1, rate = 0.0935, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf). Note that the rate has been adjusted as the rounded rate parameter does not give the mean value reported.
 		, hosp_long_stay_recovery_rate  = 1 / 11.70 # hosp_recovery_rate above split into short stay (<24h) and long stay (>24h). Mean durations of the two periods computed using erlang_truncated_means( k = 1, rate = 0.0935, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf). Note that the rate has been adjusted as the rounded rate parameter does not give the mean value reported.
 		, hosp_death_rate    = 1 / 10.3 # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
-		, triage_icu_rate    = 1 /  2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
 		# ICU rates
+		, triage_icu_rate    = 1 /  2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
 		, icu_to_death_rate  = 1 / 11.8 # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
 		, icu_to_stepdown_leading_to_recovery_rate = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4, 57.6). Erlang(k=1, gamma=0.06) . Knock et al (2021)
 		# ICU stepdown rates
 		, stepdown_to_recovery_after_icu_rate  = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
 		
-		, psampled = .05  # prop sampled from icu 
-		, sample_target_prob = 0.90 # # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
-		, turnaroundtime_icu = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
-		, turnaroundtime_rcgp = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
-		, turnaroundtime_hariss = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
-		, icu_swab_lag_max = 1 # days. Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
-
 		, tdischarge_ed_upper_limit = 0.5 # days. People attending Emergency Department (ED) (and not admitted) will be discharged by this time.
 		, tdischarge_hosp_short_stay_upper_limit = 1.0 # days. People admitted to hospital for a short stay will be discharged by this time.
 
@@ -316,6 +323,56 @@ function create_default_parameters()
 
 		, μ = 0.001 # mean clock rate -- additive relaxed clock
 		, ω = 0.5 # variance inflation
+
+		# Sampling parameters
+		# ICU
+		, icu_sample_type = "regional" # "regional" or "fixed". If "fixed" then p_sampled_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
+		, icu_site_stage = "current" #
+		, sample_icu_cases_version = "number" # "proportion". Is sampling quantity based on a proportion of all cases or a fixed number of samples?
+		, p_sampled_icu = 0.15 # ICU sampling proportion
+		, sample_target_prob_icu = 0.90 # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
+		, n_icu_samples_per_week = 300 # Number of samples to be taken from ICU per week
+		, icu_ari_admissions = 1440 # [793, 1440] # Weekly ICU admission numbers [summer,winter]
+		, icu_ari_admissions_adult_p = 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
+		, icu_ari_admissions_child_p = 0.24 # Proportion of ICU ARI admissions that are children (<16y)
+		, turnaroundtime_icu = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+		, icu_swab_lag_max = 1 # days. Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
+		, icu_nhs_trust_sampling_sites = CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame )
+		, icu_only_sample_before_death = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+		# Primary care (i.e. GPs via RCGP)
+		, turnaroundtime_rcgp = [2,4] # upper and lower limits, in days, of time between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing. tsample drawn from a Uniform(lower, upper) distribution in sampling functions.
+		, gp_practices_total = 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]  
+		, gp_practices_swab = 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
+		, gp_swabs_mg = 300 # [319, 747]#[25698,46685] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+        , pop_eng = 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
+        , gp_ari_consults = 327 # 180, 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+        , gp_ari_swabs = 747 #[319, 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+        # Secondary care (i.e. hospitals via HARISS network)
+		, turnaroundtime_hariss = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+		, initial_dow = 1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
+		, hariss_courier_to_analysis = 1.0 # Time between courier collection from PHL and beginning of analysis
+        , n_hosp_samples_per_week = 300 # Total number of hospital samples to be taken per week
+        , sample_allocation = "equal" # "equal" or "weighted"
+        , sample_proportion_adult = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified
+        , hariss_nhs_trust_sampling_sites = CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+        , weight_samples_by = "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
+        , phl_collection_dow = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+        , swab_time_mode = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
+        , swab_proportion_at_48h = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
+        , proportion_hosp_swabbed = 0.9 # Assume X% of ARI attendances are swabbed
+        , hariss_only_sample_before_death = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+        # Hospital parameters
+        # Seasonal values
+        # Winter
+        , hosp_ari_admissions = Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2025 data for winter and Jun, Jul, Aug 2024 for summer
+        , hosp_ari_admissions_adult_p = 0.52 # for winter and 0.58 for summer.Proportion of ED ARI admissions that are adults (16y and over)
+        , hosp_ari_admissions_child_p = 0.48 # for winter and 0.42 for summer. Proportion of ED ARI admissions that are children (<16y)
+        , ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                   , proportion_of_attendances = [0.628,0.030,0.342])
+         , ed_ari_destinations_child = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                   , proportion_of_attendances = [0.861,0.014,0.125])
+                            
+		, pathogen_type = "virus"		
 
 		# Sensitivity of metagenomic testing 
 		# see Alcolea-Medina et al (2025), "Rapid pan-microbial metagenomics for pathogen detection and personalised therapy in the intensive care unit: a single-centre prospective observational study", Lancet Microbe, 
@@ -810,7 +867,7 @@ function Infection(p; pid = "0"
 	aff_icu!(int) = begin 
 		carestage = :admittedicu  
 		ticu = int.t 
-		sampled = (rand() < p.psampled )
+		sampled = (rand() < p.p_sampled_icu ) #p.psampled )
 	end 
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
@@ -1162,7 +1219,7 @@ sampleforest(fo::NamedTuple, p::NamedTuple) = begin
 	# icu cases 
 	G = fo.G[ isfinite.(fo.G.ticu), : ]
 	# sample size 
-	n = rand( Binomial( size(G,1), p.psampled ))
+	n = rand( Binomial( size(G,1), p.p_sampled_icu )) # p.psampled ))
 	# subforest 
 	G1 = G[sample( 1:size(G,1), n, replace=false ), :]
 
@@ -1177,7 +1234,9 @@ sampleforest(fo::NamedTuple, p::NamedTuple) = begin
 		, firstsample = (n>0) ? minimum(tsample) : missing
 	)
 end
-sampleforest(fo, psampled::Real) = begin  P = merge(NBPMscape.P,(;psampled=psampled)); sampleforest(fo,P) end
+#sampleforest(fo, psampled::Real) = begin  P = merge(NBPMscape.P,(;psampled=psampled)); sampleforest(fo,P) end
+sampleforest(fo, p_sampled_icu::Real) = begin  P = merge(NBPMscape.P,(;p_sampled_icu=p_sampled_icu)); sampleforest(fo,P) end
+
 
 # Function for estimating possible number of cases for individual importations so can allocate the 
 # maximum case limit between multiple importations with different timport in simtree 
