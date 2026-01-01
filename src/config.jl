@@ -556,6 +556,78 @@ function validate_config(config::Dict) # config=config_data
         end
     end
 
+    # Check values for destination proportions after attendance at the Emergency Department. All values should be between 0 and 1 and they should sum to 1.
+    ed_ari_dest_adult_fields = ["parameters.ed_ari_destinations_adult_p_discharged"
+                                 ,"parameters.ed_ari_destinations_adult_p_short_stay"
+                                 ,"ed_ari_destinations_adult_p_longer_stay"]
+    ed_ari_dest_child_fields = ["parameters.ed_ari_destinations_child_p_discharged"
+                                 ,"parameters.ed_ari_destinations_child_p_short_stay"
+                                 ,"ed_ari_destinations_child_p_longer_stay"]
+    
+    # First, check sums to one
+    # adult
+    try
+        ed_ari_dest_adult_p_discharged = config["parameters"]["ed_ari_destinations_adult_p_discharged"]
+        ed_ari_dest_adult_p_short_stay = config["parameters"]["ed_ari_destinations_adult_p_short_stay"]
+        ed_ari_dest_adult_p_longer_stay = config["parameters"]["ed_ari_destinations_adult_p_longer_stay"]
+
+        if ( ed_ari_dest_adult_p_discharged + ed_ari_dest_adult_p_short_stay + ed_ari_dest_adult_p_longer_stay ) != 1
+            push!(errors, "Values for ed_ari_destinations_adult_p_discharged, ed_ari_destinations_adult_p_short_stay and ed_ari_destinations_adult_p_longer_stay must sum to one, got $(ed_ari_dest_adult_p_discharged),  $(ed_ari_dest_adult_p_short_stay) and $(ed_ari_dest_adult_p_longer_stay)")
+        end
+    catch
+        push!(warnings, "Could not validate fields ed_ari_destinations_adult_p_discharged, ed_ari_destinations_adult_p_short_stay and ed_ari_destinations_adult_p_longer_stay")
+    end
+
+    # child
+    try
+        ed_ari_dest_child_p_discharged = config["parameters"]["ed_ari_destinations_child_p_discharged"]
+        ed_ari_dest_child_p_short_stay = config["parameters"]["ed_ari_destinations_child_p_short_stay"]
+        ed_ari_dest_child_p_longer_stay = config["parameters"]["ed_ari_destinations_child_p_longer_stay"]
+
+        if ( ed_ari_dest_child_p_discharged + ed_ari_dest_child_p_short_stay + ed_ari_dest_child_p_longer_stay ) != 1
+            push!(errors, "Values for ed_ari_destinations_child_p_discharged, ed_ari_destinations_child_p_short_stay and ed_ari_destinations_child_p_longer_stay must sum to one, got $(ed_ari_dest_child_p_discharged),  $(ed_ari_dest_child_p_short_stay) and $(ed_ari_dest_child_p_longer_stay)")
+        end
+    catch
+        push!(warnings, "Could not validate fields ed_ari_destinations_child_p_discharged, ed_ari_destinations_child_p_short_stay and ed_ari_destinations_child_p_longer_stay")
+    end
+
+
+    # Second, check values are between 0 and 1
+    # ed_ari_dest_adult_fields
+    for field in ed_ari_dest_adult_fields
+        keys = split(field, ".")
+        value = config
+        
+        try
+            for key in keys
+                value = value[key]
+                #println(value)
+            end
+            if !( all(x -> 0 <= x  <=1 , value) )
+                push!(errors, "Value for $field must be non-negative, got $value")
+            end
+        catch
+            push!(warnings, "Could not validate field $field")
+        end
+    end
+
+    # ed_ari_dest_child_fields
+    for field in ed_ari_dest_child_fields
+        keys = split(field, ".")
+        value = config
+        
+        try
+            for key in keys
+                value = value[key]
+            end
+            if !( all(x -> 0 <= x <= 1, value) )
+                push!(errors, "Value for $field must be non-negative, got $value")
+            end
+        catch
+            push!(warnings, "Could not validate field $field")
+        end
+    end
+
     return warnings, errors
 end
 
@@ -570,15 +642,17 @@ Arguments       P::NamedTuple   Contains default model parameters
                 config::Dict    Contains parameters loaded from configuration file
 
 """
-function update_configurable_parameters(P, config::Dict)
+function update_configurable_parameters(P, config::Dict) # P = NBPMscape.P # config = config_data
     # Convert NamedTuple P to dictionary
-    P_dict = Dict(pairs(P))
+    P_dict = Dict(pairs(P)) # println(P_dict)
     
     # Get parameters from config
     if haskey(config, "parameters")
         params = config["parameters"]
         
-        for (key, value) in params
+        for (key, value) in params # println(params)
+        #    println(key," ",value)
+        #end
             # Convert special names
             param_key = if key == "rho_hosp"
                 :ρ_hosp
@@ -588,17 +662,64 @@ function update_configurable_parameters(P, config::Dict)
                 :μ
             elseif key == "omega"
                 :ω
+            #elseif key in ["ed_ari_destinations_adult_p_discharged","ed_ari_destinations_adult_p_short_stay","ed_ari_destinations_adult_p_longer_stay" ] 
+             #   :ed_ari_destinations_adult
+            #elseif key in ["ed_ari_destinations_child_p_discharged","ed_ari_destinations_child_p_short_stay","ed_ari_destinations_child_p_longer_stay"]
+            #    :ed_ari_destinations_child
             else
                 Symbol(key)
             end
-            
+        
             # Print confirmation that parameter has been updated from configuration file...
             if haskey(P_dict, param_key)
-                P_dict[param_key] = value
-                @info "Updated $param_key: $value"
+                
+                # Parameters in P that are dataframes need to filled with values from the .yaml (config)
+                #if key == :ed_ari_destinations_adult_p_discharged
+                #    #P.ed_ari_destinations_adult[Ldischarged] = params[ed_ari_destinations_adult_discharged] #config["parameters"]
+                #    row_number_discharged_adult = findfirst(P_dict[:ed_ari_destinations_adult].destination .== :discharged)
+                #    P_dict[:ed_ari_destinations_adult][row_number_discharged_adult,:proportion_of_attendances] = value #params[ed_ari_destinations_adult_discharged] #config["parameters"]
+                #    @info "Updated ed_ari_destinations_adult_p_discharged: $value"
+                #elseif key == :ed_ari_destinations_adult_p_short_stay
+                #    row_number_short_stay_adult = findfirst(P_dict[:ed_ari_destinations_adult].destination .== :short_stay)
+                #    P_dict[:ed_ari_destinations_adult][row_number_short_stay_adult,:proportion_of_attendances] = value
+                #    @info "Updated ed_ari_destinations_adult_p_short_stay: $value"
+                #elseif key == :ed_ari_destinations_adult_p_longer_stay
+                #    row_number_longer_stay_adult = findfirst(P_dict[:ed_ari_destinations_adult].destination .== :longer_stay)
+                #    P_dict[:ed_ari_destinations_adult][row_number_longer_stay_adult,:proportion_of_attendances] = value
+                #    @info "Updated ed_ari_destinations_adult_p_longer_stay: $value"
+                #elseif key == :ed_ari_destinations_child_p_discharged
+                #    row_number_longer_stay_child = findfirst(P_dict[:ed_ari_destinations_child].destination .== :discharged)
+                #    P_dict[:ed_ari_destinations_child][row_number_longer_stay_child, :proportion_of_attendances] = value
+                #    @info "Updated ed_ari_destinations_child_p_discharged: $value"
+                #elseif key == :ed_ari_destinations_child_p_short_stay
+                #    row_number_short_stay_child = findfirst(P_dict[:ed_ari_destinations_child].destination .== :short_stay)
+                #    P_dict[:ed_ari_destinations_child][row_number_short_stay_child,:proportion_of_attendances] = value
+                #    @info "Updated ed_ari_destinations_child_p_short_stay: $value"
+                #elseif key == :ed_ari_destinations_child_p_longer_stay
+                #    row_number_longer_stay_child = findfirst(P_dict[:ed_ari_destinations_child].destination .== :longer_stay)
+                #    P_dict[:ed_ari_destinations_child][row_number_longer_stay_child,:proportion_of_attendances] = value
+                #    @info "Updated ed_ari_destinations_child_p_longer_stay: $value"
+                ## Parameters that are dataframes read from csv files must be done here
+                #elseif key == :icu_nhs_trust_sampling_sites
+                #    P_dict[:icu_nhs_trust_sampling_sites] = CSV.read(value, DataFrame)
+                #    @info "Updated $param_key: $value"
+                #elseif key == :hariss_nhs_trust_sampling_sites
+                #    P_dict[:hariss_nhs_trust_sampling_sites] = CSV.read(value, DataFrame)
+                #    @info "Updated $param_key: $value"
+                ## everything else
+                #else 
+                    P_dict[param_key] = value
+                    @info "Updated $param_key: $value"
+                #end
             else
                 # ... or not
-                @warn "Unknown parameter: $key"
+                # unless parameter is part of a set that will be used to fill a dataframe
+                #if key in [ed_ari_destinations_adult_p_discharged,ed_ari_destinations_adult_p_short_stay,ed_ari_destinations_adult_p_longer_stay
+                #                 ,ed_ari_destinations_child_p_discharged,ed_ari_destinations_child_p_short_stay,ed_ari_destinations_child_p_longer_stay]
+                #else
+                    #@warn "Unknown parameter: $key"
+                    @warn "Unknown parameter: $param_key"
+                #end
             end
         end
     end

@@ -179,6 +179,36 @@ function initialize_parameters(config_file::String="")
         @info "Using default parameters (no config file specified)"
     end
     
+	# Convert some parameters to dataframes
+	icu_nhs_trust_sampling_sites = CSV.read( P.icu_nhs_trust_sampling_sites_file, DataFrame )
+	#P = merge(P, (icu_nhs_trust_sampling_sites,))
+	P = (; P..., icu_nhs_trust_sampling_sites = icu_nhs_trust_sampling_sites) # P.icu_nhs_trust_sampling_sites
+	hariss_nhs_trust_sampling_sites = CSV.read( P.hariss_nhs_trust_sampling_sites_file, DataFrame)
+	#P = merge(P, (hariss_nhs_trust_sampling_sites,))
+	P = (; P..., hariss_nhs_trust_sampling_sites = hariss_nhs_trust_sampling_sites)
+	ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                           , proportion_of_attendances = [P.ed_ari_destinations_adult_p_discharged
+										   								, P.ed_ari_destinations_adult_p_short_stay
+																		, P.ed_ari_destinations_adult_p_longer_stay]
+											)
+	#P = merge(P, (ed_ari_destinations_adult,))
+	P = (; P..., ed_ari_destinations_adult = ed_ari_destinations_adult)
+    ed_ari_destinations_child = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                           , proportion_of_attendances = [P.ed_ari_destinations_child_p_discharged
+										   								,P.ed_ari_destinations_child_p_short_stay
+																		,P.ed_ari_destinations_child_p_longer_stay]
+											)
+	#P = merge(P, (ed_ari_destinations_child,))
+	P = (; P..., ed_ari_destinations_child = ed_ari_destinations_child)
+
+	# And remove the keys that have been converted to dataframes	
+#	drop = Set([:icu_nhs_trust_sampling_sites_file, :hariss_nhs_trust_sampling_sites_file
+#				,:ed_ari_destinations_adult_p_discharged, ed_ari_destinations_adult_p_short_stay, ed_ari_destinations_adult_p_longer_stay
+#				,:ed_ari_destinations_child_p_discharged,:ed_ari_destinations_child_p_short_stay,:ed_ari_destinations_child_p_longer_stay
+#				])
+#	P = (; (k => v for (k, v) in pairs(P) if !(k in drop))...)
+
+
     return P
 end
 
@@ -337,7 +367,7 @@ function create_default_parameters()
 		, icu_ari_admissions_child_p = 0.24 # Proportion of ICU ARI admissions that are children (<16y)
 		, turnaroundtime_icu = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
 		, icu_swab_lag_max = 1 # days. Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
-		, icu_nhs_trust_sampling_sites = CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame )
+		, icu_nhs_trust_sampling_sites_file = "data/nhs_trust_site_sample_targets.csv" #CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame )
 		, icu_only_sample_before_death = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
 		# Primary care (i.e. GPs via RCGP)
 		, turnaroundtime_rcgp = [2,4] # upper and lower limits, in days, of time between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing. tsample drawn from a Uniform(lower, upper) distribution in sampling functions.
@@ -354,7 +384,7 @@ function create_default_parameters()
         , n_hosp_samples_per_week = 300 # Total number of hospital samples to be taken per week
         , sample_allocation = "equal" # "equal" or "weighted"
         , sample_proportion_adult = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified
-        , hariss_nhs_trust_sampling_sites = CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites.csv"#CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
         , weight_samples_by = "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
         , phl_collection_dow = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
         , swab_time_mode = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
@@ -367,11 +397,17 @@ function create_default_parameters()
         , hosp_ari_admissions = Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2025 data for winter and Jun, Jul, Aug 2024 for summer
         , hosp_ari_admissions_adult_p = 0.52 # for winter and 0.58 for summer.Proportion of ED ARI admissions that are adults (16y and over)
         , hosp_ari_admissions_child_p = 0.48 # for winter and 0.42 for summer. Proportion of ED ARI admissions that are children (<16y)
-        , ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
-                                                                   , proportion_of_attendances = [0.628,0.030,0.342])
-         , ed_ari_destinations_child = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
-                                                                   , proportion_of_attendances = [0.861,0.014,0.125])
-                            
+        #, ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+        #                                                           , proportion_of_attendances = [0.628,0.030,0.342])
+        # , ed_ari_destinations_child = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+        #                                                           , proportion_of_attendances = [0.861,0.014,0.125])
+        , ed_ari_destinations_adult_p_discharged  = 0.628
+		, ed_ari_destinations_adult_p_short_stay  = 0.030
+		, ed_ari_destinations_adult_p_longer_stay = 0.342
+        , ed_ari_destinations_child_p_discharged  = 0.861
+		, ed_ari_destinations_child_p_short_stay  = 0.014
+		, ed_ari_destinations_child_p_longer_stay = 0.125
+		
 		, pathogen_type = "virus"		
 
 		# Sensitivity of metagenomic testing 
