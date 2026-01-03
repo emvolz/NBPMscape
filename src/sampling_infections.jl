@@ -101,7 +101,7 @@ function icu_td(; p = NBPMscape.P
                 # ICU parameters
                 , icu_sample_type = NBPMscape.P.icu_sample_type #"regional" # "regional" or "fixed". If "fixed" then p_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
                 , pathogen_type = NBPMscape.P.pathogen_type # "virus"
-                , site_stage = NBPMscape.P.site_stage #"current" 
+                , site_stage = NBPMscape.P.icu_site_stage #"current" 
                 , sample_icu_cases_version = NBPMscape.P.sample_icu_cases_version #"number" # or "proportion"
                 , n_icu_samples_per_week = NBPMscape.P.n_icu_samples_per_week #300
                 , only_sample_before_death = NBPMscape.P.icu_only_sample_before_death #true
