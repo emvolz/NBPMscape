@@ -42,20 +42,26 @@ parameters:
   n_hosp_samples_per_week: 300 # Total number of hospital samples to be taken per week
   sample_allocation: "equal" # "equal" or "weighted". Number of samples to be allocated either equally amongst public health laboratories in the network or weighted by Emergency Department attendances (all not ARI specific) or catchment area population
   sample_proportion_adult: "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified and so the split will depend on the proportions attending hospital.
-  hariss_nhs_trust_sampling_sites: CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+  hariss_nhs_trust_sampling_sites_file: "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
   weight_samples_by: "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
   phl_collection_dow: [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
   swab_time_mode: 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
   swab_proportion_at_48h: 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
   proportion_hosp_swabbed: 0.9 # Assume X% of ARI attendances are swabbed, i.e. some will not be swabbed for practical reasons and therefore not available for sampling
   hariss_only_sample_before_death: true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
-  hosp_ari_admissions: Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2025 data for winter and Jun, Jul, Aug 2024 for summer
+  hosp_ari_admissions: 6088 #Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2025 data for winter and Jun, Jul, Aug 2024 for summer
   hosp_ari_admissions_adult_p: 0.52 # for winter and 0.58 for summer.Proportion of ED ARI admissions that are adults (16y and over)
   hosp_ari_admissions_child_p: 0.48 # for winter and 0.42 for summer. Proportion of ED ARI admissions that are children (<16y)
-  ed_ari_destinations_adult: DataFrame( destination = [:discharged,:short_stay,:longer_stay] 
-                                      , proportion_of_attendances = [0.628,0.030,0.342])     # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
-  ed_ari_destinations_child: DataFrame( destination = [:discharged,:short_stay,:longer_stay] 
-                                      , proportion_of_attendances = [0.861,0.014,0.125])     # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  #ed_ari_destinations_adult: DataFrame( destination = [:discharged,:short_stay,:longer_stay] 
+  #                                    , proportion_of_attendances = [0.628,0.030,0.342])     # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  #ed_ari_destinations_child: DataFrame( destination = [:discharged,:short_stay,:longer_stay] 
+  #                                    , proportion_of_attendances = [0.861,0.014,0.125])     # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_adult_p_discharged: 0.628 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_adult_p_short_stay: 0.030 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_adult_p_longer_stay: 0.342 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_discharged: 0.2 # 0.861 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_short_stay: 0.2 #0.014 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_longer_stay: 0.6 #0.125 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
 
 ## 1(d) Tertiary care sampling (i.e. via ICUs) ##
   turnaroundtime_icu: [2, 4]   # ICU test turnaround time range # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
@@ -69,7 +75,7 @@ parameters:
   icu_ari_admissions: 1440 # [793, 1440] # Weekly ICU admission numbers [summer,winter]
   icu_ari_admissions_adult_p: 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
   icu_ari_admissions_child_p: 0.24 # Proportion of ICU ARI admissions that are children (<16y)
-  icu_nhs_trust_sampling_sites: CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame ) # List of NHS Trusts with ICU sites that are sampling for metagenomic testing
+  icu_nhs_trust_sampling_sites_file: "data/nhs_trust_site_sample_targets.csv" # CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame ) # List of NHS Trusts with ICU sites that are sampling for metagenomic testing
   icu_only_sample_before_death: true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
 
 ## 2(a) Pathogen specific parameters ##
