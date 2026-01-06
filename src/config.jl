@@ -559,10 +559,10 @@ function validate_config(config::Dict) # config=config_data
     # Check values for destination proportions after attendance at the Emergency Department. All values should be between 0 and 1 and they should sum to 1.
     ed_ari_dest_adult_fields = ["parameters.ed_ari_destinations_adult_p_discharged"
                                  ,"parameters.ed_ari_destinations_adult_p_short_stay"
-                                 ,"ed_ari_destinations_adult_p_longer_stay"]
+                                 ,"parameters.ed_ari_destinations_adult_p_longer_stay"]
     ed_ari_dest_child_fields = ["parameters.ed_ari_destinations_child_p_discharged"
                                  ,"parameters.ed_ari_destinations_child_p_short_stay"
-                                 ,"ed_ari_destinations_child_p_longer_stay"]
+                                 ,"parameters.ed_ari_destinations_child_p_longer_stay"]
     
     # First, check sums to one
     # adult
