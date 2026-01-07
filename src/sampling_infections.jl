@@ -535,8 +535,8 @@ function secondary_care_td(; p = NBPMscape.P
                                         # Number of cases and samples
                                         ,"n_SC_cases","n_SC_cases_sampled", "n_SC_cases_sampled_positive"
                                         ,"SC_simid"
-                                        , "tinf_relating_to_ICU_TD" # useful for investigating impact of early termination of simtree within simforest
-                                        , "last_tinf_relating_to_ICU_3TD" # useful for investigating impact of early termination of simtree within simforest
+                                        , "tinf_relating_to_SC_TD" # useful for adjusting for right censoring (due to simulation max time) and investigating impact of early termination of simtree within simforest
+                                        , "last_tinf_relating_to_SC_3TD" # useful for adjusting for right censoring (due to simulation max time) and investigating impact of early termination of simtree within simforest
                                         ])
 
     # Loop through simulation replicates, sampling infection cases (adapted from sampleforest() function in 'core.jl' and 'median_TD_by_region.jl'),
@@ -641,16 +641,16 @@ function secondary_care_td(; p = NBPMscape.P
             # - 1 ICU case
             sim_tds[s,:SC_TD] = hosp_cases_sub_top3_td[1,:treport]
             # and for tinf
-            #sim_tds[s,:tinf_relating_to_SC_TD] = hosp_cases_sub_top3_td[1,:tinf]
+            sim_tds[s,:tinf_relating_to_SC_TD] = hosp_cases_sub_top3_td[1,:tinf]
             
             # - 3 ICU cases
             if size(hosp_cases_sub_top3_td,1) >= 3
                 sim_tds[s,:SC_3TD] = hosp_cases_sub_top3_td[3,:treport]
                 # and for tinf
-                #sim_tds[s,:last_tinf_relating_to_SC_3TD] = hosp_cases_sub_top3_td[3,:tinf]
+                sim_tds[s,:last_tinf_relating_to_SC_3TD] = hosp_cases_sub_top3_td[3,:tinf]
             else
                 sim_tds[s,:SC_3TD] = Inf
-                #sim_tds[s,:last_tinf_relating_to_SC_3TD] = Inf
+                sim_tds[s,:last_tinf_relating_to_SC_3TD] = Inf
             end
         end
         
