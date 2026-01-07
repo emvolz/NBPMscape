@@ -1,6 +1,6 @@
 #= Miscellaneous functions
 
-- median_ci_bootstrap:      
+- median_ci_bootstrap:      Computes median and (1-alpha)% CI via bootstrap
 
 - allocate_with_rounding:   allocates a number across a number of categories based on weights
                             ensuring integer values are allocated and the sum of allocations
@@ -32,17 +32,19 @@
 """
 Function    median_ci_bootstrap(vec; n_boot=2000, alpha=0.05)
 
-Description     Function to compute median and alpha% CI via bootstrap
+Description     Function to compute median and (1-alpha)% CI via bootstrap
 
 Arguments   vec::Vector     Vector of values for median and CI to be computed on
-            n_boot::Int64     Number of bootstrap repeats required
+            n_boot::Int64   Number of bootstrap repeats required
             alpha::Float64  Quantile value, i.e. 0.05 for 95% CI
 
 Returns     Median of vector and the lower and upper quantiles or median
-            values generated using bootstrapping
+            values generated using bootstrapping. Returned as a NamedTuple.
 
-Examples        
-
+Examples    # Compute median and upper and lower values for 95% CI
+            # for each TD results df in a dictionary containing different scenarios
+            v = rand(100000)
+            median_ci_bootstrap( vec = v, n_boot = 1000, alpha = 0.05 ) 
 """
 function median_ci_bootstrap(; vec::Vector, n_boot::Int64=1000, alpha::Float64=0.05)
     med = median(vec)
