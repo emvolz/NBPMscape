@@ -138,39 +138,42 @@ Decription	Initialize the global parameter structure P. Location of .yaml file c
 
 Argument	config_file::String		Path and filename for .yaml file containing model parameters.
 
-Example 	initialize_parameters() # Returns default parameters
+Example 	# Note that ending the line with a semi-colon is important to stop the full set of parameters 
+			# being printed to the screen
+			initialize_parameters(); # Returns default parameters
 			or
-			initialize_parameters("config/outbreak_params_covid19_like.yaml") # Updates parameters from file
+			initialize_parameters("config/outbreak_params_covid19_like.yaml"); # Updates parameters from file
 			config_file = "config/outbreak_params_covid19_like.yaml"
 """
 function initialize_parameters(config_file::String="")
-    global P
-    
+    global P;
     # Create default parameters
 	# There are two sets: data-dependent and configurable. 
 	# The latter can be replaced with values defined in the config_file while the former are not.
-    P = create_default_parameters()
-    
+    #P = create_default_parameters()
+	default_params = create_default_parameters(); # split(default_params)
+	P = default_params.default_P;
+	# Also define the default configurable parameters so can check 
+	# them against the values coming from the config file
+	default_configurable_params = default_params.default_configurable_params; # typeof(default_configurable_params); collect(propertynames(default_configurable_params))
     # Apply configuration if provided
     if !isempty(config_file)
         try
-            config_data = load_config(config_file)
-            warnings, errors = validate_config(config_data)
-            
+            config_data = load_config(config_file);
+            warnings, errors = validate_config(config_data);
             for warning in warnings
                 @warn warning
             end
-            
             if !isempty(errors)
                 for error in errors
                     @error error
                 end
                 throw(ArgumentError("Configuration validation failed"))
             end
-            
-            P = update_configurable_parameters(P, config_data)
+            P = update_configurable_parameters(P, config_data, default_configurable_params);
             @info "Successfully loaded configuration from: $config_file"
-            
+			# Print changes made to configurable parameters during parameter initialization
+			print_changes(P, config_data, default_configurable_params)
         catch e
             @error "Failed to load configuration from $config_file: $e"
             @info "Using default parameters"
@@ -178,38 +181,9 @@ function initialize_parameters(config_file::String="")
     else
         @info "Using default parameters (no config file specified)"
     end
-    
-	# Convert some parameters to dataframes
-	icu_nhs_trust_sampling_sites = CSV.read( P.icu_nhs_trust_sampling_sites_file, DataFrame )
-	#P = merge(P, (icu_nhs_trust_sampling_sites,))
-	P = (; P..., icu_nhs_trust_sampling_sites = icu_nhs_trust_sampling_sites) # P.icu_nhs_trust_sampling_sites
-	hariss_nhs_trust_sampling_sites = CSV.read( P.hariss_nhs_trust_sampling_sites_file, DataFrame)
-	#P = merge(P, (hariss_nhs_trust_sampling_sites,))
-	P = (; P..., hariss_nhs_trust_sampling_sites = hariss_nhs_trust_sampling_sites)
-	ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
-                                           , proportion_of_attendances = [P.ed_ari_destinations_adult_p_discharged
-										   								, P.ed_ari_destinations_adult_p_short_stay
-																		, P.ed_ari_destinations_adult_p_longer_stay]
-											)
-	#P = merge(P, (ed_ari_destinations_adult,))
-	P = (; P..., ed_ari_destinations_adult = ed_ari_destinations_adult)
-    ed_ari_destinations_child = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
-                                           , proportion_of_attendances = [P.ed_ari_destinations_child_p_discharged
-										   								,P.ed_ari_destinations_child_p_short_stay
-																		,P.ed_ari_destinations_child_p_longer_stay]
-											)
-	#P = merge(P, (ed_ari_destinations_child,))
-	P = (; P..., ed_ari_destinations_child = ed_ari_destinations_child)
-
-	# And remove the keys that have been converted to dataframes	
-#	drop = Set([:icu_nhs_trust_sampling_sites_file, :hariss_nhs_trust_sampling_sites_file
-#				,:ed_ari_destinations_adult_p_discharged, ed_ari_destinations_adult_p_short_stay, ed_ari_destinations_adult_p_longer_stay
-#				,:ed_ari_destinations_child_p_discharged,:ed_ari_destinations_child_p_short_stay,:ed_ari_destinations_child_p_longer_stay
-#				])
-#	P = (; (k => v for (k, v) in pairs(P) if !(k in drop))...)
-
-
-    return P
+	# Use some parameter values to fill dataframes
+	P = convert_params_to_dfs(P);
+    return P;
 end
 
 function create_default_parameters()
@@ -262,7 +236,7 @@ function create_default_parameters()
 		# Hospital parameters
         , nhs_trust_catchment_pop = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
         #, nhs_trust_ae_12m = AE_12M
-	)
+	);
 
     
     # Define configurable parameters
@@ -432,10 +406,11 @@ function create_default_parameters()
 		# FIND SOURCE FOR ICU ARI AGES - CAN THEN DEFINE VALUE FOR UNUSUAL AGE, e.g. X% QUANTILE OR X SDs FROM MEAN
 		, non_mg_inv_prob_icu_age = vcat( fill(1,40), collect(1.0:-0.01:0.8), fill(0,40))# DUMMY VALUE TODO ADD SOURCE 
 		# WOULD ALSO NEED TIMINGS AROUND TESTING AND RESULTS FOR NON-METAGENOMIC SURVEILLANCE - WILL BE LONGER - AND DIFFERENTIATE BETWEEN CURRENT ICU AND DECEASED
-	)
+	);
 
     
-    return merge(data_dependent_params, configurable_params)
+    #return merge(data_dependent_params, configurable_params)
+	return (default_configurable_params = configurable_params, default_P = merge(data_dependent_params, configurable_params) );
 end
 
 

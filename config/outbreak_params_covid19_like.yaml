@@ -59,13 +59,13 @@ parameters:
   ed_ari_destinations_adult_p_discharged: 0.628 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
   ed_ari_destinations_adult_p_short_stay: 0.030 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
   ed_ari_destinations_adult_p_longer_stay: 0.342 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
-  ed_ari_destinations_child_p_discharged: 0.2 # 0.861 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
-  ed_ari_destinations_child_p_short_stay: 0.2 #0.014 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
-  ed_ari_destinations_child_p_longer_stay: 0.6 #0.125 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_discharged: 0.861 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_short_stay: 0.014 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_longer_stay: 0.125 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
 
 ## 1(d) Tertiary care sampling (i.e. via ICUs) ##
   turnaroundtime_icu: [2, 4]   # ICU test turnaround time range # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
-  p_sampled_icu: 0.05          # proportion of relevant ICU admissions that are sampled (i.e. acute respiratory infections (ARI))
+  p_sampled_icu: 0.15          # proportion of relevant ICU admissions that are sampled (i.e. acute respiratory infections (ARI))
   sample_target_prob_icu: 0.90     # target sampling probability # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
   icu_swab_lag_max: 1          # max days between ICU admission and swab # Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
   icu_sample_type: "regional" # "regional" or "fixed". If "fixed" then p_sampled_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function

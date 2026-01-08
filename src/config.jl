@@ -9,6 +9,12 @@ Functions:
 
 - update_configurable_parameters(P, config::Dict):   Create a new parameter NamedTuple with updated values from config.
 
+- print_changes(P::NamedTuple, config_data, default_configurable_params )   Prints a dataframe to display the default parameters, the parameters in 
+                                                                            the configuration file, the parameters after initialization from the 
+                                                                            configuration file, and whether each parameter has been updated
+
+- convert_params_to_dfs(P::NamedTuple):              Uses some of the parameter values to populate dataframes which are required within the model
+
 
 """
 
@@ -21,7 +27,7 @@ Description     Load configuration (model parameters) from a YAML file and retur
 
 Arguments       config_path::String     Path and filename for .yaml file containing model parameters.
 
-Example         load_config("config/outbreak_params_covid19_like.yaml")
+Example         config_data = load_config("config/outbreak_params_covid19_like.yaml")
 """
 function load_config(config_path::String)
     if !isfile(config_path)
@@ -40,12 +46,18 @@ end
 Function        validate_config(config::Dict)
 
 Description     Validate configuration values and return any warnings or errors.
+
+Arguments       config::Dict    Configuration data loaded using load_config function
+
+Returns         Returns vectors of warnings and errors
+
+Example         warnings, errors = validate_config(config_data)
 """
 function validate_config(config::Dict) # config=config_data
     
     # Initialize warnings and errors
-    warnings = String[]
-    errors = String[]
+    warnings = String[];
+    errors = String[];
     
     # Check that probabilities and proportions are between 0 and 1
     prob_fields = [
@@ -63,7 +75,7 @@ function validate_config(config::Dict) # config=config_data
         "parameters.rho_hosp",
         "parameters.rho_asymptomatic",
         "parameters.swab_proportion_at_48h"
-    ]
+    ];
     
     for field in prob_fields
         keys = split(field, ".")
@@ -101,7 +113,7 @@ function validate_config(config::Dict) # config=config_data
         "parameters.grate",
         "parameters.commuterate",
         "parameters.importrate"
-    ]
+    ];
     
     for field in rate_fields
         keys = split(field, ".")
@@ -123,7 +135,7 @@ function validate_config(config::Dict) # config=config_data
                                     "parameters.fcont"
                                     ,"parameters.gcont"
                                     ,"parameters.oocont"
-                                    ]
+                                    ];
     
     for field in relative_contact_rate_fields
         keys = split(field, ".")
@@ -143,7 +155,7 @@ function validate_config(config::Dict) # config=config_data
     # Check that hospital upper time limits
     hosp_time_ul_fields = ["parameters.tdischarge_ed_upper_limit"
                           ,"parameters.tdischarge_hosp_short_stay_upper_limit"
-                          ]
+                          ];
     
     for field in hosp_time_ul_fields
         keys = split(field, ".")
@@ -161,7 +173,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check that number of imports is greater than zero
-    nimports_fields = [ "parameters.nimports" ]
+    nimports_fields = [ "parameters.nimports" ];
     
     for field in nimports_fields
         keys = split(field, ".")
@@ -185,7 +197,7 @@ function validate_config(config::Dict) # config=config_data
                             ,"parameters.gp_swabs_mg"
                             ,"parameters.gp_ari_swabs"
                             ,"parameters.n_hosp_samples_per_week"
-                            ,"parameters.swab_time_mode" ]
+                            ,"parameters.swab_time_mode" ];
     
     for field in other_non_neg_fields
         keys = split(field, ".")
@@ -204,7 +216,7 @@ function validate_config(config::Dict) # config=config_data
 
     # Check that number of imports is greater than zero
     evo_fields = [ "parameters.μ"
-                 , "parameters.ω" ]
+                 , "parameters.ω" ];
     
     for field in nimports_fields
         keys = split(field, ".")
@@ -229,7 +241,7 @@ function validate_config(config::Dict) # config=config_data
                  , "parameters.gp_ari_consults"
                  , "parameters.hariss_courier_to_analysis"
                  , "parameters.hosp_ari_admissions"
-                  ]
+                  ];
     
     for field in nimports_fields
         keys = split(field, ".")
@@ -247,7 +259,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check that number of imports is greater than zero
-    icu_sample_type_fields = [ "parameters.icu_sample_type" ]
+    icu_sample_type_fields = [ "parameters.icu_sample_type" ];
     
     for field in icu_sample_type_fields
         keys = split(field, ".")
@@ -265,7 +277,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check that number of imports is greater than zero
-    icu_site_stage_fields = [ "parameters.icu_site_stage" ]
+    icu_site_stage_fields = [ "parameters.icu_site_stage" ];
     
     for field in icu_site_stage_fields
         keys = split(field, ".")
@@ -283,7 +295,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check that number of imports is greater than zero
-    sample_icu_cases_version_fields = [ "parameters.sample_icu_cases_version" ]
+    sample_icu_cases_version_fields = [ "parameters.sample_icu_cases_version" ];
     
     for field in sample_icu_cases_version_fields
         keys = split(field, ".")
@@ -301,7 +313,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check that pathogen type is a valid option
-    pathogen_type_fields = ["parameters.pathogen_type"]
+    pathogen_type_fields = ["parameters.pathogen_type"];
     
     for field in pathogen_type_fields
         keys = split(field, ".")
@@ -322,17 +334,19 @@ function validate_config(config::Dict) # config=config_data
     turnaround_time_fields = ["parameters.turnaroundtime_icu"
                              ,"parameters.turnaroundtime_hariss"
                              ,"parameters.turnaroundtime_rcgp"
-                             ]
+                             ];
     #value_vec = []
     #warnings=[]
     #errors=[]
     for field in turnaround_time_fields
+        #println(field)
         keys = split(field, ".") #field=turnaround_time_fields[1]
+        #println(keys)
         value = config
         try
             for key in keys
-                value = value[key]
-                println(value) #push!(value_vec,value)
+                value = value[key] # key = "parameters.turnaroundtime_icu"
+                #println(value) #push!(value_vec,value)
             end
             # Check that the lower limit is less than the upper limit
             if length(value) != 2 # value=[2,2]
@@ -347,9 +361,9 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Warning if turnaround times are different in the different care settings
-    tt_icu = config["parameters"]["turnaroundtime_icu"]
-    tt_rcgp = config["parameters"]["turnaroundtime_rcgp"]
-    tt_hariss = config["parameters"]["turnaroundtime_hariss"]   
+    tt_icu = config["parameters"]["turnaroundtime_icu"];
+    tt_rcgp = config["parameters"]["turnaroundtime_rcgp"];
+    tt_hariss = config["parameters"]["turnaroundtime_hariss"];   
 
     if !(tt_icu == tt_rcgp == tt_hariss)
         push!(warnings, "Warning: turnaround times are not all the same! turnaroundtime_icu = $(tt_icu), turnaroundtime_rcgp = $(tt_rcgp), and turnaroundtime_hariss = $(tt_hariss)")
@@ -357,7 +371,7 @@ function validate_config(config::Dict) # config=config_data
     
 
     # Check that sample allocation method is a valid option
-    sample_allocation_fields = ["parameters.sample_allocation"]
+    sample_allocation_fields = ["parameters.sample_allocation"];
     
     for field in sample_allocation_fields
         keys = split(field, ".")
@@ -375,7 +389,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check that sample weighting is a valid option
-    weight_samples_by_fields = ["parameters.weight_samples_by"]
+    weight_samples_by_fields = ["parameters.weight_samples_by"];
     
     for field in weight_samples_by_fields
         keys = split(field, ".")
@@ -394,7 +408,7 @@ function validate_config(config::Dict) # config=config_data
 
     # Check that parameter values are either true or false
     boolean_fields = ["parameters.icu_only_sample_before_death"
-                     ,"parameters.hariss_only_sample_before_death"]
+                     ,"parameters.hariss_only_sample_before_death"];
     
     for field in boolean_fields
         keys = split(field, ".")
@@ -412,7 +426,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check that initial day of week is within 1 to 7 range
-    initial_dow_fields = ["parameters.initial_dow"]
+    initial_dow_fields = ["parameters.initial_dow"];
     
     for field in initial_dow_fields
         keys = split(field, ".")
@@ -430,7 +444,7 @@ function validate_config(config::Dict) # config=config_data
     end
     
     # Check collection days are all within 1 to 7 range
-    phl_collection_dow_fields = ["parameters.phl_collection_dow"]
+    phl_collection_dow_fields = ["parameters.phl_collection_dow"];
     
     for field in phl_collection_dow_fields
         keys = split(field, ".")
@@ -448,7 +462,7 @@ function validate_config(config::Dict) # config=config_data
     end
     
     # Check that the proportion of samples that are required to be adults is either "free" or a Float
-    sample_proportion_adult_fields = ["parameters.sample_proportion_adult"]
+    sample_proportion_adult_fields = ["parameters.sample_proportion_adult"];
     
     for field in sample_proportion_adult_fields
         keys = split(field, ".")
@@ -471,7 +485,7 @@ function validate_config(config::Dict) # config=config_data
     end
 
     # Check day of the week relative contact rates are all non-negative
-    dowcont_fields = ["parameters.dowcont"]
+    dowcont_fields = ["parameters.dowcont"];
     
     for field in dowcont_fields
         keys = split(field, ".")
@@ -491,15 +505,15 @@ function validate_config(config::Dict) # config=config_data
 
     # Check hospital and ICU ARI admissions adult and child proportions are non-negative and sum to 1
     hosp_ari_admissions_fields = ["parameters.hosp_ari_admissions_adult_p"
-                                 ,"parameters.hosp_ari_admissions_child_p"]
+                                 ,"parameters.hosp_ari_admissions_child_p"];
     icu_ari_admissions_fields = ["parameters.icu_ari_admissions_adult_p"
-                                ,"parameters.icu_ari_admissions_child_p"]
+                                ,"parameters.icu_ari_admissions_child_p"];
     
     # First, check sums to one
     # hosp_ari_admissions
     try
-        hosp_ari_adult = config["parameters"]["hosp_ari_admissions_adult_p"]
-        hosp_ari_child = config["parameters"]["hosp_ari_admissions_child_p"]
+        hosp_ari_adult = config["parameters"]["hosp_ari_admissions_adult_p"];
+        hosp_ari_child = config["parameters"]["hosp_ari_admissions_child_p"];
 
         if ( hosp_ari_adult + hosp_ari_child ) != 1
             push!(errors, "Values for hosp_ari_admissions_adult_p and hosp_ari_admissions_child_p must sum to one, got $(hosp_ari_adult) and $(hosp_ari_child)")
@@ -510,8 +524,8 @@ function validate_config(config::Dict) # config=config_data
 
     # icu_ari_admissions
     try
-        icu_ari_adult = config["parameters"]["icu_ari_admissions_adult_p"]
-        icu_ari_child = config["parameters"]["icu_ari_admissions_child_p"]
+        icu_ari_adult = config["parameters"]["icu_ari_admissions_adult_p"];
+        icu_ari_child = config["parameters"]["icu_ari_admissions_child_p"];
 
         if ( icu_ari_adult + icu_ari_child ) != 1
             push!(errors, "Values for icu_ari_admissions_adult_p and icu_ari_admissions_child_p must sum to one, got $(icu_ari_adult) and $(icu_ari_child)")
@@ -559,17 +573,17 @@ function validate_config(config::Dict) # config=config_data
     # Check values for destination proportions after attendance at the Emergency Department. All values should be between 0 and 1 and they should sum to 1.
     ed_ari_dest_adult_fields = ["parameters.ed_ari_destinations_adult_p_discharged"
                                  ,"parameters.ed_ari_destinations_adult_p_short_stay"
-                                 ,"parameters.ed_ari_destinations_adult_p_longer_stay"]
+                                 ,"parameters.ed_ari_destinations_adult_p_longer_stay"];
     ed_ari_dest_child_fields = ["parameters.ed_ari_destinations_child_p_discharged"
                                  ,"parameters.ed_ari_destinations_child_p_short_stay"
-                                 ,"parameters.ed_ari_destinations_child_p_longer_stay"]
+                                 ,"parameters.ed_ari_destinations_child_p_longer_stay"];
     
     # First, check sums to one
     # adult
     try
-        ed_ari_dest_adult_p_discharged = config["parameters"]["ed_ari_destinations_adult_p_discharged"]
-        ed_ari_dest_adult_p_short_stay = config["parameters"]["ed_ari_destinations_adult_p_short_stay"]
-        ed_ari_dest_adult_p_longer_stay = config["parameters"]["ed_ari_destinations_adult_p_longer_stay"]
+        ed_ari_dest_adult_p_discharged = config["parameters"]["ed_ari_destinations_adult_p_discharged"];
+        ed_ari_dest_adult_p_short_stay = config["parameters"]["ed_ari_destinations_adult_p_short_stay"];
+        ed_ari_dest_adult_p_longer_stay = config["parameters"]["ed_ari_destinations_adult_p_longer_stay"];
 
         if ( ed_ari_dest_adult_p_discharged + ed_ari_dest_adult_p_short_stay + ed_ari_dest_adult_p_longer_stay ) != 1
             push!(errors, "Values for ed_ari_destinations_adult_p_discharged, ed_ari_destinations_adult_p_short_stay and ed_ari_destinations_adult_p_longer_stay must sum to one, got $(ed_ari_dest_adult_p_discharged),  $(ed_ari_dest_adult_p_short_stay) and $(ed_ari_dest_adult_p_longer_stay)")
@@ -580,9 +594,9 @@ function validate_config(config::Dict) # config=config_data
 
     # child
     try
-        ed_ari_dest_child_p_discharged = config["parameters"]["ed_ari_destinations_child_p_discharged"]
-        ed_ari_dest_child_p_short_stay = config["parameters"]["ed_ari_destinations_child_p_short_stay"]
-        ed_ari_dest_child_p_longer_stay = config["parameters"]["ed_ari_destinations_child_p_longer_stay"]
+        ed_ari_dest_child_p_discharged = config["parameters"]["ed_ari_destinations_child_p_discharged"];
+        ed_ari_dest_child_p_short_stay = config["parameters"]["ed_ari_destinations_child_p_short_stay"];
+        ed_ari_dest_child_p_longer_stay = config["parameters"]["ed_ari_destinations_child_p_longer_stay"];
 
         if ( ed_ari_dest_child_p_discharged + ed_ari_dest_child_p_short_stay + ed_ari_dest_child_p_longer_stay ) != 1
             push!(errors, "Values for ed_ari_destinations_child_p_discharged, ed_ari_destinations_child_p_short_stay and ed_ari_destinations_child_p_longer_stay must sum to one, got $(ed_ari_dest_child_p_discharged),  $(ed_ari_dest_child_p_short_stay) and $(ed_ari_dest_child_p_longer_stay)")
@@ -640,11 +654,17 @@ Description     Create a new parameter NamedTuple with updated values from confi
 
 Arguments       P::NamedTuple   Contains default model parameters
                 config::Dict    Contains parameters loaded from configuration file
+                default_configurable_params::NamedTuple Contains default configurable parameters for comparison against 
 
+Returns     NamedTuple(P_dict)
+
+Example     P = update_configurable_parameters(P, config_data)
+            P = update_configurable_parameters(P, config_data, default_configurable_params)
 """
-function update_configurable_parameters(P, config::Dict) # P = NBPMscape.P # config = config_data
+#function update_configurable_parameters(P, config::Dict) # P = NBPMscape.P # config = config_data
+function update_configurable_parameters(P, config::Dict, default_configurable_params::NamedTuple)
     # Convert NamedTuple P to dictionary
-    P_dict = Dict(pairs(P)) # println(P_dict)
+    P_dict = Dict(pairs(P)); # println(P_dict)
     
     # Get parameters from config
     if haskey(config, "parameters")
@@ -708,7 +728,13 @@ function update_configurable_parameters(P, config::Dict) # P = NBPMscape.P # con
                 #    @info "Updated $param_key: $value"
                 ## everything else
                 #else 
-                    P_dict[param_key] = value
+
+                    # Change type of dowcont value - type in default parameters in core.jl is Tuple but only Vector format allowed in .yaml config file
+                    if param_key == :dowcont
+                        value = tuple(value...)
+                    end
+
+                    P_dict[param_key] = value;
                     @info "Updated $param_key: $value"
                 #end
             else
@@ -724,5 +750,110 @@ function update_configurable_parameters(P, config::Dict) # P = NBPMscape.P # con
         end
     end
     
+    # Generate warning if config file does not contain any parameters that are expected and report which parameters
+    #keys(P_dict);
+    #keys(config["parameters"]);
+
     return NamedTuple(P_dict)
+    #return ( P = NamedTuple(P_dict), 
+end
+
+
+
+
+"""
+Function        print_changes(P::NamedTuple, config_data, default_configurable_params )
+
+Description     Prints a dataframe to display the default parameters, the parameters in 
+                the configuration file, the parameters after initialization from the 
+                configuration file, and whether each parameter has been updated
+
+Arguments   P::NamedTuple   Parameters after updating from the configuration file
+            config_data     Parameters from the configuration file
+            default_configurable_params     Only the parameters that can be updated
+                                            from the configuration file with values
+                                            prior to initialization from the 
+                                            configuration file
+
+Returns     Prints a dataframe to screen showing values and updates to parameters
+
+"""
+function print_changes(P::NamedTuple, config_data, default_configurable_params )
+    # Create table of default and updated parameters with warnings when required
+    params_change_df = DataFrame( model_parameter = Any[] #collect(propertynames(default_configurable_params))
+                                , default_value = Any[]
+                                , config_file_value = Any[]
+                                , value_after_initialization = Any[]
+                                , updated = Any[]
+                                #, warning = Any[]
+                                );
+
+    param_names = collect(propertynames(default_configurable_params)); # p_name=param_names[1]
+    for p in 1:length(default_configurable_params) #p_name in param_names
+        p_name = param_names[p] # = collect(propertynames(default_configurable_params)) # p=6
+        p_name_config = if param_names[p] == :ρ_hosp
+                            :rho_hosp
+                        elseif param_names[p] == :ρ_asymptomatic
+                            :rho_asymptomatic
+                        elseif param_names[p] == :μ
+                            :mu                		
+                        elseif param_names[p] == :ω
+                            :omega                		
+                        else
+                            p_name
+                        end;
+                
+        default_value = getproperty(default_configurable_params,p_name); #default_value == config_file_value
+        config_file_value = try config_data["parameters"][String(p_name_config)]; catch ; "Not found in $config_file"; end; 
+        value_after_initialization = getproperty(P,p_name);
+        
+        # Add a tolerance of 10 decimal places when comparing scalar values (does not work for tuples or vectors etc)
+        if (default_value isa Real) & (value_after_initialization isa Real)
+            updated_boolean = (round(default_value, digits=10) != round(value_after_initialization, digits=10)) ? true : false
+        else
+            updated_boolean = (default_value != value_after_initialization) ? true : false
+        end;
+        
+        params_change_df_row = [ p_name, default_value, config_file_value, value_after_initialization, updated_boolean]; #, missing ]
+        push!(params_change_df, params_change_df_row);
+    end;
+    println(params_change_df)
+	
+end
+
+
+"""
+Function        convert_params_to_dfs(P::NamedTuple)
+
+Description     Uses some of the parameter values to populate dataframes which are required within the model
+
+Arguments   P::NamedTuple   Parameter names and values (defaults updated from configuration file)
+
+Returns     P::NamedTuple with the new dataframe added as additional parameters
+
+"""
+function convert_params_to_dfs(P::NamedTuple)
+    icu_nhs_trust_sampling_sites = CSV.read( P.icu_nhs_trust_sampling_sites_file, DataFrame );
+    P = (; P..., icu_nhs_trust_sampling_sites = icu_nhs_trust_sampling_sites); # P.icu_nhs_trust_sampling_sites
+    hariss_nhs_trust_sampling_sites = CSV.read( P.hariss_nhs_trust_sampling_sites_file, DataFrame);
+    P = (; P..., hariss_nhs_trust_sampling_sites = hariss_nhs_trust_sampling_sites);
+    ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                         , proportion_of_attendances = [P.ed_ari_destinations_adult_p_discharged
+                                                                      , P.ed_ari_destinations_adult_p_short_stay
+                                                                     , P.ed_ari_destinations_adult_p_longer_stay]
+                                         );
+    P = (; P..., ed_ari_destinations_adult = ed_ari_destinations_adult);
+    ed_ari_destinations_child = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                         , proportion_of_attendances = [P.ed_ari_destinations_child_p_discharged
+                                                                       ,P.ed_ari_destinations_child_p_short_stay
+                                                                       ,P.ed_ari_destinations_child_p_longer_stay]
+                                          );
+    P = (; P..., ed_ari_destinations_child = ed_ari_destinations_child);
+    # And remove the keys that have been converted to dataframes	
+    #	drop = Set([:icu_nhs_trust_sampling_sites_file, :hariss_nhs_trust_sampling_sites_file
+    #				,:ed_ari_destinations_adult_p_discharged, ed_ari_destinations_adult_p_short_stay, ed_ari_destinations_adult_p_longer_stay
+    #				,:ed_ari_destinations_child_p_discharged,:ed_ari_destinations_child_p_short_stay,:ed_ari_destinations_child_p_longer_stay
+    #				])
+    #	P = (; (k => v for (k, v) in pairs(P) if !(k in drop))...)
+    return P;
 end
