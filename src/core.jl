@@ -146,40 +146,60 @@ Example 	# Note that ending the line with a semi-colon is important to stop the 
 			config_file = "config/outbreak_params_covid19_like.yaml"
 """
 function initialize_parameters(config_file::String="")
-    global P;
+	global P;
+	# Reset P so if there is a failure in loading the new parameters there
+	# is no mistake with an old parameter set remaining
+	P = nothing 
     # Create default parameters
 	# There are two sets: data-dependent and configurable. 
 	# The latter can be replaced with values defined in the config_file while the former are not.
     #P = create_default_parameters()
 	default_params = create_default_parameters(); # split(default_params)
-	P = default_params.default_P;
 	# Also define the default configurable parameters so can check 
 	# them against the values coming from the config file
 	default_configurable_params = default_params.default_configurable_params; # typeof(default_configurable_params); collect(propertynames(default_configurable_params))
     # Apply configuration if provided
     if !isempty(config_file)
-        try
+        #try
             config_data = load_config(config_file);
             warnings, errors = validate_config(config_data);
-            for warning in warnings
+            # Process warnings
+			for warning in warnings
                 @warn warning
             end
+			# If there are validation errors, throw immediately
             if !isempty(errors)
                 for error in errors
                     @error error
                 end
                 throw(ArgumentError("Configuration validation failed"))
             end
-            P = update_configurable_parameters(P, config_data, default_configurable_params);
+			# Only proceed if validation is passed
+            P = update_configurable_parameters(default_params.default_P, config_data, default_configurable_params); #update_configurable_parameters(P, config_data, default_configurable_params);
             @info "Successfully loaded configuration from: $config_file"
 			# Print changes made to configurable parameters during parameter initialization
 			print_changes(P, config_data, default_configurable_params)
-        catch e
-            @error "Failed to load configuration from $config_file: $e"
-            @info "Using default parameters"
-        end
+        #catch e
+		#	# Only catch specific non-validation errors for graceful fallback
+		#	if isa(e, ArgumentError) && occursin("validation failed", e.msg)
+        #        # Re-throw validation errors - don't handle 'gracefully'
+        #        rethrow(e)
+        #    elseif isa(e, SystemError) || isa(e, Base.IOError)
+        #        # File not found errors - handle 'gracefully' and use default parameters
+        #        @error "Failed to load configuration from $config_file: $e"
+        #        @info "Using default parameters"
+        #    elseif isa(e, YAML.ParserError) || isa(e, YAML.ScannerError)
+        #        # YAML parsing errors - handle 'gracefully' and use default parameters
+        #        @error "Failed to parse YAML configuration file $config_file: $e"
+        #        @info "Using default parameters"
+        #    else
+        #        # For validation errors and other critical errors, re-throw
+        #        rethrow(e)
+        #    end
+        #end
     else
         @info "Using default parameters (no config file specified)"
+		P = default_params.default_P;
     end
 	# Use some parameter values to fill dataframes
 	P = convert_params_to_dfs(P);
