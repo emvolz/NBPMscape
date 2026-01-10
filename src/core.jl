@@ -1,7 +1,7 @@
 Plots.default(;lw = 4)
 
 # Include configuration functions
-include("config.jl")
+#include("config.jl")
 
 const MAXDURATION = 180.0
 
@@ -432,11 +432,6 @@ function create_default_parameters()
     #return merge(data_dependent_params, configurable_params)
 	return (default_configurable_params = configurable_params, default_P = merge(data_dependent_params, configurable_params) );
 end
-
-
-
-
-
 
 
 
