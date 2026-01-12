@@ -242,7 +242,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
                                 , sample_proportion_adult::Any = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target 
                                                                         # between adults and children. "free" indicates that no split is specified
                                 , hariss_nhs_trust_sampling_sites::DataFrame # List of NHS Trusts in HARISS sampling network
-                                                                , swab_time_mode::Real = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
+                                , swab_time_mode::Real = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
                                 , swab_proportion_at_48h::Real = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
                                 , proportion_hosp_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
                                 , only_sample_before_death::Bool = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased

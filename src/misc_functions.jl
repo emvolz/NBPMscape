@@ -1,5 +1,7 @@
 #= Miscellaneous functions
 
+- median_ci_bootstrap:      Computes median and (1-alpha)% CI via bootstrap
+
 - allocate_with_rounding:   allocates a number across a number of categories based on weights
                             ensuring integer values are allocated and the sum of allocations
                             is equal to the original total, e.g. total number of samples
@@ -26,6 +28,32 @@
                 (3) boxplots of time of infection vs age group disaggregated by infection severity
 
 =#
+
+"""
+Function    median_ci_bootstrap(vec; n_boot=2000, alpha=0.05)
+
+Description     Function to compute median and (1-alpha)% CI via bootstrap
+
+Arguments   vec::Vector     Vector of values for median and CI to be computed on
+            n_boot::Int64   Number of bootstrap repeats required
+            alpha::Float64  Quantile value, i.e. 0.05 for 95% CI
+
+Returns     Median of vector and the lower and upper quantiles or median
+            values generated using bootstrapping. Returned as a NamedTuple.
+
+Examples    # Compute median and upper and lower values for 95% CI
+            # for each TD results df in a dictionary containing different scenarios
+            v = rand(100000)
+            median_ci_bootstrap( vec = v, n_boot = 1000, alpha = 0.05 ) 
+"""
+function median_ci_bootstrap(; vec::Vector, n_boot::Int64=1000, alpha::Float64=0.05)
+    med = median(vec)
+    boot_samples = [median(rand(vec, length(vec))) for _ in 1:n_boot]
+    lower = quantile(boot_samples, alpha/2)
+    upper = quantile(boot_samples, 1 - alpha/2)
+    return (median = med, lower = lower, upper = upper)
+end
+
 
 """
 Function:       allocate_with_rounding
@@ -309,4 +337,15 @@ function tinf_by_age(; sims
     # Save plot to file
     Plots.savefig("$(plot_file_prefix)_tinf_age_severity_nrep$(length(sims)).png")
 
+end
+
+
+"""
+TODO function description
+Example
+        convert_t_to_day_of_week(initial_dow = 1, t = 6.0)
+"""
+function convert_t_to_day_of_week(;t, initial_dow)
+    d = Int( floor( (initial_dow-1) + t ) % 7  ) + 1
+    d
 end

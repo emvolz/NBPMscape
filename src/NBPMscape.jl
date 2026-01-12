@@ -68,6 +68,7 @@ export SYMPTOMATIC_PROB_BY_AGE, IHR_BY_AGE, IFR_BY_AGE, CARE_PATHWAY_PROB_BY_AGE
 include("core.jl")
 export simtree, simforest, sampleforest, simgendist, Infection, infectivitytoR
 export transmissionrate, sampdegree
+export initialize_parameters, create_default_parameters
 
 include("combine_small_sim_reps.jl")
 export combine_sim_reps, n_sims_w_results, n_sims_w_results_icu_gp
@@ -96,14 +97,10 @@ include("misc_functions.jl")
 export allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
 
 
-# Use configuration file(s) to load P
-#using YAML
+## Configure parameter input values
+include("config.jl")
+export load_config, validate_config, update_configurable_parameters, print_changes, convert_params_to_dfs
 
-#cfg = YAML.load_file("config/NBPMscape.yaml")
-#P = NamedTuple(Symbol.(keys(cfg["P"])) .=> values(cfg["P"]))
-
-#include("config.jl")
-#using .NBPMscapeConfig
-
+initialize_parameters();
 
 end 
