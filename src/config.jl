@@ -54,7 +54,7 @@ Returns         Returns vectors of warnings and errors
 
 Example         warnings, errors = validate_config(config_data)
 """
-function validate_config(config::Dict) # config=config_data # config=load_config("C:\\Users\\kdrake\\AppData\\Local\\Temp\\jl_7OHsHe7obS.yaml")
+function validate_config(config::Dict) # config=config_data # config=load_config("C:\\Users\\kdrake\\AppData\\Local\\Temp\\jl_7OHsHe7obS.yaml") # config=load_config("config/outbreak_params_covid19_like.yaml")
     
     # Initialize warnings and errors
     warnings = String[];
@@ -78,6 +78,21 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         end
     end
 
+    # Check that any files required are available
+    icu_site_file_value, error_msg = safe_get_value(config, "parameters.icu_nhs_trust_sampling_sites_file")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate icu_nhs_trust_sampling_sites_file: $error_msg");
+    elseif icu_site_file_value !== nothing && !( isfile(icu_site_file_value) )
+        push!(errors, "icu_nhs_trust_sampling_sites_file = $(icu_site_file_value), but the file is missing, please ensure the file indicated is present in the correct directory.");
+    end
+
+    # Check that any files required are available
+    hariss_site_file_value, error_msg = safe_get_value(config, "parameters.hariss_nhs_trust_sampling_sites_file")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate hariss_nhs_trust_sampling_sites_file: $error_msg");
+    elseif hariss_site_file_value !== nothing && !( isfile(hariss_site_file_value) )
+        push!(errors, "hariss_nhs_trust_sampling_sites_file = $(hariss_site_file_value), but the file is missing, please ensure the file indicated is present in the correct directory.");
+    end
 
     # Check that probabilities and proportions are between 0 and 1
     prob_fields = [

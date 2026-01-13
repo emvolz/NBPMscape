@@ -153,6 +153,19 @@ function initialize_parameters(config_file::String="")
     # Create default parameters
 	# There are two sets: data-dependent and configurable. 
 	# The latter can be replaced with values defined in the config_file while the former are not.
+	# First check whether required default files are available
+	if isfile("data/nhs_trust_site_sample_targets.csv")
+    	#println("File exists")
+	else
+    	println("Missing file required to load default parameters: data/nhs_trust_site_sample_targets.csv")
+		return
+	end
+	if isfile("data/hariss_nhs_trust_sampling_sites.csv")
+    	#println("File exists")
+	else
+    	println("Missing file required to load default parameters: data/hariss_nhs_trust_sampling_sites.csv")
+		return
+	end
     #P = create_default_parameters()
 	default_params = create_default_parameters(); # split(default_params)
 	# Also define the default configurable parameters so can check 
