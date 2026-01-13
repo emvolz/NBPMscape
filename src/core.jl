@@ -1168,7 +1168,7 @@ end
 # simulate continuous importation 
 function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, importmodel=:TDist, max_cases=50000)
 #TEST
-#simforest(p=NBPMscape.P; initialtime=0.0, maxtime=90.0, maxgenerations=100, initialcontact=:H, importmodel=:TDist, max_cases=1000)
+#simforest(p=NBPMscape.P; initialtime=0.0, maxtime=90.0, maxgenerations=100, initialcontact=:H, importmodel=:TDist, max_cases=100000000)
 
 	if importmodel == :Poisson # for testing  
 		nimports = rand(Poisson((maxtime-initialtime)*p.importrate))
@@ -1179,8 +1179,9 @@ function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, i
 		while nimports == 0 
 			timports = map(_->rand(TDist(p.import_t_df))*p.import_t_s, 1:p.nimports)
 			# use theoretical quantiles to prohibit outliers messing things up 
-			tlb = quantile( TDist( p.import_t_df ), 1/p.nimports )*p.import_t_s 
-			timports = timports[ (timports .> tlb) .& (timports .< (tlb+maxtime) ) ]
+			#tlb = quantile( TDist( p.import_t_df ), 1/p.nimports )*p.import_t_s 
+			#timports = timports[ (timports .> tlb) .& (timports .< (tlb+maxtime) ) ]
+			timports = timports[ timports .> quantile(timports,.01) ]
 			nimports = length( timports )
 		end
 	end
