@@ -361,7 +361,7 @@ function create_default_parameters()
 		, icu_ari_admissions_child_p = 0.24 # Proportion of ICU ARI admissions that are children (<16y)
 		, turnaroundtime_icu = [2,4] # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
 		, icu_swab_lag_max = 1 # days. Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
-		, icu_nhs_trust_sampling_sites_file = "data/nhs_trust_site_sample_targets.csv" #CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame )
+		, icu_nhs_trust_sampling_sites_file = "data/nhs_trust_site_sample_targets_dummy.csv" #CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame )
 		, icu_only_sample_before_death = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
 		# Primary care (i.e. GPs via RCGP)
 		, turnaroundtime_rcgp = [2,4] # upper and lower limits, in days, of time between swab sample being taken and results received. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025).  Assume same for metagenomic testing. tsample drawn from a Uniform(lower, upper) distribution in sampling functions.
@@ -378,7 +378,7 @@ function create_default_parameters()
         , n_hosp_samples_per_week = 300 # Total number of hospital samples to be taken per week
         , sample_allocation = "equal" # "equal" or "weighted"
         , sample_proportion_adult = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified
-        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites.csv"#CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites_dummy.csv"#CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
         , weight_samples_by = "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
         , phl_collection_dow = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
         , swab_time_mode = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
