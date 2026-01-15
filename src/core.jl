@@ -378,7 +378,7 @@ function create_default_parameters()
         , n_hosp_samples_per_week = 300 # Total number of hospital samples to be taken per week
         , sample_allocation = "equal" # "equal" or "weighted"
         , sample_proportion_adult = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified
-        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites_dummy.csv"#CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites_dummy.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
         , weight_samples_by = "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
         , phl_collection_dow = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
         , swab_time_mode = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
@@ -1180,8 +1180,9 @@ function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, i
 			timports = map(_->rand(TDist(p.import_t_df))*p.import_t_s, 1:p.nimports)
 			# use theoretical quantiles to prohibit outliers messing things up 
 			#tlb = quantile( TDist( p.import_t_df ), 1/p.nimports )*p.import_t_s 
-			#timports = timports[ (timports .> tlb) .& (timports .< (tlb+maxtime) ) ]
-			timports = timports[ timports .> quantile(timports,.01) ]
+			tlb = quantile( TDist( p.import_t_df ), 0.01 )*p.import_t_s 
+			#tlb = quantile(timports,.01) # scatter(timports)
+			timports = timports[ (timports .> tlb) .& (timports .< (tlb+maxtime) ) ]
 			nimports = length( timports )
 		end
 	end
