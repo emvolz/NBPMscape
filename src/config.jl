@@ -822,7 +822,7 @@ Returns     P::NamedTuple with the new dataframe added as additional parameters
 function convert_params_to_dfs(P::NamedTuple)
     icu_nhs_trust_sampling_sites = CSV.read( joinpath( pkgdir(NBPMscape), P.icu_nhs_trust_sampling_sites_file), DataFrame );
     P = (; P..., icu_nhs_trust_sampling_sites = icu_nhs_trust_sampling_sites); # P.icu_nhs_trust_sampling_sites
-    hariss_nhs_trust_sampling_sites = CSV.read( joinpath( pkgdir(NBPMscape)), P.hariss_nhs_trust_sampling_sites_file, DataFrame );
+    hariss_nhs_trust_sampling_sites = CSV.read( joinpath( pkgdir(NBPMscape), P.hariss_nhs_trust_sampling_sites_file), DataFrame );
     P = (; P..., hariss_nhs_trust_sampling_sites = hariss_nhs_trust_sampling_sites);
     ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
                                          , proportion_of_attendances = [P.ed_ari_destinations_adult_p_discharged
