@@ -154,13 +154,13 @@ function initialize_parameters(config_file::String="")
 	# There are two sets: data-dependent and configurable. 
 	# The latter can be replaced with values defined in the config_file while the former are not.
 	# First check whether required default files are available
-	if isfile("data/nhs_trust_site_sample_targets.csv")
+	if isfile( joinpath(pkgdir(NBPMscape),"data/nhs_trust_site_sample_targets.csv") )
     	#println("File exists")
 	else
     	println("Missing file required to load default parameters: data/nhs_trust_site_sample_targets.csv")
 		return
 	end
-	if isfile("data/hariss_nhs_trust_sampling_sites.csv")
+	if isfile( joinpath(pkgdir(NBPMscape),"data/hariss_nhs_trust_sampling_sites.csv" ))
     	#println("File exists")
 	else
     	println("Missing file required to load default parameters: data/hariss_nhs_trust_sampling_sites.csv")
