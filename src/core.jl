@@ -174,7 +174,7 @@ function initialize_parameters(config_file::String="")
     # Apply configuration if provided
     if !isempty(config_file)
         #try
-            config_data = load_config(config_file);
+            config_data = load_config( joinpath( pkgdir(NBPMscape), config_file ) );
             warnings, errors = validate_config(config_data);
             # Process warnings
 			for warning in warnings
