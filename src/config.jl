@@ -82,7 +82,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
     icu_site_file_value, error_msg = safe_get_value(config, "parameters.icu_nhs_trust_sampling_sites_file")
     if error_msg !== nothing
         push!(warnings, "Could not validate icu_nhs_trust_sampling_sites_file: $error_msg");
-    elseif icu_site_file_value !== nothing && !( isfile(icu_site_file_value) )
+    elseif icu_site_file_value !== nothing && !( isfile( joinpath( pkgdir(NBPMscape), icu_site_file_value ) ) )
         push!(errors, "icu_nhs_trust_sampling_sites_file = $(icu_site_file_value), but the file is missing, please ensure the file indicated is present in the correct directory.");
     end
 
@@ -90,7 +90,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
     hariss_site_file_value, error_msg = safe_get_value(config, "parameters.hariss_nhs_trust_sampling_sites_file")
     if error_msg !== nothing
         push!(warnings, "Could not validate hariss_nhs_trust_sampling_sites_file: $error_msg");
-    elseif hariss_site_file_value !== nothing && !( isfile(hariss_site_file_value) )
+    elseif hariss_site_file_value !== nothing && !( isfile( joinpath( pkgdir(NBPMscape), hariss_site_file_value ) ) )
         push!(errors, "hariss_nhs_trust_sampling_sites_file = $(hariss_site_file_value), but the file is missing, please ensure the file indicated is present in the correct directory.");
     end
 
