@@ -1,0 +1,193 @@
+# NBPMscape parameters configuration file
+
+# User description: Default parameters - COVID-19 first wave
+
+# Contents
+# (1) Sampling and testing parameters
+#     (a) General
+#     (b) Primary care sampling (i.e. GPs via RCGP)
+#     (c) Secondary care sampling (i.e. hospitals via HARISS network)
+#     (d) Tertiary care sampling (i.e. via ICUs)
+# (2) Outbreak epidemiological parameters
+#     (a) Pathogen specific parameters
+#     (b) Non-pathogen specific parameters
+
+
+parameters:
+
+## (1) Sampling and testing parameters ##
+
+## 1(a) General ##
+
+# Metagenomic testing sensitivity
+# see Alcolea-Medina et al (2025), "Rapid pan-microbial metagenomics for pathogen detection and personalised therapy in the intensive care unit: a single-centre prospective observational study", Lancet Microbe, DOI:10.1016/j.lanmic.2025.101174
+#metagenomic_sensitivity:
+  sensitivity_mg_virus: 0.89
+  sensitivity_mg_bacteria: 0.97
+  sensitivity_mg_fungi: 0.89
+
+## 1(b) Primary care sampling (i.e. GPs via RCGP) ##
+  turnaroundtime_rcgp: [2, 4]  # RCGP test turnaround time range # upper and lower limits, in days, of time taken to process sample and report results /declare detection. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025). tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+  gp_practices_total: 6199 # Total number of GP practices in England at July 2025. Source: BMA analysis (https://www.bma.org.uk/advice-and-support/nhs-delivery-and-workforce/pressures/pressures-in-general-practice-data-analysis) of NHS Digital General Practice Workforce Statistics (https://digital.nhs.uk/data-and-information/publications/statistical/general-and-personal-medical-services) [Accessed 2 Sep 2025]
+  gp_practices_swab: 300 # Number of GP practices taking swabs for virology surveillance. Source: Data quality report: national flu and COVID-19 surveillance report (27 May 2025)
+  gp_swabs_mg: 300 # [319, 747]#[25698,46685] # Assumed number of swabs that are metagenomic sequenced for investigating impact
+  pop_eng: 5.7106398e7 # Population of England. Source: ONS mid-year 2022 UK population data disaggregated by various geo levels and age groups and gender. [Accessed 6 November 2024] Available at https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland 
+  gp_ari_consults: 327 # 180, 327 # Number of ARI consultations per 100k of England population per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+  gp_ari_swabs: 747 #[319, 747] #[25698,46685]# Number of swabs taken from suspected ARI per week [mean summer 2024, mean winter 2024/25]. Source: Analysis of data extracted from RCGP Research & Surveillance Centre (RSC) Virology Dashboard [Accessed 29 Aug 2025]
+
+## 1(c) Secondary care sampling (i.e. hospitals via HARISS network) ##
+  turnaroundtime_hariss: [2, 4] # HARISS test turnaround time range # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+  initial_dow: 1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
+  hariss_courier_to_analysis: 1.0 # Time between courier collection from PHL and beginning of analysis
+  n_hosp_samples_per_week: 300 # Total number of hospital samples to be taken per week
+  sample_allocation: "equal" # "equal" or "weighted". Number of samples to be allocated either equally amongst public health laboratories in the network or weighted by Emergency Department attendances (all not ARI specific) or catchment area population
+  sample_proportion_adult: 0.50 #"free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified and so the split will depend on the proportions attending hospital.
+  hariss_nhs_trust_sampling_sites_file: "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+  weight_samples_by: "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
+  phl_collection_dow: [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+  swab_time_mode: 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
+  swab_proportion_at_48h: 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
+  proportion_hosp_swabbed: 0.9 # Assume X% of ARI attendances are swabbed, i.e. some will not be swabbed for practical reasons and therefore not available for sampling
+  hariss_only_sample_before_death: true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+  hosp_ari_admissions: 6088 #Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2025 data for winter and Jun, Jul, Aug 2024 for summer
+  hosp_ari_admissions_adult_p: 0.52 # for winter and 0.58 for summer.Proportion of ED ARI admissions that are adults (16y and over)
+  hosp_ari_admissions_child_p: 0.48 # for winter and 0.42 for summer. Proportion of ED ARI admissions that are children (<16y)
+  #ed_ari_destinations_adult: DataFrame( destination = [:discharged,:short_stay,:longer_stay] 
+  #                                    , proportion_of_attendances = [0.628,0.030,0.342])     # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  #ed_ari_destinations_child: DataFrame( destination = [:discharged,:short_stay,:longer_stay] 
+  #                                    , proportion_of_attendances = [0.861,0.014,0.125])     # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_adult_p_discharged: 0.628 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_adult_p_short_stay: 0.030 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_adult_p_longer_stay: 0.342 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_discharged: 0.861 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_short_stay: 0.014 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+  ed_ari_destinations_child_p_longer_stay: 0.125 # Destinations after Emergency Department attendance for ARI estimated from UKHSA data
+
+## 1(d) Tertiary care sampling (i.e. via ICUs) ##
+  turnaroundtime_icu: [2, 4]   # ICU test turnaround time range # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
+  p_sampled_icu: 0.05          # proportion of relevant ICU admissions that are sampled (i.e. acute respiratory infections (ARI))
+  sample_target_prob_icu: 0.90     # target sampling probability # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
+  icu_swab_lag_max: 1          # max days between ICU admission and swab # Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
+  icu_sample_type: "regional" # "regional" or "fixed". If "fixed" then p_sampled_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
+  icu_site_stage: "current" # Defines which ICU sites are used in model: "current", "engagement", or "longlist". Refers to the list of selected sites and the stage of onboarding for sampling.
+  sample_icu_cases_version: "number" # Is sampling quantity based on a "proportion" of all cases or a fixed "number" of samples? Options are "number" or "proportion".
+  n_icu_samples_per_week: 300 # Number of samples to be taken from ICU per week
+  icu_ari_admissions: 1440 # [793, 1440] # Weekly ICU admission numbers [summer,winter]
+  icu_ari_admissions_adult_p: 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
+  icu_ari_admissions_child_p: 0.24 # Proportion of ICU ARI admissions that are children (<16y)
+  icu_nhs_trust_sampling_sites_file: "data/nhs_trust_site_sample_targets_24pilot.csv" #"data/nhs_trust_site_sample_targets.csv" # CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame ) # List of NHS Trusts with ICU sites that are sampling for metagenomic testing
+  icu_only_sample_before_death: true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+
+## 2(a) Pathogen specific parameters ##
+
+# Pathogen type
+  pathogen_type: "virus"        # Select from "virus", "bacteria", or "fungi". This is used to determine the metagenomic test sensitivity
+
+# Transmission parameters
+#transmission:
+  infectivity: 2.0              # scales transmission rate # Use infectivitytoR() to check R value for current parameters
+  infectivity_shape: 1.65       # 2.2 * 0.75 # Manually calibrated to give a generation time (Tg) of 5-6 days given the infectious period distribution (parameters below - Verity et al (2020)). Hart et al (2022), eLife, 11, DOI: 10.7554/eLife.70767. Lau et al (2021), The Journal of Infectious Diseases, 224(10), DOI:10.1093/infdis/jiab424. Chen et al (2022), Nature, 13, 7727, DOI:10.1038/s41467-022-35496-8. Xu et al (2023), BMC Medicine, 21:374, DOI:10.1186/s12916-023-03070-8.  Bi et al (2020), Lancet Infectious Diseases, 20(8), DOI:10.1016/S1473-3099(20)30287-5. 
+  infectivity_scale: 1.875      # 2.5 * 0.75
+
+# Disease progression parameters
+#disease_progression:
+  latent_shape: 3.26            # latent period distribution shape. Distribution parameters inferred in 'latent_period_estimate.R' from results reported in Zhao et al (2021), Epidemics, 36, 100482 - mean latent period of 3.3 days (95% CI 0.2, 7.9)
+  latent_scale: 0.979           # latent period distribution scale
+  infectious_shape: 8.16        # infectious period distribution shape. Mean 24d from Verity et al (2020), The Lancet Infectious Diseases, 20(6)
+  infectious_scale: 3.03        # infectious period distribution scale
+
+# Transmission reduction factors
+#transmission_reduction:
+  rho_hosp: 0.25               # transmission reduction in hospital (25% of normal)
+  rho_asymptomatic: 0.223      # transmission reduction for asymptomatic individuals - see Knock et al (2021), Science Translational Medicine, 13(602) Supplementary Information
+
+# Infection severity probabilities (age-independent)
+# Split 'severe' infections, which is defined by hospital admission, into short and long stay.
+#severity_probabilities:
+  prop_severe_hosp_short_stay: 0.40351  # hospital stay <24h. Given admitted to hospital, will stay for <24h. Estimated using Knock et al (2021) and Saigal et al. (2025), BMC Emergency Medicine, 25:11. See 'HARISS_pathway_adjustment.jl' 
+  prop_severe_hosp_long_stay: 0.59649   # hospital stay >24h. Given admitted to hospital, will stay for >24h. Estimated using Knock et al (2021) and Saigal et al. (2025), BMC Emergency Medicine, 25:11. See 'HARISS_pathway_adjustment.jl' 
+# Note that mild, moderate_GP and moderate_ED sum to 1. 
+# They are symptomatic but the distinction is whether they do not seek healthcare, consult a GP (in person or via phone) or visit an Emergency Department (ED) respectively.
+  prop_moderate_ED: 0.12445             # ED visit without admission. Should be approximately equivalent to 0.026 of all infections # Will visit hospital Emergency Department (ED) but will be discharged without admission. Estimated using Knock et al (2021) and Saigal et al. (2025), BMC Emergency Medicine, 25:11. See 'HARISS_pathway_adjustment.jl' 
+  prop_moderate_GP: 0.11790             # GP visit only. Will visit a GP but won't go to hospital. Estimated from FluSurvey data (people with ILI - not COVID specific), combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
+  prop_mild: 0.75765                    # symptomatic, no healthcare. prop_mild = 1 - prop_moderate_GP - prop_moderate_ED
+
+# Healthcare progression rates (1/duration in days)
+# Where a patient visits a GP before visiting hospital, the rates are such that the number of days is approximately the
+# same as going directly to hospital (either ED and discharge or hospital admission).
+# For those admitted to hospital, we do not add any time for attendance at ED before admission.
+#healthcare_rates:
+# Onset to care
+  gp_only_rate: 0.2            # 1/5 days # Typical lag of 3-7 days between ARI symptom onset (not pathogen specific) and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025))
+  ed_direct_rate: 0.2          # 1/5 days # Rate of visiting a hospital Emergency Department (ED) but not being admitted. Therefore assume to be the same as the GP rate.
+  gp_before_hosp_rate: 0.3333333333333333 # 1/3 days # Less than gp_only_rate to allow infected individual to reach hospital in approximately the same time as if went directly to hospital without visiting the GP.
+  ed_from_gp_rate: 0.5         # 1/2 days # Rate of visiting a hospital Emergency Department (ED) but not being admitted. Therefore assume to be the same as the GP rate.
+  hosp_admit_direct_rate: 0.25 # 1/4 days # Docherty et al (2020), BMJ, 369:m1985, doi: 10.1136/bmj.m1985 # Also in Knock et al (2021), Science Translational Medicine, 13(602) "mean time from symptom onset to admission to hospital" = 4 days
+  hosp_admit_from_gp_rate: 1.0 # 1/1 days # Combined with gp_before_hosp_rate should be approximately the same as hosp_admit_direct_rate
+# Hospital care rates
+# General ward rates
+  hosp_recovery_rate: 0.09345794392523366              # 1/10.7 days # 'Hospitalised on general ward leading to recovery' 10.7 days (95% CI: 0.3-39.4). Erlang(k=1,gamma=0.09). Knock et al (2021). 
+  hosp_short_stay_recovery_rate: 2.0408163265306123    # 1/0.49 days # hosp_recovery_rate above split into short stay (<24h) and long stay (>24h). Mean durations of the two periods computed using erlang_truncated_means( k = 1, rate = 0.0935, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf). Note that the rate has been adjusted as the rounded rate parameter does not give the mean value reported.
+  hosp_long_stay_recovery_rate: 0.08547008547008547    # 1/11.70 days # hosp_recovery_rate above split into short stay (<24h) and long stay (>24h). Mean durations of the two periods computed using erlang_truncated_means( k = 1, rate = 0.0935, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf). Note that the rate has been adjusted as the rounded rate parameter does not give the mean value reported.
+  hosp_death_rate: 0.0970873786407767                  # 1/10.3 days # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
+# ICU rates
+  triage_icu_rate: 0.4                                # 1/2.5 days # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
+  icu_to_death_rate: 0.0847457627118644               # 1/11.8 days # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
+  icu_to_stepdown_leading_to_recovery_rate: 0.06410256410256411 # 1/15.6 days # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4, 57.6). Erlang(k=1, gamma=0.06) . Knock et al (2021)
+  stepdown_to_recovery_after_icu_rate: 0.0819672131147541       # 1/12.2 days # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
+
+# Import parameters
+#imports:
+  importrate: 0.5             # constant import rate
+  nimports: 1000              # number of imports # du plessis 2020
+  import_t_df: 2.48           # t-distribution degrees of freedom # personal analysis of lineages studied in Volz et al. Cell 2020 
+  import_t_s: 8.75            # t-distribution scale
+#      df           m           s    
+#   2.482146   -1.074888    8.749736 
+# ( 1.226155) ( 1.608095) ( 1.978287)
+
+# Molecular evolution parameters
+#evolution:
+  mu: 0.001                   # mean clock rate -- additive relaxed clock
+  omega: 0.5                  # variance inflation
+
+## 2(b) Non-pathogen specific parameters ##
+
+# Relative contact rates
+# Normalised to 1 from the 10.76 contact hours in Table S2 of 
+# Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
+#contact_rates:
+  fcont: 1.0                    # household contacts (normalized to 10.76/10.76)
+  gcont: 0.6236059479553904     # work/school contacts (6.71/10.76)
+  oocont: 0.7518587360594795    # other contacts (8.09/10.76)
+
+# Scale adjustment for contact rates by day of the week (Sun-Sat)
+# Sourced from POLYMOD - Mossong et al (2008), PLOS Medicine, 5(3)
+#day_of_week_scaling:
+#           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+  dowcont: [0.1043502, 0.1402675, 0.1735913, 0.1437642, 0.1596205, 0.1445298, 0.1338766]
+    # Sourced from 'Social Contact Survey' 
+    # Danon et al (2013), Proceedings of the Royal Society B: Biological Sciences, 280(1765)
+    # Table S1 mean degree
+    #           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+    #, dowcont = ([28.00,25.39,30.53,27.21,26.82,28.80,21.76]/sum([28.00,25.39,30.53,27.21,26.82,28.80,21.76])) 
+    # [0.1485, 0.1347, 0.1620, 0.1443, 0.1423, 0.1528, 0.1154]
+    # Table S1 contact hours
+    #           Sun      , Mon      , Tue      , Wed      , Thur     , Fri      , Sat 
+    #, dowcont = ([25.80,24.51,26.47,27.40,26.72,26.50,26.46]/sum([25.80,24.51,26.47,27.40,26.72,26.50,26.46]))
+    # [0.1403, 0.1333, 0.1439, 0.1490, 0.1453, 0.1441, 0.1439]
+
+# Network dynamics
+#network_dynamics:
+  frate: 0.0                   # rate of gaining & losing flinks (household contacts)
+  grate: 0.03333333333333333   # rate of gaining and losing glinks (1/30.0) (work/school contacts)
+
+# Hospital discharge timing
+#discharge_timing:
+  tdischarge_ed_upper_limit: 0.5               # ED discharge time limit in days. People attending Emergency Department (ED) (and not admitted) will be discharged by this time.
+  tdischarge_hosp_short_stay_upper_limit: 1.0  # short stay discharge limit in days. People admitted to hospital for a short stay will be discharged by this time.
+
+# Commute parameters
+#commute:
+  commuterate: 2.0             # commute rate
+

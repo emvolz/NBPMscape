@@ -94,7 +94,7 @@ export nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_t
 export erlang_truncated_means, gamma_params_from_mode_cdf
  
 include("misc_functions.jl")
-export allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
+export median_ci_bootstrap, allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
 
 
 ## Configure parameter input values
