@@ -161,7 +161,7 @@ for i in [1,7,13,19,25,31,37,43,49,55,61,67] # i=1
 end
 
 for i in [2,3,4,5,6]
-    initialize_parameters("config/covid19_like_params_HARISS_$(i).yaml")
+    initialize_parameters("config/HARISS/covid19_like_params_HARISS_$(i).yaml")
     sc_tds = secondary_care_td(sims = sims)
     CSV.write( joinpath( output_folder,"sc_tds_$(i).csv" ), sc_tds )
 end
@@ -170,7 +170,7 @@ end
 
 # Run analysis for 12 different scenarios (2 seasons x 2 lists of ICU sites x 3 numbers of samples) using ICUs and GPs
 for j in [1,13,25,37,49,61,73,74,75,76,77,78]
-    initialize_parameters("config/covid19_like_params_HARISS_$(j).yaml")
+    initialize_parameters("config/HARISS/covid19_like_params_HARISS_$(j).yaml")
     icu_tds = icu_td(sims = sims)
     gp_tds = gp_td(sims = sims)
     CSV.write( joinpath( output_folder,"icu_tds_$(j).csv" ), icu_tds )
