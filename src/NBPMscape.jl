@@ -97,6 +97,11 @@ export fit_multi_dist, dist_fit_plot
 export nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_trunc_weibull, nll_trunc_normal
 export erlang_truncated_means, gamma_params_from_mode_cdf
 
+include("outbreak_timeline_analysis_functions.jl")
+export median_td_sim_reps, cases_before_td, infections_time_analysis
+export local_doubling_time, global_doubling_time, _fit_log_linear, _fit_weighted_log_linear, _growth_rate_to_doubling_time, _fit_nonlinear_optim, _estimate_initial_r
+export plot_outbreak_analysis, plot_outbreak_analysis_combined
+
 include("misc_functions.jl")
 export median_ci_bootstrap, allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
 
