@@ -13,7 +13,6 @@ Functions used in analysing the timeline of the simulated outbreak
 - plot_outbreak_analysis_combined
         Plots counts and cumulative values for 8 metrics relating to infections and healthcare seeking
         across 5 plots on a 3x2 grid
-        TODO MAY CURRENTLY ONLY WORK WITH time_period = "days" and x_labels = "date" options
 
 - median_td_sim_reps                
         Function to return the median time to detection from a file containing 
