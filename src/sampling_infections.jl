@@ -222,11 +222,11 @@ function icu_td(; p = NBPMscape.P
                 
             # Generate sample times
             if only_sample_before_death == true
-                # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
-                icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1]+3 ) ) ) , eachrow(icu_cases_sub) )
+                # Set upper limit on sample time to the minimum of time of death and ICU admission plus the user defined p.icu_swab_lag_max
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1] + p.icu_swab_lag_max ) ) ) , eachrow(icu_cases_sub) )
             else
-                # Set upper limit on sample time to ICU admission +3days #TODO CHANGE THE ticu, ticu+3 to be ticu+1 and the +1 should be taken from P
-                icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+3)) , eachrow(icu_cases_sub) )
+                # Set upper limit on sample time to ICU admission plus the user defined p.icu_swab_lag_max
+                icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1] + p.icu_swab_lag_max)) , eachrow(icu_cases_sub) )
             end
             icu_cases_sub.tsample = icu_tsample 
 
@@ -932,10 +932,10 @@ function icu_v_pc_td(  ;  p=NBPMscape.P
             
             # Generate sample times
             if only_sample_before_death == true
-                # Set upper limit on sample time to the minimum of time of death and ICU admission +3days
+                # Set upper limit on sample time to the minimum of time of death and ICU admission plus the user defined parameter p.icu_swab_lag_max
                 icu_tsample = map( g -> rand( Uniform( g.ticu[1], min( g.tdeceased[1], g.ticu[1]+ p.icu_swab_lag_max ) ) ) , eachrow(icu_cases_sub) )
             else
-                # Set upper limit on sample time to ICU admission +3days
+                # Set upper limit on sample time to ICU admission plus the user defined parameter p.icu_swab_lag_max
                 icu_tsample = map( g -> rand( Uniform( g.ticu[1], g.ticu[1]+ p.icu_swab_lag_max)) , eachrow(icu_cases_sub) )
             end
             icu_cases_sub.tsample = icu_tsample 
