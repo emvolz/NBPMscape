@@ -800,7 +800,7 @@ function Infection(p; pid = "0"
 	j_transmh = VariableRateJump(rate_transmh, aff_transmh!; lrate=lrate_transmh, urate=hrate_transmh, rateinterval=rint)
 
 	## GP visit only
-	rate_gp_only(u,p,t) = ((carestage==:undiagnosed) & (severity.severity in (:moderate_GP,))) ? p.gp_only_rate : 0.0  
+	rate_gp_only(u,p,t) = ((carestage==:undiagnosed) & (severity.severity == :moderate_GP)) ? p.gp_only_rate : 0.0  
 	aff_gp_only!(int) = begin 
 		carestage = :GP; 
 		tgp = int.t 
@@ -816,7 +816,7 @@ function Infection(p; pid = "0"
 	j_gp_before_hosp = ConstantRateJump(rate_gp_before_hosp, aff_gp_before_hosp!)
 
 	## Emergency Department (ED) direct visit only
-	rate_ed_direct(u,p,t) = ((carestage==:undiagnosed) & (severity.severity in (:moderate_ED,))) ? p.ed_direct_rate : 0.0  
+	rate_ed_direct(u,p,t) = ((carestage==:undiagnosed) & (severity.severity == :moderate_ED)) ? p.ed_direct_rate : 0.0  
 	aff_ed_direct!(int) = begin 
 		#carestage = :ED; 
 		ted = int.t 
@@ -828,7 +828,7 @@ function Infection(p; pid = "0"
 
 	## Emergency Department (ED) visit (but not admitted to hospital) after visiting GP
 	# These patients are discharged directly from ED
-	rate_ed_from_gp(u,p,t) = ((carestage==:GP) & (severity.severity in (:moderate_ED,))) ? p.ed_from_gp_rate : 0.0  
+	rate_ed_from_gp(u,p,t) = ((carestage==:GP) & (severity.severity == :moderate_ED)) ? p.ed_from_gp_rate : 0.0  
 	aff_ed_from_gp!(int) = begin 
 		#carestage = :ED 
 		ted = int.t 
@@ -838,7 +838,7 @@ function Infection(p; pid = "0"
 	j_ed_from_gp = ConstantRateJump(rate_ed_from_gp, aff_ed_from_gp!)
 
 	## Hospital admission direct without visit to GP
-	rate_hosp_admit_direct(u,p,t) = (( (carestage in (:undiagnosed,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) )) ? p.hosp_admit_direct_rate : 0.0 
+	rate_hosp_admit_direct(u,p,t) = ( (carestage == :undiagnosed) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) ) ? p.hosp_admit_direct_rate : 0.0 
 	aff_hosp_admit_direct!(int) = begin 
 		carestage = :admittedhospital
 		thospital = int.t
@@ -853,7 +853,7 @@ function Infection(p; pid = "0"
 	j_hosp_admit_direct = ConstantRateJump( rate_hosp_admit_direct, aff_hosp_admit_direct! )
 
 	## Hospital admission after visit to GP
-	rate_hosp_admit_from_gp(u,p,t) = (( (carestage in (:GP,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) )) ? p.hosp_admit_from_gp_rate : 0.0 
+	rate_hosp_admit_from_gp(u,p,t) = ( (carestage == :GP) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) ) ? p.hosp_admit_from_gp_rate : 0.0 
 	aff_hosp_admit_from_gp!(int) = begin 
 		carestage = :admittedhospital  
 		thospital = int.t 
@@ -868,7 +868,7 @@ function Infection(p; pid = "0"
 	j_hosp_admit_from_gp = ConstantRateJump( rate_hosp_admit_from_gp, aff_hosp_admit_from_gp! )
 
 	## hospital -> discharged rate (for long-stay patients)
-	rate_hosp_disch_long_stay(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_long_stay,)) & (severity.fatal == false) )) ? p.hosp_long_stay_recovery_rate : 0.0 
+	rate_hosp_disch_long_stay(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity == :severe_hosp_long_stay) & (severity.fatal == false) ) ? p.hosp_long_stay_recovery_rate : 0.0 
 	aff_hosp_disch_long_stay!(int) = begin 
 		# Only discharge if been in hospital for more than 24h (1day)
 		if int.t > (thospital + 1)
@@ -889,8 +889,8 @@ function Infection(p; pid = "0"
 	#j_hosp_disch_short_stay = ConstantRateJump( rate_hosp_disch_short_stay, aff_hosp_disch_short_stay! )
 
 	## hospital -> death rate 
-	#ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay)) & (severity.fatal == true) )) ? P.hosp_death_rate : 0.0 
-	ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_long_stay,)) & (severity.fatal == true) )) ? p.hosp_death_rate : 0.0 
+	#ratehospitaldeath(u,p,t) = (( (carestage == :admittedhospital) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay)) & (severity.fatal == true) )) ? P.hosp_death_rate : 0.0 
+	ratehospitaldeath(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity == :severe_hosp_long_stay) & (severity.fatal == true) ) ? p.hosp_death_rate : 0.0 
 	aff_hosp_death!(int) = begin 
 		carestage = :deceased
 		infstage = :deceased  
@@ -902,7 +902,7 @@ function Infection(p; pid = "0"
 	## Triage to ICU
 	#rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:verysevere,)) )) ? p.icurate : 0.0 
 	#rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity.severity in (:verysevere,)) )) ? p.triage_icu_rate : 0.0 
-	rateicu(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity in (:verysevere,)) ) ? p.triage_icu_rate : 0.0 
+	rateicu(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity == :verysevere) ) ? p.triage_icu_rate : 0.0 
 	aff_icu!(int) = begin 
 		carestage = :admittedicu  
 		ticu = int.t 
@@ -911,7 +911,7 @@ function Infection(p; pid = "0"
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
 	## ICU -> Death
-	rate_icu_death(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true ) )) ? p.icu_to_death_rate : 0.0 
+	rate_icu_death(u,p,t) = ( (carestage == :admittedicu) & (severity.severity == :verysevere) & (severity.fatal == true ) ) ? p.icu_to_death_rate : 0.0 
 	aff_icu_death!(int) = begin 
 		carestage = :deceased
 		infstage = :deceased
@@ -921,7 +921,7 @@ function Infection(p; pid = "0"
 	j_icu_death = ConstantRateJump( rate_icu_death, aff_icu_death! )
 
 	## ICU -> Stepdown (to hospital general ward) (leading to recovery)
-	rate_icu_stepdown(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_leading_to_recovery_rate : 0.0 
+	rate_icu_stepdown(u,p,t) = ( (carestage == :admittedicu) & (severity.severity == :verysevere) ) ? p.icu_to_stepdown_leading_to_recovery_rate : 0.0 
 	aff_icu_stepdown!(int) = begin 
 		carestage = :stepdown  
 		tstepdown = int.t 
@@ -929,7 +929,7 @@ function Infection(p; pid = "0"
 	j_icu_stepdown = ConstantRateJump( rate_icu_stepdown, aff_icu_stepdown! )
 
 	## Hospital general ward (ICU Stepdown) -> Discharge
-	rate_stepdown_discharge(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
+	rate_stepdown_discharge(u,p,t) = ( (carestage == :stepdown) & (severity.severity == :verysevere) & (severity.fatal == false) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
 	aff_stepdown_discharge!(int) = begin 
 		carestage = :discharged
 	end 
