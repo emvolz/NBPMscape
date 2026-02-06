@@ -465,7 +465,25 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         end
     catch # Errors in the parameter values are already captured above
     end
-        
+    
+    # Check that the public health lab collection time is between 0 and 1 day. 
+    # This is the decimal time of day so must be in this range
+    phl_collection_time, error_msg = safe_get_value(config, "parameters.phl_collection_time")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate phl_collection_time: $error_msg")
+    elseif phl_collection_time !== nothing && !((phl_collection_time >= 0) && (phl_collection_time <= 1.0 ))
+        push!(errors, "phl_collection_time must be between 0 and 1, got $phl_collection_time")
+    end
+    
+    # Check that the length of time between the cutoff time for swabs made at a hospital and
+    # the collection time at the public health lab is greater than 0 days. 
+    hosp_to_phl_cutoff_time_relative, error_msg = safe_get_value(config, "parameters.hosp_to_phl_cutoff_time_relative")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate hosp_to_phl_cutoff_time_relative: $error_msg")
+    elseif hosp_to_phl_cutoff_time_relative !== nothing && !(hosp_to_phl_cutoff_time_relative >= 0 )
+        push!(errors, "hosp_to_phl_cutoff_time_relative must be greater than 0, got $phl_collection_time")
+    end
+
     return warnings, errors
 end
 

@@ -21,14 +21,14 @@ Returns     Vector of integer times (days)
 Example     max_week = 18
             phl_courier_collection_days = courier_collection_times(; initial_dow = 1, n_weeks = max_week, collection_dow = [2,4,6])
 """
-function courier_collection_times(; initial_dow::Integer, n_weeks::Integer, collection_dow::Vector{Int64})
+function courier_collection_times(; initial_dow::Integer, n_weeks::Integer, collection_dow::Vector{Int64}, collection_time::Float64)
     # @assert initial_dow >= 1 && initial_dow <= 7
     # @assert n_weeks > 0
     times = []
     for i in 1:n_weeks #i=3
         for j in 1:length(collection_dow)
             # Collection time = collection day (x week number) - initial day + 0.5 for midday collection
-            times_temp = collection_dow[j] +(7*(i-1)) - initial_dow + 0.5
+            times_temp = collection_dow[j] +(7*(i-1)) - initial_dow + collection_time
             push!(times,times_temp)
         end
     end
@@ -263,6 +263,8 @@ function sample_hosp_cases_n(; p = NBPMscape.P
                                                                                     )
                                 , weight_samples_by = "ae_mean" # or "catchment_pop"
                                 , phl_collection_dow::Vector{Int64} = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+                                , phl_collection_time = 0.5 # Default is midday (=0.5)
+                                , hosp_to_phl_cutoff_time_relative = 1 # Default is 1 day (24 hrs) prior to collection
                                 )
     
     # Generate Gamma distribution for times between attendance/admission to hospital and swabbing, given the mode and proportion taken within 48hrs 
@@ -300,7 +302,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
     
     # Assume that only a proportion of hospital cases are swabbed, e.g. 90% swabbed and 10% not (on average) for practical reasons
     n_pathx_cases_swabbed =  rand( Binomial( size(hosp_cases_Eng,1), proportion_hosp_swabbed ) )
-    # Sample from the ICU cases
+    # Sample from the hospital cases
     hosp_cases_Eng = hosp_cases_Eng[sample( 1:size(hosp_cases_Eng,1), n_pathx_cases_swabbed, replace=false ), :]
         
     # Remove sites with no NHS Trust Code 
@@ -437,20 +439,22 @@ function sample_hosp_cases_n(; p = NBPMscape.P
         # Courier collections twice per week - assume Monday and Thursday at midday. 
         # Assume swabs taken at hospitals before midday the day before are available for collection at the PHL.
 
-        phl_courier_collection_times = NBPMscape.courier_collection_times( initial_dow = initial_dow, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
+        phl_courier_collection_times = NBPMscape.courier_collection_times( initial_dow = initial_dow, n_weeks = max_week
+                                                                        , collection_dow = Int64.(phl_collection_dow )
+                                                                        , collection_time = phl_collection_time)
         # TEST
-        #courier_collection_times( initial_dow = 1, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
-        #courier_collection_times( initial_dow = 2, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
-        #courier_collection_times( initial_dow = 3, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
-        #courier_collection_times( initial_dow = 4, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
-        #courier_collection_times( initial_dow = 5, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
-        #courier_collection_times( initial_dow = 6, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
-        #courier_collection_times( initial_dow = 7, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ))
+        #courier_collection_times( initial_dow = 1, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ), collection_time = phl_collection_time )
+        #courier_collection_times( initial_dow = 2, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ), collection_time = phl_collection_time )
+        #courier_collection_times( initial_dow = 3, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ), collection_time = phl_collection_time )
+        #courier_collection_times( initial_dow = 4, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ), collection_time = phl_collection_time )
+        #courier_collection_times( initial_dow = 5, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ), collection_time = phl_collection_time )
+        #courier_collection_times( initial_dow = 6, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ), collection_time = phl_collection_time )
+        #courier_collection_times( initial_dow = 7, n_weeks = max_week, collection_dow = Int64.(phl_collection_dow ), collection_time = phl_collection_time )
 
         ## Simulate swab times for background ARI ED attendance and hospital admissions
         
         # Define distributions for time between arrival at hospital and swab time depending on length of stay in hospital
-        tswab_dists_bkg = Dict(:discharged => Truncated(swab_time_gamma_d,0.0,ed_discharge_limit),
+        tswab_dists_bkg = Dict( :discharged => Truncated(swab_time_gamma_d, 0.0, ed_discharge_limit),
                                 :short_stay => Truncated(swab_time_gamma_d, 0.0, hosp_short_stay_limit),
                                 :longer_stay => swab_time_gamma_d
                                 )
@@ -478,7 +482,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
             phl_bkg_ari_swabs_n_adult = Int( round(phl_sample_targets[j,:est_weekly_bkg_hosp_ari_admissions_adult] * proportion_hosp_swabbed , digits = 0) )
             phl_bkg_ari_swabs_n_child = Int( round(phl_sample_targets[j,:est_weekly_bkg_hosp_ari_admissions_child] * proportion_hosp_swabbed, digits = 0 ) )
                 
-            for wn in 1:max_week # wn=15
+            for wn in 1:max_week # wn=13
 
                 # Create df for each PHL and DataFrames and push them
                 # Severity
@@ -559,8 +563,9 @@ function sample_hosp_cases_n(; p = NBPMscape.P
         # CHECK # hosp_cases_at_sampling_sites[:,[:pid,:ted,:thospital,:tswab, :tswab_sub_48h]]
         # CHECK # filter( row -> row.tswab_sub_48h == false, hosp_cases_at_sampling_sites )
      
-        # Assume only swabs taken before midday the day before at a hospital can be collected from the PHL
-        swab_time_cut_offs = phl_courier_collection_times .- 1
+        # Compute cut-off times (days since first importation) for swabs at hospitals based on the collection times from public health labs (PHLs) and
+        # subtracting a value for the time between swab cut-off time and collection time.
+        swab_time_cut_offs = phl_courier_collection_times .- hosp_to_phl_cutoff_time_relative
 
         # Filter for swabs taken within 48h of attendance or admission
         hosp_cases_at_sampling_sites_sub48h = filter( row -> row.tswab_sub_48h == true, hosp_cases_at_sampling_sites)
@@ -578,7 +583,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
         
         else
           # Loop through cut-off times for courier collection
-            for c in 1:length(swab_time_cut_offs) # c=2
+            for c in 1:length(swab_time_cut_offs) # c=13
                 # Filter swabs for those meeting the required criteria and meeting the cut-off time (between the current cut-off time and previous cut-off time)
                 path_x_cases_temp = filter( row -> (row.tswab <= swab_time_cut_offs[c] && row.tswab > ( c == 1 ? 0 : swab_time_cut_offs[c-1])),  hosp_cases_at_sampling_sites_sub48h ) #path_x_cases_temp = filter( row -> (row.tswab <= swab_time_cut_offs[c] && row.tswab > swab_time_cut_offs[c-1]),  hosp_cases_at_sampling_sites_sub48h )
                 bkg_cases_temp    = filter( row -> (row.tswab <= swab_time_cut_offs[c] && row.tswab > ( c == 1 ? 0 : swab_time_cut_offs[c-1])),  ari_bkg_times_by_phl_df ) # bkg_cases_temp = filter( row -> (row.tswab <= swab_time_cut_offs[c] && row.tswab > max(try swab_time_cut_offs[c-1]),  ari_bkg_times_by_phl_df )
@@ -589,7 +594,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
                   
                     # Filter background and pathogen X cases by PHL
                     path_x_cases_temp_phl = filter( row -> row.public_health_laboratory == phl_name, path_x_cases_temp)
-                    bkg_cases_temp_phl = filter( row -> row.public_health_laboratory == phl_name, bkg_cases_temp)
+                    bkg_cases_temp_phl    = filter( row -> row.public_health_laboratory == phl_name, bkg_cases_temp)
 
                     # Select samples based on age group target
                     if sample_proportion_adult == "free"
@@ -601,7 +606,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
                         n_samples_per_week = only(filter( row -> row.public_health_laboratory == phl_name, phl_sample_targets)[:,:sample_target_per_week]) 
                         n_collections_per_week = length(phl_collection_dow)
                         n_samples_per_collection_vec = allocate_with_rounding(;total = n_samples_per_week, weights = fill(1/n_collections_per_week,n_collections_per_week))
-                        collection_dow = Int64(phl_courier_collection_times[c] % 7 + initial_dow - 0.5) # Finds the day of the week of this collection (adjusted for 0.5 midday collection time/cut-off) 
+                        collection_dow = Int64( round( phl_courier_collection_times[c] % 7 + initial_dow - (1-phl_collection_time) , digits=0 ) ) # Finds the day of the week of this collection (adjusted for collection time/cut-off) 
                         collection_number_this_week = findfirst(==(collection_dow), phl_collection_dow) # Finds which number collection day this is, i.e. collection 2 out of 3 per week
                         n_samples_for_this_collection = n_samples_per_collection_vec[ collection_number_this_week ]
                         # Samples selected to send to PHL (i.e. the most recent n_samples or if less available then all of them)
@@ -636,7 +641,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
                         n_collections_per_week = length(phl_collection_dow)
                         n_samples_adult_per_collection_vec = allocate_with_rounding(;total = n_samples_adult_per_week, weights = fill(1/n_collections_per_week,n_collections_per_week))
                         n_samples_child_per_collection_vec = allocate_with_rounding(;total = n_samples_child_per_week, weights = fill(1/n_collections_per_week,n_collections_per_week))
-                        collection_dow = Int64(phl_courier_collection_times[c] % 7 + initial_dow - 0.5) # Finds the day of the week of this collection (adjusted for 0.5 midday collection time/cut-off) 
+                        collection_dow = Int64( round( phl_courier_collection_times[c] % 7 + initial_dow - (1-phl_collection_time) ), digits=0 )  # Finds the day of the week of this collection (adjusted for collection time/cut-off)
                         collection_number_this_week = findfirst(==(collection_dow), phl_collection_dow) # Finds which number collection day this is, i.e. collection 2 out of 3 per week
                         n_samples_adult_for_this_collection = n_samples_adult_per_collection_vec[ collection_number_this_week ]
                         n_samples_child_for_this_collection = n_samples_child_per_collection_vec[ collection_number_this_week ]

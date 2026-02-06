@@ -471,44 +471,180 @@ end # End of gp_td function
 """
 Function: secondary_care_td
 
-Description:    Function to sample infections from hospital admissions. Parameters modelled on expansion 
-                of the Hospital-based acute respiratory infection sentinel surveillance (HARISS) system.
+Description:    Function to sample infections from hospital admissions and return time to detection for a pathogen X. 
+                Parameters modelled on expansion of the Hospital-based acute respiratory infection sentinel surveillance (HARISS) system.
                 Description of existing HARISS network and surveillance:
                 - https://www.gov.uk/government/publications/sources-of-surveillance-data-for-influenza-covid-19-and-other-respiratory-viruses/data-quality-report-national-flu-and-covid-19-surveillance-report#hospital-based-acute-respiratory-infection-sentinel-surveillance-hariss-system-additional-surveillance-system
                 - Symes et al (2025), 'Estimating the disease burden of respiratory syncytial virus (RSV)
                   in older adults in England during the 2023/24 season: a new national hospital-based surveillance system', 
                   medrxiv, doi: https://doi.org/10.1101/2025.04.17.25325639
 
-Arguments:
+Arguments:  p::NamedTuple   Set of parameters relating to the outbreak and sampling. Parameters loaded from defaults in core.jl and
+                            some possibly from the configuration .yaml file. NBPMscape.P
+            sims            Formatted as a vector of dataframes. Simulated outbreak data in the G dataframe output from simtree or simforest functions.
+                            Example format:
+                            17113×18 DataFrame
+                            Row │ pid                                tinf     tgp       ted       thospital  ticu     tstepdown  tdischarge  trecovered  tdeceased  severity               fatal  iscommuter  homeregion  infector_age  infectee_age  importedinfection  simid                             
+                                │ String                             Float64  Float64   Float64   Float64    Float64  Float64    Float64     Float64     Float64    Symbol                 Bool   Bool        String      Int8?         Int8          Bool               String
+                            ───────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                1 │ fec10c2a-fd4d-11f0-3874-5958aa14…  18.5291   24.2016  Inf        Inf           Inf        Inf    Inf          52.4344        Inf  moderate_GP            false       false  TLH5                  64            67              false  fec10c2a-fd4d-11f0-3874-5958aa14…
+                                2 │ fec10c2a-fd4d-11f0-3874-5958aa14…  24.4748  Inf       Inf         27.4966      Inf        Inf     39.2252     39.2803        Inf  severe_hosp_long_stay  false       false  TLH5                  44            84              false  fec10c2a-fd4d-11f0-3874-5958aa14…
+                                3 │ fec10c2a-fd4d-11f0-3874-5958aa14…  24.79     28.016   Inf        Inf           Inf        Inf    Inf          54.7924        Inf  moderate_GP            false        true  TLH5                  44            41              false  fec10c2a-fd4d-11f0-3874-5958aa14…
+                            ⋮   │                 ⋮                     ⋮        ⋮         ⋮          ⋮         ⋮         ⋮          ⋮           ⋮           ⋮                ⋮              ⋮        ⋮           ⋮            ⋮             ⋮                ⋮                          ⋮
+                            17111 │ 63ff8da8-fd4e-11f0-2087-f7ff9459…  54.3506   57.7829  Inf        Inf           Inf        Inf    Inf          80.6498        Inf  moderate_GP            false       false  TLD3                  15            16              false  63ff8da8-fd4e-11f0-2087-f7ff9459…
+                            17112 │ 63ff8da8-fd4e-11f0-2087-f7ff9459…  59.861    65.7573   65.8896   Inf           Inf        Inf     66.2212     86.8499        Inf  moderate_ED            false        true  TLD3                   9            36              false  63ff8da8-fd4e-11f0-2087-f7ff9459…
+                            17113 │ 63ff8da8-fd4e-11f0-2087-f7ff9459…  58.9611   60.9347  Inf         61.1105      Inf        Inf     73.3345     79.2828        Inf  severe_hosp_long_stay  false       false  TLD3                  92            89              false  63ff8da8-fd4e-11f0-2087-f7ff9459…
+                            
+            pathogen_type::String       "virus", "bacteria" or "fungi". Used to determine the metagenomic test sensitivity to apply and thereby
+                                        change the probability of a positive sample.
+            initial_dow::Int64          Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
+            hosp_cases::DataFrame       Filtered from simulation of infections (G df filtered for value in thosp column)
+            # Sampling parameters #
+            hariss_courier_to_analysis::Float64     Time between courier collection from PHL and beginning of analysis
+            hariss_turnaround_time::Vector          Time to process sample and report results / declare detection
+            n_hosp_samples_per_week::Int            Total number of hospital samples to be taken per week
+            sample_allocation::String               Method of allocating the total number of samples required across the public health laboratories.
+                                                    Options are either "equal" (i.e. equal weighting or no weighting) or "weighted" using the method in 
+                                                    'weight_samples_by' argument.
+            sample_proportion_adult::Any            Indicates split of sample target between adults and children. Weighting to samples from adults (aged 16 and over)
+                                                    as a numeric decimal, e.g. 0.75 with the remaining 0.25 to children. 
+                                                    Alternatively "free" indicates that no split is specified and the samples taken are the most recent prior to courier collection.
+            hariss_nhs_trust_sampling_sites::DataFrame  List of NHS Trusts in HARISS sampling network 
+            weight_samples_by::String               Options are "ae_mean" or "catchment_pop". This defines the method of weighting the total samples across
+                                                    the public health labs (PHLs) in the HARISS netork. "ae_mean" uses the mean number of A&E attendances at NHS Trusts that 
+                                                    feed into each PHL. "catchment_pop" uses the populations in the catchment areas of the NHS Trusts.
+            phl_collection_dow::Vector{Int64}       Day(s) of the week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+            phl_collection_time::Float64            Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
+            hosp_to_phl_cutoff_time_relative::Real  The time period (in days) between the cut-off time for the last swab that can be taken at a hospital and 
+                                                    still be transported to the local public health lab (PHL) to be made available for courier collection at the phl_collection_time. 
+                                                    E.g. hosp_to_phl_cutoff_time_relative = 1 and phl_collection_time = 0.5, indicates midday collection from the PHL and cut-off swab time
+                                                    at the hospital of midday the day before. As another example, midday (12:00) collection from PHL (phl_collection_time = 0.5) and
+                                                    the cutoff for swabs at 5pm (17:00) the day before would be hosp_to_phl_cutoff_time_relative = 0.7917 (=(12+(24-17))/24)
+            swab_time_mode::Real                    The peak time (in days) for swabbing after initial attendance/admission at hospital.
+            swab_proportion_at_48h::Real            The proportion of acute respiratory infection (ARI) hospital attendees/admissions are swabbed within 48hrs (=2 days) of arrival.
+            proportion_hosp_swabbed::Real           Proportion of ARI hospital attendees that are swabbed, as a decimal value
+            only_sample_before_death::Bool          There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+            # Hospital parameters #
+            ed_discharge_limit::Float64             Assume that people attending the Emergency Department only (i.e. not admitted) are discharged within this time limit (in days).
+            hosp_short_stay_limit::Float64          Assume that people that are admitted to hospital but only have a 'short stay' (this relates to a specific infection severity) 
+                                                    are discharged within this time limit (in days).
+            nhs_trust_catchment_pop::DataFrame      Proportion of population (of England) split by NHS Trust. Also disaggregated by adults and children. Example below:
+                                                    126×4 DataFrame
+                                                    Row │ TrustCode  catchment_prop_of_total_sum  prop_child   prop_adult 
+                                                        │ Any        Float64                      Float64      Float64
+                                                    ─────┼─────────────────────────────────────────────────────────────────
+                                                    1 │ R0A                         0.021291    0.00634217   0.0149488
+                                                    2 │ R0B                         0.00772294  0.00146184   0.0062611
+                                                    3 │ R0D                         0.0104117   0.0018323    0.00857945
+                                                    ⋮  │     ⋮                   ⋮                    ⋮           ⋮
+                                                    124 │ RXW                         0.00811911  0.00169838   0.00642073
+                                                    125 │ RYJ                         0.0100881   0.00187858   0.00820951
+                                                    126 │ RYR                         0.0179986   0.00352307   0.0144755
+            nhs_trust_ae_12m::DataFrame             Data on A&E attendances at NHS Trusts including the 12-month mean and proportions of the total.
+                                                    199×15 DataFrame
+                                                    Row │ NHS_Trust_code  2024_4_function  2024_5_function  2024_6_function  2024_7_function  2024_8_function  2024_9_function  2024_10_function  2024_11_function  2024_12_function  2025_1_function  2025_2_function  2025_3_function  mean_12m  mean_12m_prop 
+                                                        │ String7         Int64            Int64            Int64            Int64            Int64            Int64            Int64             Int64             Int64             Int64            Int64            Int64            Float64   Float64
+                                                    ─────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                    ⋮  │       ⋮                ⋮                ⋮                ⋮                ⋮                ⋮                ⋮                ⋮                 ⋮                 ⋮                 ⋮                ⋮                ⋮            ⋮            ⋮
+                                                    32 │ RGP                        6950             7644             7323             7844             7757             7222              7574              7287              7082             6535             6286             7416   7243.33     0.00530124
+                                                    33 │ RJ6                       12926            13703            13337            13230            12064            12509             12732             13200             13668            12997            11931            13255  12962.7      0.00948709
+                                                    34 │ RK9                        8342             9272             9105             9222             8907             8884              9604              9116              9586             8603             8072             9353   9005.5      0.00659093
+                                                    35 │ RXF                       17513            17925            16962            16592            15391            15790             16821             16762             16641            15436            14812            17104  16479.1      0.0120607
+                                                    36 │ RXR                       12318            13526            12826            13481            12519            13080             13289             13334             13318            12294            11973            13340  12941.5      0.0094716
+                                                    ⋮  │       ⋮                ⋮                ⋮                ⋮                ⋮                ⋮                ⋮                ⋮                 ⋮                 ⋮                 ⋮                ⋮                ⋮            ⋮            ⋮
+            # Seasonal values #
+            hosp_ari_admissions::Int                Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
+            hosp_ari_admissions_adult_p::Float64    Proportion of Emergency Department ARI admissions that are adults (18y and over)
+            hosp_ari_admissions_child_p::Float64    Proportion of Emergency Department ARI admissions that are children (<18y)
+            ed_ari_destinations_adult::DataFrame    Destinations and proportions of adults arriving at hospital emergency departments.
+                                                    For example: DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                          , proportion_of_attendances = [0.628,0.030,0.342])
+            ed_ari_destinations_child::DataFrame    Destinations and proportions of children arriving at hospital emergency departments.
+                                                    For example: DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                          , proportion_of_attendances = [0.861,0.014,0.125])
+                                                    
+Returns:    A dataframe containing the median times to detect one and three cases for each simulation replicate in sims.
+            The output also contains the number of secondary care cases, the number that are sampled and the number that 
+            return a positive result based on the assumed metagenomic test sensitivity. The simids are also recorded (a unique code for each simtree run within the simforest function).
+            Information regarding the times of infection relating to the time of detection for one and three cases is also recorded.
+            Output dataframe is formatted as example below.
 
-Returns:
+            340×9 DataFrame
+            Row │ sim_n  SC_TD    SC_3TD   n_SC_cases  n_SC_cases_sampled  n_SC_cases_sampled_positive  SC_simid                           tinf_relating_to_SC_TD  last_tinf_relating_to_SC_3TD 
+                │ Any    Any      Any      Any         Any                 Any                          Any                                Any                     Any
+            ─────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+            1 │ 1      33.7966  36.7966  11115       376                 334                          ["fec10c2a-fd4d-11f0-3874-5958aa…  26.3112                 25.3633
+            2 │ 2      21.8271  28.8271  6186        269                 239                          ["649b0062-fd4e-11f0-0308-e19372…  10.4537                 21.8793
+            3 │ 3      42.681   53.681   1681        100                 91                           ["8e2cfe26-fd4e-11f0-2ebd-83a077…  30.0985                 42.6665
+            ⋮  │   ⋮       ⋮        ⋮         ⋮               ⋮                        ⋮                               ⋮                            ⋮                          ⋮
+            338 │ 338    40.3644  43.3644  6684        313                 283                          ["2b910e9e-fd4f-11f0-2596-a17c08…  32.0248                 32.3078
+            339 │ 339    34.4027  37.4027  9849        410                 369                          ["507353ca-fd4f-11f0-0e65-a16a8e…  20.9622                 23.8261
+            340 │ 340    43.5813  50.5813  2114        119                 103                          ["88caa1b2-fd4f-11f0-1320-6db9fb…  33.0952                 39.0238
+
 
 Examples:
-
+            sims = load("covidlike-1.4.3-sims-filtered_G_nrep340_1633695.jld2", "sims")
+            results1 = secondary_care_td(; p = NBPMscape.P
+                            , sims
+                            , pathogen_type = NBPMscape.P.pathogen_type
+                            , initial_dow = NBPMscape.P.initial_dow
+                            # Sampling parameters
+                            , hariss_courier_to_analysis = NBPMscape.P.hariss_courier_to_analysis #1.0 # Time between courier collection from PHL and beginning of analysis
+                            , hariss_turnaround_time = NBPMscape.P.turnaroundtime_hariss #[2,4] # Time to process sample and report results / declare detection
+                            , n_hosp_samples_per_week = NBPMscape.P.n_hosp_samples_per_week # Total number of hospital samples to be taken per week
+                            , sample_allocation = NBPMscape.P.sample_allocation #"equal" # "equal" or "weighted"
+                            , sample_proportion_adult = NBPMscape.P.sample_proportion_adult #"free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target 
+                                                                    # between adults and children. "free" indicates that no split is specified
+                            , hariss_nhs_trust_sampling_sites = NBPMscape.P.hariss_nhs_trust_sampling_sites # List of NHS Trusts in HARISS sampling network 
+                            , weight_samples_by = NBPMscape.P.weight_samples_by #"ae_mean" # or "catchment_pop"
+                            , phl_collection_dow = NBPMscape.P.phl_collection_dow #[2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+                            , phl_collection_time = NBPMscape.P.phl_collection_time # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
+                            , hosp_to_phl_cutoff_time_relative = NBPMscape.P.hosp_to_phl_cutoff_time_relative # day(s). The cut-off time for the last swab that can be taken at a hospital and transported to the local public health lab (PHL) and made available for courier collection at the phl_collection_time. E.g. hosp_to_phl_cutoff_time_relative = 1 and phl_collection_time = 0.5, indicates midday collection from the PHL and cut-off swab time at the hospital of midday the day before. As another example, midday (12:00) collection from PHL (phl_collection_time = 0.5) and the cutoff for swabs at 5pm (17:00) the day before would be hosp_to_phl_cutoff_time_relative = 0.7917 (=(12+(24-17))/24)
+                            , swab_time_mode = NBPMscape.P.swab_time_mode #0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
+                            , swab_proportion_at_48h = NBPMscape.P.swab_proportion_at_48h #0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
+                            , proportion_hosp_swabbed = NBPMscape.P.proportion_hosp_swabbed #0.9 # Assume 90% of ARI attendances are swabbed
+                            #, initial_dow = 1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
+                            , only_sample_before_death = NBPMscape.P.hariss_only_sample_before_death #true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+                            # Hospital parameters
+                            , ed_discharge_limit = NBPMscape.P.tdischarge_ed_upper_limit #0.25 # days. Assume that people attending the Emergency Department are discharged within this time limit.
+                            , hosp_short_stay_limit = NBPMscape.P.tdischarge_hosp_short_stay_upper_limit # days. Assume that people attending the Emergency Department are discharged within this time limit.
+                            , nhs_trust_catchment_pop = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
+                            #, nhs_trust_ae_12m = AE_12M
+                            # Seasonal values
+                            , hosp_ari_admissions = NBPMscape.P.hosp_ari_admissions # Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
+                            , hosp_ari_admissions_adult_p = NBPMscape.P.hosp_ari_admissions_adult_p #0.52# Proportion of ED ARI admissions that are adults (18y and over)
+                            , hosp_ari_admissions_child_p = NBPMscape.P.hosp_ari_admissions_child_p #0.48 # Proportion of ED ARI admissions that are children (<18y)
+                            , ed_ari_destinations_adult = NBPMscape.P.ed_ari_destinations_adult #DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                                                                    #, proportion_of_attendances = [0.628,0.030,0.342])
+                            , ed_ari_destinations_child = NBPMscape.P.ed_ari_destinations_child #DataFrame( destination = [:discharged,:short_stay,:longer_stay]
+                                                                                                                    #, proportion_of_attendances = [0.861,0.014,0.125])
+                            )
 
 """
 function secondary_care_td(; p = NBPMscape.P
                             , sims
                             , pathogen_type::String = NBPMscape.P.pathogen_type #"virus"
-                            , initial_dow::Int64 = NBPMscape.P.initial_dow #1
+                            , initial_dow::Int64 = NBPMscape.P.initial_dow #1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
                             #, hosp_cases::DataFrame # filtered from simulation of infections (G df filtered for value in thosp column)
                             # Sampling parameters
                             , hariss_courier_to_analysis::Float64 = NBPMscape.P.hariss_courier_to_analysis #1.0 # Time between courier collection from PHL and beginning of analysis
-                            , hariss_turnaround_time = NBPMscape.P.turnaroundtime_hariss #[2,4] # Time to process sample and report results / declare detection
+                            , hariss_turnaround_time::Vector = NBPMscape.P.turnaroundtime_hariss #[2,4] # Time to process sample and report results / declare detection
                             , n_hosp_samples_per_week::Int = NBPMscape.P.n_hosp_samples_per_week # Total number of hospital samples to be taken per week
                             , sample_allocation::String = NBPMscape.P.sample_allocation #"equal" # "equal" or "weighted"
                             , sample_proportion_adult::Any = NBPMscape.P.sample_proportion_adult #"free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target 
                                                                     # between adults and children. "free" indicates that no split is specified
                             , hariss_nhs_trust_sampling_sites::DataFrame = NBPMscape.P.hariss_nhs_trust_sampling_sites # List of NHS Trusts in HARISS sampling network 
-                            , weight_samples_by = NBPMscape.P.weight_samples_by #"ae_mean" # or "catchment_pop"
+                            , weight_samples_by::String = NBPMscape.P.weight_samples_by #"ae_mean" # or "catchment_pop"
                             , phl_collection_dow::Vector{Int64} = NBPMscape.P.phl_collection_dow #[2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+                            , phl_collection_time::Float64 = NBPMscape.P.phl_collection_time # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
+                            , hosp_to_phl_cutoff_time_relative::Real = NBPMscape.P.hosp_to_phl_cutoff_time_relative # day(s). The cut-off time for the last swab that can be taken at a hospital and transported to the local public health lab (PHL) and made available for courier collection at the phl_collection_time. E.g. hosp_to_phl_cutoff_time_relative = 1 and phl_collection_time = 0.5, indicates midday collection from the PHL and cut-off swab time at the hospital of midday the day before. As another example, midday (12:00) collection from PHL (phl_collection_time = 0.5) and the cutoff for swabs at 5pm (17:00) the day before would be hosp_to_phl_cutoff_time_relative = 0.7917 (=(12+(24-17))/24)
                             , swab_time_mode::Real = NBPMscape.P.swab_time_mode #0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
                             , swab_proportion_at_48h::Real = NBPMscape.P.swab_proportion_at_48h #0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
                             , proportion_hosp_swabbed::Real = NBPMscape.P.proportion_hosp_swabbed #0.9 # Assume 90% of ARI attendances are swabbed
-                            #, initial_dow::Int64 = 1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
                             , only_sample_before_death::Bool = NBPMscape.P.hariss_only_sample_before_death #true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
                             # Hospital parameters
                             , ed_discharge_limit::Float64 = NBPMscape.P.tdischarge_ed_upper_limit #0.25 # days. Assume that people attending the Emergency Department are discharged within this time limit.
+                            , hosp_short_stay_limit::Float64 = NBPMscape.P.tdischarge_hosp_short_stay_upper_limit # days. Assume that people attending the Emergency Department are discharged within this time limit.
                             , nhs_trust_catchment_pop::DataFrame = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
                             #, nhs_trust_ae_12m::DataFrame = AE_12M
                             # Seasonal values
@@ -560,11 +696,12 @@ function secondary_care_td(; p = NBPMscape.P
         end
     
         ### Record infection time stats
-        # Note that metagenomic test sensitivity is not applied in sample_hosp_cases_n
+        # Note that metagenomic test sensitivity is not applied in sample_hosp_cases_n # println(hosp_cases_sub)
         hosp_cases_sub = sample_hosp_cases_n(; p = NBPMscape.P
                                              , hosp_cases = hosp_cases
                                              # Hospital parameters
                                              , nhs_trust_catchment_pop = nhs_trust_catchment_pop
+                                             , hosp_short_stay_limit = hosp_short_stay_limit
                                              #, nhs_trust_ae_12m = nhs_trust_ae_12m
                                              , ed_discharge_limit = ed_discharge_limit
                                              # Seasonal parameters
@@ -580,6 +717,8 @@ function secondary_care_td(; p = NBPMscape.P
                                              , hariss_nhs_trust_sampling_sites = hariss_nhs_trust_sampling_sites
                                              , weight_samples_by = weight_samples_by
                                              , phl_collection_dow = phl_collection_dow
+                                             , phl_collection_time = phl_collection_time
+                                             , hosp_to_phl_cutoff_time_relative = hosp_to_phl_cutoff_time_relative
                                              , swab_time_mode = swab_time_mode
                                              , swab_proportion_at_48h = swab_proportion_at_48h
                                              , proportion_hosp_swabbed = proportion_hosp_swabbed
