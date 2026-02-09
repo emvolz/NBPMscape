@@ -121,7 +121,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         end
     end
 
-    # Check that rates are greater than zero
+    # Check that rates are not negative
     rate_fields = [
         "parameters.gp_only_rate",
         "parameters.ed_direct_rate",
@@ -226,7 +226,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         end
     end
 
-    # Check parameter values are greater than zero
+    # Check parameter values are not negative
     other_fields = [ "parameters.n_icu_samples_per_week"
                  , "parameters.icu_ari_admissions"
                  , "parameters.gp_practices_total"
@@ -393,7 +393,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
     
     ari_admissions_fields = append!(hosp_ari_admissions_fields, icu_ari_admissions_fields);
        
-    # First, check values are between 0 and 1
+    # First, check values are between 0 and 1, inclusive
     for field in ari_admissions_fields
         value, error_msg = safe_get_value(config, field)
         if error_msg !== nothing
@@ -433,7 +433,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
                                  ,"parameters.ed_ari_destinations_child_p_longer_stay"];
     ed_ari_dest_fields = append!(ed_ari_dest_adult_fields, ed_ari_dest_child_fields)
     
-    # First, check values are between 0 and 1.
+    # First, check values are between 0 and 1, inclusive
     for field in ed_ari_dest_fields
         value, error_msg = safe_get_value(config, field)
         if error_msg !== nothing
@@ -468,7 +468,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
     catch # Errors in the parameter values are already captured above
     end
     
-    # Check that the public health lab collection time is between 0 and 1 day. 
+    # Check that the public health lab collection time is between 0 and 1 day (inclusive, i.e. midnight to midnight). 
     # This is the decimal time of day so must be in this range
     phl_collection_time, error_msg = safe_get_value(config, "parameters.phl_collection_time")
     if error_msg !== nothing
@@ -482,7 +482,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
     hosp_to_phl_cutoff_time_relative, error_msg = safe_get_value(config, "parameters.hosp_to_phl_cutoff_time_relative")
     if error_msg !== nothing
         push!(warnings, "Could not validate hosp_to_phl_cutoff_time_relative: $error_msg")
-    elseif hosp_to_phl_cutoff_time_relative !== nothing && !(hosp_to_phl_cutoff_time_relative >= 0 )
+    elseif hosp_to_phl_cutoff_time_relative !== nothing && !(hosp_to_phl_cutoff_time_relative > 0 )
         push!(errors, "hosp_to_phl_cutoff_time_relative must be greater than 0, got $phl_collection_time")
     end
 
