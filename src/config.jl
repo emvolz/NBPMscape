@@ -375,12 +375,14 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         push!(errors, "sample_proportion_adult must be 'free' or of type Float between 0.0 and 1.0, got $sample_proportion_adult_value");
     end
 
-    # Check day of the week relative contact rates are all non-negative
+    # Check day of the week relative contact rates are all non-negative and the length is seven, i.e. values for all days of the week
     dowcont_value, error_msg = safe_get_value(config, "parameters.dowcont")
     if error_msg !== nothing
         push!(warnings, "Could not validate dowcont: $error_msg");
     elseif dowcont_value !== nothing && !( all(x -> 0 <= x , dowcont_value) )
         push!(errors, "All elements in dowcont must be non-negative, got $dowcont_value");
+    elseif dowcont_value !== nothing && length(dowcont_value) != 7
+        push!(errors, "dowcont must contain seven values, one for each day of the week, got $dowcont_value");
     end
 
     # Check hospital and ICU ARI admissions adult and child proportions are non-negative and sum to 1
