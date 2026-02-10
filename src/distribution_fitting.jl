@@ -358,24 +358,62 @@ Returns:    'fit_results' vector containing a dictionary. The Keys are the stati
                 , "Weibull" => (1.0e10            , 2.0000000004e10  , [869.4059273903558, 0.09902739018403779])
                 )
 
-Examples:   
-            #sims_simid_tinf_df = load("C:/Users/kdrake/OneDrive - Imperial College London/Documents/mSCAPE/3_results/from_hpc/2025_10_maxtime_maxcases/1101621/covidlike-1.3.14-sims_simid_tinf_nrep1200_1101621.jld2", "sims_simid_tinf_df")
-            #times = sims_simid_tinf_df[1][:,2]
-            #times2 = sample(times, 20) println(times2)
+Examples:   # Example 1
             times = [88.1, 85.9, 89.8, 85.5, 86.5, 83.7, 80.5, 83.8, 89.1, 85.4, 86.1, 89.2, 86.6, 89.1, 88.7, 86.5, 86.9, 78.8, 88.3, 83.4]
             init_gamma_1 = [mean(times)^2 / var(times), var(times)/mean(times)] #[2,1]
             init_weibull_1 = init_gamma_1
 
-            fit_results = fit_multi_dist(; times = times2
+            fit_results_1 = fit_multi_dist(; times = times
                                          , init_gamma = init_gamma_1
                                          , init_weibull = init_weibull_1
                                          , lower = 0, upper = 90
                                          ) 
             # Returns
-            1-element Vector{Dict{Any, Any}}:
-            Dict( "Gamma"   => (45.868899181683545, 95.73779836336709, [344.4013308355461, 0.26090968646639895])
-                , "Weibull" => (1.0e10            , 2.0000000004e10  , [869.4059273903558, 0.09902739018403779]))
+            #Goodness-of-fit (AIC) for each distribution:
+            #    Gamma: negative log-likelihood = 46.000581711858075, AIC = 96.00116342371615, parameters = [357.10371195234734, 0.25075957884918876]
+            #    Weibull: negative log-likelihood = 1.0e10, AIC = 2.0000000004e10, parameters = [869.4059273903558, 0.09902739018403779]
+            #Best-fitting distribution: Gamma
+            #1-element Vector{Dict{Any, Any}}:
+            #Dict("Gamma"   => (46.000581711858075, 96.00116342371615, [357.10371195234734, 0.25075957884918876])
+            #   , "Weibull" => (1.0e10,              2.0000000004e10,  [869.4059273903558,  0.09902739018403779]))
 
+            # Example 2
+            sims_simid_tinf_df = load("C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2025_10_maxtime_maxcases/1101621/covidlike-1.3.14-sims_simid_tinf_nrep1200_1101621.jld2", "sims_simid_tinf_df")
+            times2 = sims_simid_tinf_df[1][:,2]
+            times2_samp = sample(times2, 20) # println(times2_samp)
+            init_gamma_2 = [mean(times2)^2 / var(times2), var(times2)/mean(times2)] #[2,1]
+            init_weibull_2 = init_gamma_2
+
+            fit_results_2 = fit_multi_dist(; times = times2_samp
+                                         , init_gamma = init_gamma_2
+                                         , init_weibull = init_weibull_2
+                                         , lower = 0, upper = 90
+                                         ) 
+            # Returns
+            #1-element Vector{Dict{Any, Any}}:
+            #Dict( "Gamma"   => (45.868899181683545, 95.73779836336709, [344.4013308355461, 0.26090968646639895])
+            #    , "Weibull" => (1.0e10            , 2.0000000004e10  , [869.4059273903558, 0.09902739018403779]))
+            
+            # Example 3
+            sims_simid_tinf_df = load("covidlike-1.4.1-sims-nrep50_sims_simid_tinf_df_1287570.10.jld2","sims_simid_tinf_df")
+            times3 = sims_simid_tinf_df[1][:,2]
+            times3_samp = sample(times3, 20) # println(times3_samp)
+            init_gamma_3 = [mean(times3)^2 / var(times3), var(times3)/mean(times3)] #[2,1]
+            init_weibull_3 = init_gamma_3
+
+            fit_results_3 = fit_multi_dist(; times = times3_samp
+                                         , init_gamma = init_gamma_3
+                                         , init_weibull = init_weibull_3
+                                         , lower = 0, upper = 90
+                                         ) 
+            # Returns
+            #Goodness-of-fit (AIC) for each distribution:
+            #   Gamma: negative log-likelihood = 62.32695678285353, AIC = 128.65391356570706, parameters = [92.47052632053406, 0.9143376467234523]
+            #   Weibull: negative log-likelihood = 1.0e10, AIC = 2.0000000004e10, parameters = [182.0052384330206, 0.6803704938010121]
+            #Best-fitting distribution: Gamma
+            #1-element Vector{Dict{Any, Any}}:
+            # Dict("Gamma"   => (62.32695678285353, 128.65391356570706, [ 92.47052632053406, 0.9143376467234523])
+            #    , "Weibull" => (1.0e10,              2.0000000004e10,  [182.0052384330206,  0.6803704938010121]))
 
 """
 function fit_multi_dist(; times, init_gamma, init_weibull #,init_nbinom, init_lognorm, init_normal
@@ -410,7 +448,7 @@ function fit_multi_dist(; times, init_gamma, init_weibull #,init_nbinom, init_lo
     #end
 
     # TEST PLOT TO VIEW DATA AND FIT
-    # dist_fit_plot(; d0 = Gamma( res_gamma.minimizer[1], res_gamma.minimizer[2]), lower = 0.0, upper = 60.0, data_to_fit = times, data_type = "tinf")
+    # dist_fit_plot(; d0 = Gamma( res_gamma.minimizer[1], res_gamma.minimizer[2]), lower = 0.0, upper = 90.0, data_to_fit = times, data_type = "tinf")
     
     # Weibull
     obj_f_weibull = init_weibull -> nll_trunc_weibull(;params = init_weibull, times = times, trunc = [lower, upper])
@@ -445,12 +483,29 @@ function fit_multi_dist(; times, init_gamma, init_weibull #,init_nbinom, init_lo
         println("All fits failed.")
     else
         println("Goodness-of-fit (AIC) for each distribution:")
-        for (dist, (_nll, aic, params)) in fit_results
+        for (dist, (_nll, aic, params)) in fit_results 
             println("  $dist: negative log-likelihood = $_nll, AIC = $aic, parameters = $params")
         end
-    # Select best distribution
-    best_dist = findmin([(aic, dist) for (dist, (_nll, aic, _params)) in fit_results])[1][2]
-    println("Best-fitting distribution: $best_dist ") #$fit_results[$("$best_dist")]")
+        # TEST # AIC values tied          # fit_results["Weibull"] = fit_results["Gamma"]
+        # TEST # AIC missing for one dist # fit_results["Weibull"] = (missing, missing, [missing,missing])
+        # TEST # AIC missing for all dist # fit_results["Gamma"] = (missing, missing, [missing,missing])
+
+        # Filter for valid results
+        valid_results = [(aic, dist) for (dist, (_nll, aic, _params)) in fit_results 
+                            if !ismissing(aic) && !isnan(aic) && (aic < (2*2 + 2*1e10))] # See definition of aic above. nll_g and nll_w limited to 1e10 in cases where value would be infinite
+        if isempty(valid_results)
+            @warn "No valid AIC values found and so no best-fitting distribution identified"
+        else
+            # Find minimum AIC and select best distribution(s)
+            try 
+                min_aic = minimum(x[1] for x in valid_results) 
+                best_dists = [dist for (aic, dist) in valid_results if aic == min_aic]
+            catch e 
+                best_dists = "None found"
+            end
+            
+            println("Best-fitting distribution(s): $best_dists ") #$fit_results[$("$best_dist")]")
+        end
     end
 
     return( [fit_results] )
