@@ -11,12 +11,12 @@ List of functions in this file:
         - nll_trunc_gamma       Computes negative log-likelihood for truncated Gamma distribution fit
         - nll_trunc_normal      Computes negative log-likelihood for truncated Normal distribution fit
         - nll_trunc_weibull     Computes negative log-likelihood for truncated Weibull distribution fit
-        - discretise_gamma_pmf  Discretise the Gamma distribution into a probability mass function (PMF) over 
+        - discretize_gamma_pmf  Discretize the Gamma distribution into a probability mass function (PMF) over 
                                 specified bins.
         - assign_bins           Assign values to bins using searchsortedlast (faster than manual loop)
-                                Used in function to fit a discretised Gamma distribution (nll_disc_gamma) to
+                                Used in function to fit a discretized Gamma distribution (nll_disc_gamma) to
                                 assign continuous time values to discrete bins
-        - nll_disc_gamma        Negative log-likelihood for discretised gamma model
+        - nll_disc_gamma        Negative log-likelihood for discretized gamma model
 
         - dist_fit_plot     Plots data and fitted distribution
         - fit_multi_dist    Function to compare results for fitting Gamma and Weibull statistical distributions to data
@@ -81,20 +81,20 @@ end
 
 
 """
-Function:   discretise_gamma_pmf
+Function:   discretize_gamma_pmf
 
-Description:    Discretised version of Gamma distribution. 
-                Discretise the Gamma distribution into a probability mass function (PMF) over 
+Description:    Discretized version of Gamma distribution. 
+                Discretize the Gamma distribution into a probability mass function (PMF) over 
                 specified bins.
 
 Arguments:      shape::Float64          Parameter for continuous Gamma distribution
                 scale::Float64          Parameter for continuous Gamma distribution
                 bins::Vector{Float64}   Number of bins in discretisation
 
-Returns:        Vector representing values of defined continuous Gamma distribution discretised into the input bin edges.
+Returns:        Vector representing values of defined continuous Gamma distribution discretized into the input bin edges.
                 See example below.
 
-Examples:       dgp = discretise_gamma_pmf(shape = 344.0, scale = 0.26
+Examples:       dgp = discretize_gamma_pmf(shape = 344.0, scale = 0.26
                                           , bins = [0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0, 85.0, 90.0, 95.0, 100.0]
                                           )
                 # Returns
@@ -105,7 +105,7 @@ Examples:       dgp = discretise_gamma_pmf(shape = 344.0, scale = 0.26
                  , 0.10881266983516491]
                 
 """
-function discretise_gamma_pmf(; shape::Float64, scale::Float64, bins::Vector{Float64})
+function discretize_gamma_pmf(; shape::Float64, scale::Float64, bins::Vector{Float64})
     d = Gamma(shape, scale)
     cdfs = cdf.(d, bins)
     return diff(cdfs)
@@ -116,7 +116,7 @@ end
 Function:   assign_bins
 
 Description:    Assign values to bins using searchsortedlast (faster than manual loop)
-                Used in function to fit a discretised Gamma distribution (nll_disc_gamma) to
+                Used in function to fit a discretized Gamma distribution (nll_disc_gamma) to
                 assign continuous time values to discrete bins
 
 Arguments:  values::Vector{Float64}
@@ -144,14 +144,14 @@ end
 """
 Function:   nll_disc_gamma
 
-Description:    Negative log-likelihood for discretised gamma model
+Description:    Negative log-likelihood for discretized gamma model
 
 Arguments:      params::Vector{Float64} Parameters for continuous Gamma distribution [shape, scale]
-                times::Vector{Float64}  Data to fit discretised Gamma distribution to
+                times::Vector{Float64}  Data to fit discretized Gamma distribution to
                 trunc::Vector           [lower, upper] limits of trucated distribution
                 nbins::Int              Number of bins for discrisation
 
-Returns:    Negative log-likelihood of discretised Gamma distribution fit to the data (times)
+Returns:    Negative log-likelihood of discretized Gamma distribution fit to the data (times)
 
 Examples:
             nll_disc_gamma(  params = [344.0, 0.26] # Gamma[shape, scale]
@@ -177,7 +177,7 @@ function nll_disc_gamma(; params::Vector{Float64}, times::Vector{Float64}, trunc
     bins = range(lower, stop=upper, length=nbins+1) |> collect
 
     # Compute Gamma probability mass function values
-    pmf = NBPMscape.discretise_gamma_pmf(shape = shape, scale = scale, bins = bins)
+    pmf = NBPMscape.discretize_gamma_pmf(shape = shape, scale = scale, bins = bins)
     # Validate values
     if any(pmf .<= 0)
         return 1e10
