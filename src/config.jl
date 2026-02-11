@@ -121,7 +121,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         end
     end
 
-    # Check that rates are greater than zero
+    # Check that rates are not negative
     rate_fields = [
         "parameters.gp_only_rate",
         "parameters.ed_direct_rate",
@@ -226,7 +226,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         end
     end
 
-    # Check parameter values are greater than zero
+    # Check parameter values are not negative
     other_fields = [ "parameters.n_icu_samples_per_week"
                  , "parameters.icu_ari_admissions"
                  , "parameters.gp_practices_total"
@@ -375,12 +375,14 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         push!(errors, "sample_proportion_adult must be 'free' or of type Float between 0.0 and 1.0, got $sample_proportion_adult_value");
     end
 
-    # Check day of the week relative contact rates are all non-negative
+    # Check day of the week relative contact rates are all non-negative and the length is seven, i.e. values for all days of the week
     dowcont_value, error_msg = safe_get_value(config, "parameters.dowcont")
     if error_msg !== nothing
         push!(warnings, "Could not validate dowcont: $error_msg");
     elseif dowcont_value !== nothing && !( all(x -> 0 <= x , dowcont_value) )
         push!(errors, "All elements in dowcont must be non-negative, got $dowcont_value");
+    elseif dowcont_value !== nothing && length(dowcont_value) != 7
+        push!(errors, "dowcont must contain seven values, one for each day of the week, got $dowcont_value");
     end
 
     # Check hospital and ICU ARI admissions adult and child proportions are non-negative and sum to 1
@@ -391,7 +393,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
     
     ari_admissions_fields = append!(hosp_ari_admissions_fields, icu_ari_admissions_fields);
        
-    # First, check values are between 0 and 1
+    # First, check values are between 0 and 1, inclusive
     for field in ari_admissions_fields
         value, error_msg = safe_get_value(config, field)
         if error_msg !== nothing
@@ -431,7 +433,7 @@ function validate_config(config::Dict) # config=config_data # config=load_config
                                  ,"parameters.ed_ari_destinations_child_p_longer_stay"];
     ed_ari_dest_fields = append!(ed_ari_dest_adult_fields, ed_ari_dest_child_fields)
     
-    # First, check values are between 0 and 1.
+    # First, check values are between 0 and 1, inclusive
     for field in ed_ari_dest_fields
         value, error_msg = safe_get_value(config, field)
         if error_msg !== nothing
@@ -465,7 +467,25 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         end
     catch # Errors in the parameter values are already captured above
     end
-        
+    
+    # Check that the public health lab collection time is between 0 and 1 day (inclusive, i.e. midnight to midnight). 
+    # This is the decimal time of day so must be in this range
+    phl_collection_time, error_msg = safe_get_value(config, "parameters.phl_collection_time")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate phl_collection_time: $error_msg")
+    elseif phl_collection_time !== nothing && !((phl_collection_time >= 0) && (phl_collection_time <= 1.0 ))
+        push!(errors, "phl_collection_time must be between 0 and 1, got $phl_collection_time")
+    end
+    
+    # Check that the length of time between the cutoff time for swabs made at a hospital and
+    # the collection time at the public health lab is greater than 0 days. 
+    hosp_to_phl_cutoff_time_relative, error_msg = safe_get_value(config, "parameters.hosp_to_phl_cutoff_time_relative")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate hosp_to_phl_cutoff_time_relative: $error_msg")
+    elseif hosp_to_phl_cutoff_time_relative !== nothing && !(hosp_to_phl_cutoff_time_relative > 0 )
+        push!(errors, "hosp_to_phl_cutoff_time_relative must be greater than 0, got $phl_collection_time")
+    end
+
     return warnings, errors
 end
 

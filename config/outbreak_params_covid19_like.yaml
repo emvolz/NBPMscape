@@ -45,6 +45,9 @@ parameters:
   hariss_nhs_trust_sampling_sites_file: "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
   weight_samples_by: "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
   phl_collection_dow: [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+  phl_collection_time: 0.5 # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
+  hosp_to_phl_cutoff_time_relative: 1 # day(s). The cut-off time for the last swab that can be taken at a hospital and transported to the local public health lab (PHL) and made available for courier collection at the phl_collection_time. E.g. hosp_to_phl_cutoff_time_relative = 1 and phl_collection_time = 0.5, indicates midday collection from the PHL and cut-off swab time at the hospital of midday the day before. As another example, midday (12:00) collection from PHL (phl_collection_time = 0.5) and the cutoff for swabs at 5pm (17:00) the day before would be hosp_to_phl_cutoff_time_relative = 0.7917 (=(12+(24-17))/24)
+        
   swab_time_mode: 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
   swab_proportion_at_48h: 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
   proportion_hosp_swabbed: 0.9 # Assume X% of ARI attendances are swabbed, i.e. some will not be swabbed for practical reasons and therefore not available for sampling
@@ -131,11 +134,13 @@ parameters:
   hosp_long_stay_recovery_rate: 0.08547008547008547    # 1/11.70 days # hosp_recovery_rate above split into short stay (<24h) and long stay (>24h). Mean durations of the two periods computed using erlang_truncated_means( k = 1, rate = 0.0935, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf). Note that the rate has been adjusted as the rounded rate parameter does not give the mean value reported.
   hosp_death_rate: 0.0970873786407767                  # 1/10.3 days # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
 # ICU rates
-  triage_icu_rate: 0.4                                # 1/2.5 days # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
-  icu_to_death_rate: 0.0847457627118644               # 1/11.8 days # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
+  triage_icu_rate: 0.4                                          # 1/ 2.5 days # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
+  icu_to_death_rate: 0.0847457627118644                         # 1/11.8 days # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
+  icu_to_stepdown_leading_to_death_rate: 0.14285714285714285    # 1/ 7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2, 25.7). Erlang(k=1, gamma=0.14). Knock et al (2021)
+  stepdown_to_death_after_icu_rate: 0.1234567901234568          # 1/ 8.1 # 'Stepdown period before death after leaving ICU' 8.1 days (95% CI: 0.2, 29.7). Erlang(k=1,gamma=0.12). Knock et al (2021).
   icu_to_stepdown_leading_to_recovery_rate: 0.06410256410256411 # 1/15.6 days # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4, 57.6). Erlang(k=1, gamma=0.06) . Knock et al (2021)
   stepdown_to_recovery_after_icu_rate: 0.0819672131147541       # 1/12.2 days # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
-
+  
 # Import parameters
 #imports:
   importrate: 0.5             # constant import rate

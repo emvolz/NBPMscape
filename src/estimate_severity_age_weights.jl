@@ -133,9 +133,12 @@ Description:    This function takes a .jld2 file containing a single simulation 
 
 Arguments       'sims_file':        .jld2 file containing simulation replicates as output by {simtree} or {simforest}
                                     For example, "sims", or "sims_G_gp_filter" or "sims_G_icu_filter" if pre-filtered for certain cases.
+                
                 'sim_object_name':  The name of the object saved to the .jld2 file. 
                                     For example, "sims", "sims_G_icu_filter", or "sims_G_gp_filter" for files filtered using {sims_filter}.
                                     Without this name the data cannot be loaded. 
+                
+                'sims_file_type::String':   Options are either "full" output from {simtree} or {simforest} or filtered for the G dataframe, "filtered_G". 
     
 Returns   Two histogram plots on screen, which can then be saved using the command in the example below
     
@@ -143,6 +146,7 @@ Example
     # Estimate infection age distribution disaggregated by ICU and GP
     inf_age_estimate( sims_file = "covidlike-1.3.1-sims-nrep1000_955898_2.jld2"
                         , sims_object_name = "sims" 
+                        , sims_file_type = "filtered_G"
                         )
     # Save figure
     savefig("examples/age_distribution_icu_gp.png")
@@ -158,7 +162,10 @@ Example
 
 function inf_age_estimate(; sims_file
                             , sims_object_name = "sims"
+                            , sims_file_type = "full"
                             )
+
+    @assert sims_file_type in ["full","filtered_G"]
 
     # Load simulation file
     sims = load(sims_file, sims_object_name)
@@ -167,12 +174,23 @@ function inf_age_estimate(; sims_file
     infectee_age_gp = [] ; infectee_age_icu = []
 
     # Loop through the simulation replicates and gather infectee ages by care pathway (note that individuals can visit a GP AND ICU but might be admitted to ICU without GP visit)
-    for s in sims #s=sims[2]
-        age_gp = s[ isfinite.(s.tgp), :infectee_age ]
-        infectee_age_gp = vcat(infectee_age_gp, age_gp)
+    for s in sims #s=sims[1]
 
-        age_icu = s[ isfinite.(s.ticu), :infectee_age ]
-        infectee_age_icu = vcat(infectee_age_icu, age_icu)
+        if sims_file_type == "filtered_G"
+            age_gp = s[ isfinite.(s.tgp), :infectee_age ]
+            infectee_age_gp = vcat(infectee_age_gp, age_gp)
+
+            age_icu = s[ isfinite.(s.ticu), :infectee_age ]
+            infectee_age_icu = vcat(infectee_age_icu, age_icu)
+        
+        elseif sims_file_type == "full"
+            
+            age_gp = s.G[ isfinite.(s.G.tgp), :infectee_age ]
+            infectee_age_gp = vcat(infectee_age_gp, age_gp)
+
+            age_icu = s.G[ isfinite.(s.G.ticu), :infectee_age ]
+            infectee_age_icu = vcat(infectee_age_icu, age_icu)           
+        end
     end
 
     # Plot infectee age distributions in a histogram

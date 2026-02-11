@@ -11,7 +11,6 @@ but more importantly, very large .jld2 files are difficult to reload.
 'sims_file':        File containing simulations output by {simtree} or {simforest}
 'sims_object_name': The name of the object saved to the .jld2 file. Without this name the data cannot 
                     be loaded from the .jld2 file
-'filter_variables': Currently this must be tgp and ticu formatted as a 2-element vector ["tgp","ticu"]
 
 # Returns
 A dataframe in the same format as the G dataframe but with the rows filtered for those with non-infinite values in the tgp and ticu columns:
@@ -25,7 +24,7 @@ A dataframe in the same format as the G dataframe but with the rows filtered for
 
 # Example
     # Run filter function
-    [sims_G_icu_filter,sims_G_gp_filter] = sims_filter( sims_file = "sims.jld2", sims_object_name = "sims", filter_variables = ["tgp","ticu"])
+    [sims_G_icu_filter,sims_G_gp_filter] = sims_filter( sims_file = "sims.jld2", sims_object_name = "sims")
     # Save output filtered data to file
     @save "sims_filtered_G_icu.jld2" sims_G_icu_filter
     @save "sims_filtered_G_gp.jld2" sims_G_gp_filter
@@ -34,20 +33,18 @@ A dataframe in the same format as the G dataframe but with the rows filtered for
 #using DataFrames
 #using JLD2
 
-function sims_filter(; sims_file = "sims.jld2"
-                    , sims_object_name = "sims"
-                    , filter_variables = ["tgp","ticu"])
+function sims_filter(; sims_file = "sims.jld2", sims_object_name = "sims")
 
     # Load file
     #sims = load("covidlike-1.1.1-sims.jld2", "sims")
-    sims = load(sims_file, sims_object_name)
+    sims = load(sims_file, sims_object_name) # sims = load("sims_test.jld2","sims_test")
 
     # Create vector to store filtered dataframes
     sims_G_icu_filter = [DataFrame() for _ in 1:length(sims)]
     sims_G_gp_filter  = [DataFrame() for _ in 1:length(sims)]
 
     # Loop through replicates
-    for s in 1:length(sims)
+    for s in eachindex(sims)
         
         try
             fo = sims[s]
@@ -60,8 +57,8 @@ function sims_filter(; sims_file = "sims.jld2"
             
             # If the filtered df has rows then add them to the vector holding the dfs,
             # otherwise add 'missing' to the vector
-            size(G_icu,1) > 0 ? sims_G_icu_filter[s] = G_icu : next #sims_G_icu_filter[s] = missing
-            size(G_gp, 1) > 0 ? sims_G_gp_filter[s] = G_gp  : next #sims_G_gp_filter[s]  = missing
+            size(G_icu,1) > 0 ? sims_G_icu_filter[s] = G_icu : missing # next #sims_G_icu_filter[s] = missing
+            size(G_gp, 1) > 0 ? sims_G_gp_filter[s] = G_gp  : missing # next #sims_G_gp_filter[s]  = missing
 
         catch err
             @warn "Error in iteration" exception = err
