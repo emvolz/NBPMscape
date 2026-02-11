@@ -51,12 +51,17 @@ Arguments:      params  Two element vector containing the intial shape and scale
 Returns:        Negative log-likelihood of the statistical distribution parameters (params) fitting the data (times)
 
 Examples:   
-                times = [0.09, 0.98, 1.21, 3.82, 2.77, 1.53, 1.57, 1.35, 1.51, 0.77]
+                times = [0.09, 0.98, 1.21, 3.82, 2.77, 1.53, 1.57, 1.35, 1.51, 0.77, 0.0, 0.0, 0.0]
                 init_gamma = [mean(times)^2 / var(times), var(times)/mean(times)]
                 nll_trunc_gamma(;params = init_gamma, times = times, trunc = [0, 4])
 
 """
 function nll_trunc_gamma(; params, times, trunc)
+    # Validate inputs
+    length(params) == 2 || throw(ArgumentError("params must have length 2"))
+    length(trunc) == 2 || throw(ArgumentError("trunc must have length 2"))
+    isempty(times) && return Inf
+    
     shape, scale = params
     if shape <= 0 || scale <= 0
         return 1e10 #Inf
@@ -64,17 +69,18 @@ function nll_trunc_gamma(; params, times, trunc)
     
     # Define distribution
     d0 = Gamma(shape, scale)
-    #norm = cdf(d0, upper) # Only upper truncation
-    #ll = sum(logpdf(d0, t) for t in times) - length(times) * log(norm)
     
     # Define truncated distribution
     lower, upper = trunc
     d = truncated( d0, lower, upper)
     
-    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
-    times_no_zeros = sort( filter(x -> x != 0, times) )
+    # Avoid inclusion of zero times as they cause logpdf.(d, times) -> Inf || -Inf
+    # by adding a small value epsilon
+    eps = 1e-6
+    times_no_zeros = times .+ (times .== 0) .* eps
+    
     # Compute log-likelihood
-    ll = sum( sort(logpdf.(d, times_no_zeros)) ) #ll = sum( sort(logpdf.(d, times)) ) 
+    ll = sum( logpdf.(d, times_no_zeros) ) 
           
     return isfinite(-ll) ? -ll : 1e10
 end
@@ -106,6 +112,7 @@ Examples:       dgp = discretize_gamma_pmf(shape = 344.0, scale = 0.26
                 
 """
 function discretize_gamma_pmf(; shape::Float64, scale::Float64, bins::Vector{Float64})
+    @assert minimum(bins) == 0.0
     d = Gamma(shape, scale)
     cdfs = cdf.(d, bins)
     return diff(cdfs)
@@ -164,8 +171,15 @@ Examples:
 """
 function nll_disc_gamma(; params::Vector{Float64}, times::Vector{Float64}, trunc::Vector, nbins::Int=100) #trunc::Tuple{Float64, Float64}, nbins::Int=100)
     
+    # Validate inputs
+    length(params) == 2 || throw(ArgumentError("params must have length 2"))
+    length(trunc) == 2 || throw(ArgumentError("trunc must have length 2"))
+    isempty(times) && return Inf
+    isempty(nbins) && return Inf
+
     # Define Gamma distribution parameters
     shape, scale = params
+    
     # Validate parameters
     if shape <= 0 || scale <= 0
         return 1e10
@@ -210,11 +224,17 @@ Arguments:      params  Two element vector containing the intial alpha and theta
 Returns:        Negative log-likelihood of the statistical distribution parameters (params) fitting the data (times)
 
 Examples:   
-                times = [0.09, 0.98, 1.21, 3.82, 2.77, 1.53, 1.57, 1.35, 1.51, 0.77]
+                times = [0.09, 0.98, 1.21, 3.82, 2.77, 1.53, 1.57, 1.35, 1.51, 0.77, 0.0, 0.0]
                 init_weibull = [mean(times)^2 / var(times), var(times)/mean(times)]
                 nll_trunc_weibull(;params = init_weibull, times = times, trunc = [0, 4])
 """
 function nll_trunc_weibull(; params, times, trunc)
+    
+    # Validate inputs
+    length(params) == 2 || throw(ArgumentError("params must have length 2"))
+    length(trunc) == 2 || throw(ArgumentError("trunc must have length 2"))
+    isempty(times) && return Inf
+    
     α, θ = params
     if α <= 0 || θ <= 0
         return 1e10 #Inf
@@ -227,15 +247,13 @@ function nll_trunc_weibull(; params, times, trunc)
     lower, upper = trunc
     d = truncated(d0, lower, upper)
     
-    #if any(x -> x < lower || x > upper, times)
-    #    return 1e10 #Inf
-    #end
-    
-    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
-    times_no_zeros = sort( filter(x -> x != 0, times) )
-    
+    # Avoid inclusion of zero times as they cause logpdf.(d, times) -> Inf || -Inf
+    # by adding a small value epsilon
+    eps = 1e-6
+    times_no_zeros = times .+ (times .== 0) .* eps
+
     # Compute log-likelihood
-    ll = sum(logpdf.(d, times_no_zeros)) #ll = sum(logpdf.(d, times))
+    ll = sum(logpdf.(d, times_no_zeros))
     
     return isfinite(-ll) ? -ll : 1e10
 end
@@ -261,24 +279,24 @@ Examples:
 """
 function nll_trunc_normal(; params, times, trunc)
     mu, sigma = params
-    if mu <= 0 || sigma <= 0
+    if sigma <= 0
         return 1e10 #Inf
     end
     
     # Define distribution
     d0 = Normal(mu, sigma)
-    #norm = cdf(d0, upper) # Only upper truncation
-    #ll = sum(logpdf(d0, t) for t in times) - length(times) * log(norm)
-    
+        
     # Define truncated distribution
     lower, upper = trunc
     d = truncated( d0, lower, upper)
     
-    # Remove zero times as they cause logpdf.(d, times) -> Inf || -Inf
-    times_no_zeros = sort( filter(x -> x != 0, times) )
+    # Avoid inclusion of zero times as they cause logpdf.(d, times) -> Inf || -Inf
+    # by adding a small value epsilon
+    eps = 1e-6
+    times_no_zeros = times .+ (times .== 0) .* eps
     
     # Compute log-likelihood
-    ll = sum( sort(logpdf.(d, times_no_zeros)) ) #ll = sum( sort(logpdf.(d, times)) ) 
+    ll = sum( logpdf.(d, times_no_zeros) )
           
     return isfinite(-ll) ? -ll : 1e10
 end
@@ -314,23 +332,24 @@ function dist_fit_plot(; d0
     d = truncated( d0, lower, upper)
     # sample data points from fitted truncated distribution
     #d0_sample=rand(d0,10000)
-    d_sample=rand(d,1000000)
+    #d_sample=rand(d,100000)
         
     # Plot histogram of sampled data
-    Plots.histogram( d_sample, alpha=0.5, normalize=:pdf, label="samples drawn from fitted dist")
+    #Plots.histogram( d_sample, alpha=0.5, normalize=:pdf, label="samples drawn from fitted dist")
     #histogram!(d0_sample,alpha=0.5, normalize=:pdf, color=:yellow)
     
     # Add simulated outbreak data to histogram
-    Plots.histogram!(data_to_fit, normalize=:pdf, color=:red, alpha=0.5, label=data_type*" data")#" tinf or (treport-tinf) data")
+    Plots.histogram(data_to_fit, normalize=:pdf, color=:red, alpha=0.5, ylabel = "PDF" , label=data_type*" data")#" tinf or (treport-tinf) data")
     
     # Add simulated outbreak data with zero values removed to histogram
     data_to_fit_no_zeros = sort( filter(x -> x != 0, data_to_fit) )
-    Plots.histogram!(data_to_fit_no_zeros, normalize=:pdf, color=:green, alpha=0.5, label=data_type*" data")#" tinf or (treport-tinf) data")
+    Plots.histogram!(data_to_fit_no_zeros, normalize=:pdf, color=:green, alpha=0.5, label=data_type*" data (non-zero)")#" tinf or (treport-tinf) data")
     
     # Overlay fitted (truncated) distribution PDF
     xs = range(0, upper; length=300)
-    norm = cdf(d, upper) # normalization for truncation
-    t_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
+    #norm = cdf(d, upper) # normalization for truncation
+    #t_pdf_vals = pdf.(d, xs) ./ norm # truncated PDF
+    t_pdf_vals = pdf.(d, xs) # truncated PDF
     Plots.plot!(xs, t_pdf_vals; label=data_type*" truncated fit", color=:blue, lw=2)
     
 end
