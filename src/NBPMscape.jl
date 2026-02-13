@@ -28,21 +28,21 @@ using StatsPlots
 import UUIDs 
 using XLSX
 
-const COMMUTERPROBPATH = joinpath(@__DIR__, "..", "data",  "commuting_ITL2_prob_list.rds")
+const COMMUTERPROBPATH = joinpath(@__DIR__, "..", "data/commuting",  "commuting_ITL2_prob_list.rds")
 const COMMUTEPROB = load( COMMUTERPROBPATH )   
-const COMMUTERINPROBPATH = joinpath(@__DIR__, "..", "data",  "commuting_ITL2_inprob_list.rds")
+const COMMUTERINPROBPATH = joinpath(@__DIR__, "..", "data/commuting",  "commuting_ITL2_inprob_list.rds")
 const COMMUTEINPROB = load( COMMUTERINPROBPATH )  
-const COMMUTERMPATH = joinpath(@__DIR__, "..", "data",  "commuting_ITL2_list.rds")
+const COMMUTERMPATH = joinpath(@__DIR__, "..", "data/commuting",  "commuting_ITL2_list.rds")
 const COMMUTERM = load( COMMUTERMPATH )  
-const REGKEYPATH = joinpath( @__DIR__, "..", "data", "ITL2_key2.rds" )
+const REGKEYPATH = joinpath( @__DIR__, "..", "data/commuting", "ITL2_key2.rds" )
 const REGKEY = load( REGKEYPATH )
-const CAAPATH = joinpath( @__DIR__, "..", "data", "CAA_pax_2024_ITL2.rds" )
+const CAAPATH = joinpath( @__DIR__, "..", "data/air_traffic", "CAA_pax_2024_ITL2.rds" )
 const CAAIMPORTS = load(CAAPATH)
 
 ### Load international traveller age groups (note this includes returning UK residents and visiting overseas residents)
 # ONS travel pac data from International Passenger Survey for 2019
-const INT_TRAVELLERS_AGE_GROUP = load( joinpath( @__DIR__, "..", "data", "travelpac_2019_age_group_weights.rds" ) ) #int_travellers_age_group
-const INT_TRAVELLERS_AGE_SINGLE_YR = load( joinpath( @__DIR__, "..", "data", "travelpac_2019_age_single_year_weights.rds" ) ) #int_travellers_age_single_yr
+const INT_TRAVELLERS_AGE_GROUP = load( joinpath( @__DIR__, "..", "data/international_travel", "travelpac_2019_age_group_weights.rds" ) ) #int_travellers_age_group
+const INT_TRAVELLERS_AGE_SINGLE_YR = load( joinpath( @__DIR__, "..", "data/international_travel", "travelpac_2019_age_single_year_weights.rds" ) ) #int_travellers_age_single_yr
 
 
 ## Constants
