@@ -174,7 +174,7 @@ function initialize_parameters(config_file::String="")
     # Apply configuration if provided
     if !isempty(config_file)
         #try
-            config_data = load_config( joinpath(pkgdir(NBPMscape), config_file ) );
+            config_data = load_config( joinpath( pkgdir(NBPMscape), config_file ) );
             warnings, errors = validate_config(config_data);
             # Process warnings
 			for warning in warnings
@@ -399,7 +399,7 @@ function create_default_parameters()
         , n_hosp_samples_per_week = 300 # Total number of hospital samples to be taken per week
         , sample_allocation = "equal" # "equal" or "weighted"
         , sample_proportion_adult = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified
-        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites.csv"#CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
         , weight_samples_by = "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
         , phl_collection_dow = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
 		, phl_collection_time = 0.5 # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
@@ -1231,21 +1231,51 @@ sampleimportregion() = begin
 end
 
 # simulate continuous importation 
-function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, importmodel=:TDist, max_cases=50000)
+function simforest(p; initialtime=0.0, maxtime=30.0, maxgenerations::Int64=10, initialcontact=:H, importmodel=:TDist_tlb_1, max_cases=50000)
 #TEST
-#simforest(p=NBPMscape.P; initialtime=0.0, maxtime=90.0, maxgenerations=100, initialcontact=:H, importmodel=:TDist, max_cases=1000)
+#simforest(p=NBPMscape.P; initialtime=0.0, maxtime=90.0, maxgenerations=100, initialcontact=:H, importmodel=:TDist, max_cases=100000000)
 
 	if importmodel == :Poisson # for testing  
 		nimports = rand(Poisson((maxtime-initialtime)*p.importrate))
 		nimports = max(1, nimports )
 		timports = map(_->rand(Uniform(initialtime,maxtime)), 1:nimports)
-	elseif importmodel == :TDist  # based on 1st wave covid 
+	elseif importmodel == :TDist_tlb_1  # based on 1st wave covid 
 		nimports = 0
 		while nimports == 0 
 			timports = map(_->rand(TDist(p.import_t_df))*p.import_t_s, 1:p.nimports)
 			# use theoretical quantiles to prohibit outliers messing things up 
 			tlb = quantile( TDist( p.import_t_df ), 1/p.nimports )*p.import_t_s 
 			timports = timports[ (timports .> tlb) .& (timports .< (tlb+maxtime) ) ]
+			nimports = length( timports )
+		end
+	elseif importmodel == :TDist_tlb_2  # based on 1st wave covid. Truncation quantile increased from 0.001 (=1/1000=1/nimports) in :TDist_tlb_1 to 0.01
+		nimports = 0
+		while nimports == 0 
+			timports = map(_->rand(TDist(p.import_t_df))*p.import_t_s, 1:p.nimports)
+			# use theoretical quantiles to prohibit outliers messing things up 
+			#tlb = quantile( TDist( p.import_t_df ), 1/p.nimports )*p.import_t_s 
+			tlb = quantile( TDist( p.import_t_df ), 0.01 )*p.import_t_s 
+			#tlb = quantile(timports,.01) # scatter(timports)
+			timports = timports[ (timports .> tlb) .& (timports .< (tlb+maxtime) ) ]
+			nimports = length( timports )
+		end
+	elseif importmodel == :GLEAM_outbreak_country_not_specified # Uses mean (total_mean_imports per day for an outbreak in a specific country)
+		nimports = 0
+		while nimports == 0 
+			# Find indices for elements in vector that are not 'missing'
+			days_with_import_rate = findall(!ismissing, GLEAM_DAILY_IMPORT_RATES)
+			# Generate series of daily importation counts by Poisson sampling daily time series of mean daily importations
+			daily_importation_counts = [ rand(Poisson(λ)) for λ in skipmissing(GLEAM_DAILY_IMPORT_RATES[1:Int(maxtime)]) ]
+			#sum(daily_importation_counts)
+			#println(daily_importation_counts)
+			timports = []
+			for i in 1:length( daily_importation_counts ) # t=11
+				t_start = days_with_import_rate[ i ] - 1 # Subtract 1 because 1st element in vector is for day 0.
+				t_end = days_with_import_rate[ i ]
+				# Generate importation time for each import using a Uniform distribution
+				daily_timports = map(_->rand( Uniform(t_start, t_end )), 1:daily_importation_counts[ i ] )
+				append!(timports, daily_timports)
+			end
 			nimports = length( timports )
 		end
 	end
