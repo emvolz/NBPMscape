@@ -29,9 +29,13 @@ simulation replicates.
     'nrep':                 Number of simulation replicates in each of the files. Function assumes all files have the same number of sim reps.
 
 # Returns
-    Output in same format as input files but the combined number of elements
+    A named tuple with first element sims being a vector with each element being an individual sim rep.
+    The second element of the tuple is a df containing details of any sim reps that do not match
+    the format of the first sim rep in the combined vector.
+
 
 # Example
+    using NBPMscape
     # Run function to combine simulation replicates from multiple files
     sims_combined = combine_sim_reps(;  sim_input_folders # in vector format where multiple paths
                                      , sim_object_name = "sims" # "sims_G_icu_filter" # "sims_G_gp_filter"
@@ -40,10 +44,16 @@ simulation replicates.
     # Save output filtered data to file
     @save "sims_combined.jld2" sims_combined
 
+    sims_combined_test = combine_sim_reps(; sim_input_folders = ["C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2025_12_secondary_care/1633695/test/"]
+                                          , sim_object_name = "sims_G_filtered"
+                                          , nrep = 10
+                                          ) 
+    sims_combined_test.sims
+    sims_combined_test.mismatch_df
 """
 function combine_sim_reps(;  sim_input_folders # in vector format where multiple paths
-                            , sim_object_name = "sims" # "sims_G_icu_filter" # "sims_G_gp_filter"
-                            , nrep = 1000
+                            , sim_object_name = "sims" # "sims_G_icu_filter" # "sims_G_gp_filter" # sim_object_name = "sims_G_filtered"
+                            , nrep = 10
                             #, combined_sim_output_folder
                             #, combined_sim_output_filename
                           )
@@ -54,33 +64,85 @@ function combine_sim_reps(;  sim_input_folders # in vector format where multiple
     end
 
     # Create vector to store filtered dataframes
-    sims = [DataFrame() for _ in 1:length(nrep)]
+    sims = []
+
+    # Create vectors to store details of mismatches in sim reps
+    mismatched_file=[]; mismatched_sim_rep_n=[]; mismatched_type=[]; mismatch_nrep=[]; mismatched_var=[]
 
     # Add all simulation replicates from multiple files to a single object 
-    for j in 1:length(sim_files)
+    for j in 1:length(sim_files); # j=2
         println("Processing ", sim_files[j])
+        
         # Load simulation replicates from file
         sims_temp = load(sim_files[j], sim_object_name)
 
-        # Number of replicates 
-        nrep = length(sims_temp)
-    
         # Append sim replicates from each file to a single vector with a df for each sim replicate
         if j == 1
             sims = sims_temp
+            # Use the format and variables in the first simulation replicate as the reference point
+            # for checking whether these match across all sim reps
+            format_type = typeof(sims_temp[1])
+            sims_1_col_names = try Set(names(sims_temp[1])); catch e; end # rename!(sims_temp[1], :pid => :new_name_pid)
+            sims_1_keys      = try Set( keys(sims_temp[1])); catch e; end
         else
-            sims = append!(sims, sims_temp)
+            sims = append!(sims, sims_temp);
         end
-
+        
+        # Record details of files and sim reps that are different from the first sim rep added to sims   
+        for k in eachindex(sims_temp) # k=1
+            format_type = typeof(sims_temp[k])
+            
+            if format_type == DataFrame        
+                # Check df column names for each sim rep against those in the first sim rep
+                # and record index of any that do not match
+                try
+                    if Set(names( sims_temp[k] )) != sims_1_col_names
+                        push!(mismatched_file, sim_files[j])
+                        push!(mismatched_type, format_type)
+                        push!(mismatched_sim_rep_n, k)
+                        push!(mismatch_nrep, length(sims_temp) )
+                        push!(mismatched_var, "mismatch")
+                    end
+                catch e
+                end
+            else
+                ## Check whether the column names or NamedTuple keys in each element (simulation replicate) of sims match
+                ## and return details where there is a mismatch
+                try
+                    if Set(keys(sims_temp[k])) != sims_1_keys
+                        push!(mismatched_file, sim_files[j])
+                        push!(mismatched_type, format_type)
+                        push!(mismatched_sim_rep_n, k)
+                        push!(mismatch_nrep, length(sims_temp) )
+                        push!(mismatched_var, "mismatch")
+                    end
+                catch e
+                end
+            end
+        end
     end
 
-    # Check length of file in terms of sim reps now
+    # Store mismatched data in df
+    mismatch_df = DataFrame( file = mismatched_file
+                            , sim_rep_n = mismatched_sim_rep_n
+                            , sim_rep_data_type = mismatched_type
+                            , nrep_in_file = mismatch_nrep
+                            , variables_in_sim_rep = mismatched_var
+                            )
+    #println(mismatch_df)   
+    #println(mismatch_df[:,1])                         
+    
+    # Check length of file in terms of sim reps
     if  nrep * length(sim_files) == length(sims)
         println("All simulation replicates added")
+    else
+        println("Total number of simulation replicates in output does not match the sum of the expected number in each file")
     end
-    
-    return(sims)
 
+    # Returned sims object which contains all sim reps combined and
+    # details of any sim rep mismatches 
+    return( sims = sims, mismatch_df = mismatch_df )
+    
 end
 
 ############################################
