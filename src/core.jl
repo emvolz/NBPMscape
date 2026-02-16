@@ -154,13 +154,13 @@ function initialize_parameters(config_file::String="")
 	# There are two sets: data-dependent and configurable. 
 	# The latter can be replaced with values defined in the config_file while the former are not.
 	# First check whether required default files are available
-	if isfile( joinpath(pkgdir(NBPMscape),"data/nhs_trust_site_sample_targets.csv") )
+	if isfile( joinpath( pkgdir(NBPMscape), "data/nhs_trust_site_sample_targets.csv" ) )
     	#println("File exists")
 	else
     	println("Missing file required to load default parameters: data/nhs_trust_site_sample_targets.csv")
 		return
 	end
-	if isfile( joinpath(pkgdir(NBPMscape),"data/hariss_nhs_trust_sampling_sites.csv" ))
+	if isfile( joinpath( pkgdir(NBPMscape), "data/hariss_nhs_trust_sampling_sites.csv" ) )
     	#println("File exists")
 	else
     	println("Missing file required to load default parameters: data/hariss_nhs_trust_sampling_sites.csv")
@@ -338,11 +338,19 @@ function create_default_parameters()
 		, hosp_long_stay_recovery_rate  = 1 / 11.70 # hosp_recovery_rate above split into short stay (<24h) and long stay (>24h). Mean durations of the two periods computed using erlang_truncated_means( k = 1, rate = 0.0935, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf). Note that the rate has been adjusted as the rounded rate parameter does not give the mean value reported.
 		, hosp_death_rate    = 1 / 10.3 # 'Hospitalised on general ward leading to death' 10.3 days (95% CI: 1.3-28.8). Erlang(k=2,gamma=0.19). Knock et al (2021). 
 		# ICU rates
-		, triage_icu_rate    = 1 /  2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
+		, triage_icu_rate    = 1 / 2.5 # 'Triage to ICU' 2.5 days (95% CI: 0.1-9.2). Erlang(k=1,gamma=0.4). Knock et al (2021). 
 		, icu_to_death_rate  = 1 / 11.8 # 'Hospitalised in ICU, leading to death' 11.8 days (95% CI: 1.4-32.9). Erlang(k=2,gamma=0.17). Knock et al (2021). 
-		, icu_to_stepdown_leading_to_recovery_rate = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4, 57.6). Erlang(k=1, gamma=0.06) . Knock et al (2021)
 		# ICU stepdown rates
-		, stepdown_to_recovery_after_icu_rate  = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021). 
+		, icu_to_stepdown_leading_to_recovery_rate = 1 / 15.6 # 'Hospitalised in ICU, leading to recovery' 15.6 days (95% CI: 0.4, 57.6). Erlang(k=1, gamma=0.06). Knock et al (2021)
+		, stepdown_to_recovery_after_icu_rate      = 1 / 12.2 # 'Stepdown recovery period after leaving ICU' 12.2 days (95% CI: 1.5-34.0). Erlang(k=2,gamma=0.16). Knock et al (2021).
+		, icu_to_stepdown_leading_to_death_rate    = 1 /  7.0 # 'Hospitalised in ICU, leading to death in stepdown following ICU' 7.0 days (95% CI: 0.2, 25.7). Erlang(k=1, gamma=0.14). Knock et al (2021)
+		, stepdown_to_death_after_icu_rate         = 1 /  8.1 # 'Stepdown period before death after leaving ICU' 8.1 days (95% CI: 0.2, 29.7). Erlang(k=1,gamma=0.12). Knock et al (2021).
+		##### THE TWO RATES BELOW COULD BE USED IN JUMPS TO REPLACE THE 'ICU stepdown rates' ABOVE 
+		##### (icu_to_stepdown_leading_to_recovery_rate, stepdown_to_recovery_after_icu_rate, icu_to_stepdown_leading_to_death_rate, stepdown_to_death_after_icu_rate)
+		##### THE FOUR SEPARATE RATES/JUMPS ARE LESS EFFICIENT (ALTHOUGH RELATIVELY FEW INFECTIONS ARE ADMITTED TO ICU) BUT OFFER GREATER FLEXIBILITY TO INCORPORATE 
+		##### DEATH AS A PROMPT FOR SAMPLING IN ICU.
+		#, icu_to_recovery_rate_direct_and_via_stepdown = 1 / 27.8 # = 1 / (15.6 +  12.2) = 1 / (mean period hospitalised in ICU leading to recovery + mean stepdown recovery period after leaving ICU) = 1 / (I_ICU_W_R + W_R). Values sourced from Knock et al (2021) Tables S2 and S6. Also see Figure S4 for reference.
+		#, icu_to_death_rate_direct_and_via_stepdown    = 1 / 12.3 # = 1 / ( ( (0.67 * 11.8) + ((1-0.67) * 0.35) * (7.0 + 8.1)) / ( ((1-0.67) * 0.35)  + 0.67 ) ) = 1 / (mean_ICU_death * (p_ICU_d / (p_ICU_d + (p_stepdown_d * p_stepdown))) + (mean_ICU_stepdown + mean_stepdown_death) * ((p_stepdown_d * p_stepdown) / (p_ICU_d + (p_stepdown_d * p_stepdown)))). Values sourced from Knock et al (2021) Tables S2 and S6. Also see Figure S4 for reference.
 		
 		, tdischarge_ed_upper_limit = 0.5 # days. People attending Emergency Department (ED) (and not admitted) will be discharged by this time.
 		, tdischarge_hosp_short_stay_upper_limit = 1.0 # days. People admitted to hospital for a short stay will be discharged by this time.
@@ -394,6 +402,8 @@ function create_default_parameters()
         , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
         , weight_samples_by = "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
         , phl_collection_dow = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
+		, phl_collection_time = 0.5 # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
+		, hosp_to_phl_cutoff_time_relative = 1 # day(s). The cut-off time for the last swab that can be taken at a hospital and transported to the local public health lab (PHL) and made available for courier collection at the phl_collection_time. E.g. hosp_to_phl_cutoff_time_relative = 1 and phl_collection_time = 0.5, indicates midday collection from the PHL and cut-off swab time at the hospital of midday the day before. As another example, midday (12:00) collection from PHL (phl_collection_time = 0.5) and the cutoff for swabs at 5pm (17:00) the day before would be hosp_to_phl_cutoff_time_relative = 0.7917 (=(12+(24-17))/24)
         , swab_time_mode = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
         , swab_proportion_at_48h = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
         , proportion_hosp_swabbed = 0.9 # Assume X% of ARI attendances are swabbed
@@ -800,7 +810,7 @@ function Infection(p; pid = "0"
 	j_transmh = VariableRateJump(rate_transmh, aff_transmh!; lrate=lrate_transmh, urate=hrate_transmh, rateinterval=rint)
 
 	## GP visit only
-	rate_gp_only(u,p,t) = ((carestage==:undiagnosed) & (severity.severity in (:moderate_GP,))) ? p.gp_only_rate : 0.0  
+	rate_gp_only(u,p,t) = ((carestage==:undiagnosed) & (severity.severity == :moderate_GP)) ? p.gp_only_rate : 0.0  
 	aff_gp_only!(int) = begin 
 		carestage = :GP; 
 		tgp = int.t 
@@ -816,7 +826,7 @@ function Infection(p; pid = "0"
 	j_gp_before_hosp = ConstantRateJump(rate_gp_before_hosp, aff_gp_before_hosp!)
 
 	## Emergency Department (ED) direct visit only
-	rate_ed_direct(u,p,t) = ((carestage==:undiagnosed) & (severity.severity in (:moderate_ED,))) ? p.ed_direct_rate : 0.0  
+	rate_ed_direct(u,p,t) = ((carestage==:undiagnosed) & (severity.severity == :moderate_ED)) ? p.ed_direct_rate : 0.0  
 	aff_ed_direct!(int) = begin 
 		#carestage = :ED; 
 		ted = int.t 
@@ -828,7 +838,7 @@ function Infection(p; pid = "0"
 
 	## Emergency Department (ED) visit (but not admitted to hospital) after visiting GP
 	# These patients are discharged directly from ED
-	rate_ed_from_gp(u,p,t) = ((carestage==:GP) & (severity.severity in (:moderate_ED,))) ? p.ed_from_gp_rate : 0.0  
+	rate_ed_from_gp(u,p,t) = ((carestage==:GP) & (severity.severity == :moderate_ED)) ? p.ed_from_gp_rate : 0.0  
 	aff_ed_from_gp!(int) = begin 
 		#carestage = :ED 
 		ted = int.t 
@@ -838,7 +848,7 @@ function Infection(p; pid = "0"
 	j_ed_from_gp = ConstantRateJump(rate_ed_from_gp, aff_ed_from_gp!)
 
 	## Hospital admission direct without visit to GP
-	rate_hosp_admit_direct(u,p,t) = (( (carestage in (:undiagnosed,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) )) ? p.hosp_admit_direct_rate : 0.0 
+	rate_hosp_admit_direct(u,p,t) = ( (carestage == :undiagnosed) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) ) ? p.hosp_admit_direct_rate : 0.0 
 	aff_hosp_admit_direct!(int) = begin 
 		carestage = :admittedhospital
 		thospital = int.t
@@ -853,7 +863,7 @@ function Infection(p; pid = "0"
 	j_hosp_admit_direct = ConstantRateJump( rate_hosp_admit_direct, aff_hosp_admit_direct! )
 
 	## Hospital admission after visit to GP
-	rate_hosp_admit_from_gp(u,p,t) = (( (carestage in (:GP,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) )) ? p.hosp_admit_from_gp_rate : 0.0 
+	rate_hosp_admit_from_gp(u,p,t) = ( (carestage == :GP) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:verysevere)) ) ? p.hosp_admit_from_gp_rate : 0.0 
 	aff_hosp_admit_from_gp!(int) = begin 
 		carestage = :admittedhospital  
 		thospital = int.t 
@@ -868,7 +878,7 @@ function Infection(p; pid = "0"
 	j_hosp_admit_from_gp = ConstantRateJump( rate_hosp_admit_from_gp, aff_hosp_admit_from_gp! )
 
 	## hospital -> discharged rate (for long-stay patients)
-	rate_hosp_disch_long_stay(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_long_stay,)) & (severity.fatal == false) )) ? p.hosp_long_stay_recovery_rate : 0.0 
+	rate_hosp_disch_long_stay(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity == :severe_hosp_long_stay) & (severity.fatal == false) ) ? p.hosp_long_stay_recovery_rate : 0.0 
 	aff_hosp_disch_long_stay!(int) = begin 
 		# Only discharge if been in hospital for more than 24h (1day)
 		if int.t > (thospital + 1)
@@ -889,8 +899,8 @@ function Infection(p; pid = "0"
 	#j_hosp_disch_short_stay = ConstantRateJump( rate_hosp_disch_short_stay, aff_hosp_disch_short_stay! )
 
 	## hospital -> death rate 
-	#ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay)) & (severity.fatal == true) )) ? P.hosp_death_rate : 0.0 
-	ratehospitaldeath(u,p,t) = (( (carestage in (:admittedhospital,)) & (severity.severity in (:severe_hosp_long_stay,)) & (severity.fatal == true) )) ? p.hosp_death_rate : 0.0 
+	#ratehospitaldeath(u,p,t) = (( (carestage == :admittedhospital) & (severity.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay)) & (severity.fatal == true) )) ? P.hosp_death_rate : 0.0 
+	ratehospitaldeath(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity == :severe_hosp_long_stay) & (severity.fatal == true) ) ? p.hosp_death_rate : 0.0 
 	aff_hosp_death!(int) = begin 
 		carestage = :deceased
 		infstage = :deceased  
@@ -902,7 +912,7 @@ function Infection(p; pid = "0"
 	## Triage to ICU
 	#rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity in (:verysevere,)) )) ? p.icurate : 0.0 
 	#rateicu(u,p,t) = (( (carestage in (:undiagnosed,:GP,:admittedhospital)) & (severity.severity in (:verysevere,)) )) ? p.triage_icu_rate : 0.0 
-	rateicu(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity in (:verysevere,)) ) ? p.triage_icu_rate : 0.0 
+	rateicu(u,p,t) = ( (carestage == :admittedhospital) & (severity.severity == :verysevere) ) ? p.triage_icu_rate : 0.0 
 	aff_icu!(int) = begin 
 		carestage = :admittedicu  
 		ticu = int.t 
@@ -911,27 +921,66 @@ function Infection(p; pid = "0"
 	j_icu = ConstantRateJump( rateicu, aff_icu! )
 
 	## ICU -> Death
-	rate_icu_death(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) & (severity.fatal == true ) )) ? p.icu_to_death_rate : 0.0 
+	rate_icu_death(u,p,t) = ( (carestage == :admittedicu) & (severity.severity == :verysevere) & (severity.fatal == true ) ) ? p.icu_to_death_rate : 0.0 
 	aff_icu_death!(int) = begin 
 		carestage = :deceased
-		infstage = :deceased
+		infstage  = :deceased
 		tdeceased = int.t
 		isdeceased = true 
 	end 
 	j_icu_death = ConstantRateJump( rate_icu_death, aff_icu_death! )
 
-	## ICU -> Stepdown (to hospital general ward) (leading to recovery)
-	rate_icu_stepdown(u,p,t) = (( (carestage in (:admittedicu,)) & (severity.severity in (:verysevere,)) )) ? p.icu_to_stepdown_leading_to_recovery_rate : 0.0 
-	aff_icu_stepdown!(int) = begin 
+	## ICU -> Stepdown (to hospital general ward) (leading to death)
+	rate_icu_stepdown_death(u,p,t) = ( (carestage == :admittedicu) & (severity.severity == :verysevere) & (severity.fatal == true)) ? p.icu_to_stepdown_leading_to_death_rate : 0.0
+	aff_icu_stepdown_death!(int) = begin 
 		carestage = :stepdown  
 		tstepdown = int.t 
 	end 
-	j_icu_stepdown = ConstantRateJump( rate_icu_stepdown, aff_icu_stepdown! )
+	j_icu_stepdown_death = ConstantRateJump( rate_icu_stepdown_death, aff_icu_stepdown_death! )
+
+	## Hospital general ward (ICU Stepdown) -> Death
+	rate_stepdown_death(u,p,t) = ( (carestage == :stepdown) & (severity.severity == :verysevere) & (severity.fatal == true) ) ? p.stepdown_to_death_after_icu_rate : 0.0 
+	aff_stepdown_death!(int) = begin 
+		carestage = :deceased
+		infstage  = :deceased
+		tdeceased = int.t
+		isdeceased = true
+	end 
+	j_stepdown_death = ConstantRateJump( rate_stepdown_death, aff_stepdown_death! )
+
+	# COULD BE USED TO REPLACE j_icu_death, j_icu_stepdown_death AND j_stepdown_death
+	## ICU -> Death (including directly from ICU and via stepdown to general ward) - this rate and step assumes there is no stepdown rate and step
+	#rate_icu_death(u,p,t) = ( (carestage == :admittedicu) & (severity.severity == :verysevere) & (severity.fatal == true ) ) ? p.icu_to_death_rate_direct_and_via_stepdown : 0.0 
+	#aff_icu_death!(int) = begin 
+	#	carestage = :deceased
+	#	infstage = :deceased
+	#	tdeceased = int.t
+	#	isdeceased = true 
+	#end 
+	#j_icu_death = ConstantRateJump( rate_icu_death, aff_icu_death! )
+
+	# COULD BE USED TO REPLACE j_icu_stepdown_recovery AND j_stepdown_discharge
+	## ICU -> Recovery (includes recovery in ICU and recovery via stepdown to general ward) - this rate and step assumes there is no stepdown rate and step
+	#rate_icu_recovery(u,p,t) = ( (carestage == :admittedicu) & (severity.severity == :verysevere) & (severity.fatal == false ) ) ? p.icu_to_recovery_rate_direct_and_via_stepdown : 0.0 
+	#aff_icu_recovery!(int) = begin 
+	#	carestage = :discharged
+	#	tdischarge = int.t 
+	#end 
+	#j_icu_recovery = ConstantRateJump( rate_icu_recovery, aff_icu_recovery! )
+
+	## ICU -> Stepdown (to hospital general ward) (leading to recovery)
+	rate_icu_stepdown_recovery(u,p,t) = ( (carestage == :admittedicu) & (severity.severity == :verysevere) & (severity.fatal == false)) ? p.icu_to_stepdown_leading_to_recovery_rate : 0.0
+	aff_icu_stepdown_recovery!(int) = begin 
+		carestage = :stepdown  
+		tstepdown = int.t 
+	end 
+	j_icu_stepdown_recovery = ConstantRateJump( rate_icu_stepdown_recovery, aff_icu_stepdown_recovery! )
 
 	## Hospital general ward (ICU Stepdown) -> Discharge
-	rate_stepdown_discharge(u,p,t) = (( (carestage in (:stepdown,)) & (severity.severity in (:verysevere,)) & (severity.fatal == false)) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
+	rate_stepdown_discharge(u,p,t) = ( (carestage == :stepdown) & (severity.severity == :verysevere) & (severity.fatal == false) ) ? p.stepdown_to_recovery_after_icu_rate : 0.0 
 	aff_stepdown_discharge!(int) = begin 
 		carestage = :discharged
+		tdischarge = int.t
 	end 
 	j_stepdown_discharge = ConstantRateJump( rate_stepdown_discharge, aff_stepdown_discharge! )
 
@@ -979,7 +1028,10 @@ function Infection(p; pid = "0"
 			, j_hospital_death
 		    , j_icu
 			, j_icu_death
-			, j_icu_stepdown
+			, j_icu_stepdown_death
+			, j_stepdown_death
+			#, j_icu_recovery # Broadly equivalent to j_icu_stedown_recovery AND j_stepdown_discharge TOGETHER
+			, j_icu_stepdown_recovery
 			, j_stepdown_discharge
 			, j_commute
 			]
@@ -1133,7 +1185,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 					, :timetransmission => nothing, :contacttype => nothing, :region => nothing
 					, :infector_age => nothing, :infectee_age => nothing])
 	
-	dfargs1 = [(u.pid, u.tinf, u.tgp, u.ted, u.thospital, u.ticu, u.tstepdown, u.tdischarge, u.trecovered, u.tdeceased
+	dfargs1 = [(u.pid, u.tinf, u.tgp, u.ted, u.thospital, u.ticu , u.tstepdown, u.tdischarge, u.trecovered, u.tdeceased
 				, u.severity#.severity
 				, u.fatal
 				, u.iscommuter, u.homeregion, u.commuteregion
@@ -1142,7 +1194,7 @@ function simtree(p; region="TLI3", initialtime=0.0, maxtime=30.0, maxgenerations
 				, u.donor_age, u.infectee_age
 				, u.importedinfection) for u in G]
 	Gdf = DataFrame(dfargs1
-		, [:pid, :tinf, :tgp, :ted, :thospital, :ticu, :tstepdown, :tdischarge, :trecovered, :tdeceased
+		, [:pid, :tinf, :tgp, :ted, :thospital, :ticu , :tstepdown, :tdischarge, :trecovered, :tdeceased
 			, :severity
 			, :fatal
 			, :iscommuter, :homeregion, :commuteregion

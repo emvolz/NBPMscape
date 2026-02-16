@@ -1,7 +1,7 @@
 ## Load population data
 # itl2size = CSV.read(joinpath( @__DIR__, "..", "data", "itl2_regions_england.csv"), DataFrame)
 # const ITL2SIZE = filter( r->r.Code in REGKEY.code, itl2size )
-itl2size =  load( joinpath( @__DIR__, "..", "data", "itl2_population2022.rds" ) )
+itl2size =  load( joinpath( @__DIR__, "..", "data/population", "itl2_population2022.rds" ) )
 #= > head(d1) 
   ITL225CD                               ITL225NM total_population_2022
 1     TLC3                            Tees Valley                688756 =#

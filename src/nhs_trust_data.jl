@@ -26,7 +26,7 @@ const ITL2_TO_NHS_TRUST_PROB_CHILD = itl2_to_nhs_trust_prob_child
 
 ### Load critical care bed data
 # Downloaded from https://www.england.nhs.uk/statistics/statistical-work-areas/uec-sitrep/
-cc_bed_sitrep = CSV.read( joinpath( @__DIR__, "..", "data", "202501-January-2025-beds-sitrep-data-FINAL-revised.csv" ), DataFrame )
+cc_bed_sitrep = CSV.read( joinpath( @__DIR__, "..", "data/nhs_trust_data", "202501-January-2025-beds-sitrep-data-FINAL-revised.csv" ), DataFrame )
 # Filter for NHS Trusts 
 cc_bed_sitrep_nt = filter(row -> !ismissing(row[:Level]) && row[:Level] == "Provider", cc_bed_sitrep)
 # Filter for critical care beds
@@ -56,7 +56,7 @@ const ARI_CC_BED_SITREP = cc_bed_sitrep_nt
 # Source: https://app.box.com/s/qh8gzpzeo1firv1ezfxx2e6c4tgtrudl [Accessed: 2 Oct 2025]
 # Also see Map: https://www.arcgis.com/home/item.html?id=3edbec15dac64c40bb6f62bccd159270#overview
 # Dashboard: https://app.powerbi.com/view?r=eyJrIjoiODZmNGQ0YzItZDAwZi00MzFiLWE4NzAtMzVmNTUwMThmMTVlIiwidCI6ImVlNGUxNDk5LTRhMzUtNGIyZS1hZDQ3LTVmM2NmOWRlODY2NiIsImMiOjh9
-nhs_trust_catchment_pop = XLSX.readxlsx(joinpath( @__DIR__, "..", "data", "2022 Trust Catchment Populations Worksheet.xlsx" ))
+nhs_trust_catchment_pop = XLSX.readxlsx(joinpath( @__DIR__, "..", "data/nhs_trust_data", "2022 Trust Catchment Populations Worksheet.xlsx" ))
 nhs_trust_catchment_pop = nhs_trust_catchment_pop["Trust Analysis!A:I"]
 headers = Symbol.(nhs_trust_catchment_pop[1, :])
 data = nhs_trust_catchment_pop[2:end, :]
@@ -135,7 +135,7 @@ files_vec = ["Monthly-AE-April-2024-revised.csv","Monthly-AE-May-2024.csv","Mont
             ,"Monthly-AE-September-2024.csv","Monthly-AE-October-2024-revised.csv","Monthly-AE-November-2024-revised.csv","Monthly-AE-December-2024.csv","Monthly-AE-January-2025.csv"
             ,"Monthly-AE-February-2025-revised.csv","Monthly-AE-March-2025.csv"]
 # Read all files into a vector of DataFrames
-dfs = [CSV.read(joinpath( @__DIR__, "..", "data/NHS_England_AE", f ), DataFrame)[:, [:("Org Code"), :("A&E attendances Type 1")]] for f in files_vec]
+dfs = [CSV.read(joinpath( @__DIR__, "..", "data/nhs_trust_data/NHS_England_AE", f ), DataFrame)[:, [:("Org Code"), :("A&E attendances Type 1")]] for f in files_vec]
 # Rename columns dynamically
 for (i, df) in enumerate(dfs)
     month_label = i <= 9 ? "2024_$(i+3)" : "2025_$(i-9)"  # Currently for data from Apr 2024 to Mar 2025 - Adjust as necessary

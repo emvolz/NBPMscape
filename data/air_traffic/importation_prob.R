@@ -163,8 +163,7 @@ Eng_Wales_airport_location <- merge( UK_airport_postcodes, ONS_geo_lookups
 saveRDS( Eng_Wales_airport_location , "~/mSCAPE/1_epidemic_modelling/Air traffic/Mar_2025_importation_prob/Eng_Wales_airport_location.rds" )
 
 
-# 20 March 2025
-# EV: For border crossings, can you work out how many arrivals we get per unit time in different ITL2 regions?
+# Compute how many arrivals per unit time in different ITL2 regions
 View( as.data.frame(airport_regions_pax_array[,,1] ))
 View( as.data.frame(airport_regions_pax_array[,,2] ))
 
@@ -271,7 +270,7 @@ View( as.data.frame(airport_regions_pax_array[,,2] ))
   library(sf)
   library(dplyr)
   
-  # Load the shapefile for ITL2 regions (replace 'path_to_shapefile' with the actual file path)
+  # Load the shapefile for ITL2 regions
   # https://ckan.publishing.service.gov.uk/dataset/international-territorial-level-2-january-2025-boundaries-uk-bgc/resource/78abd24e-5f15-4e04-a118-ddc649e9c769
   itl2_shapefile <- st_read("~/mSCAPE/1_epidemic_modelling/UK_region_lookups/ITL2 shape files/ITL2_JAN_2025_UK_BFE.shp")
   
