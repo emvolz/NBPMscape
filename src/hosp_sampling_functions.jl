@@ -641,7 +641,7 @@ function sample_hosp_cases_n(; p = NBPMscape.P
                         n_collections_per_week = length(phl_collection_dow)
                         n_samples_adult_per_collection_vec = allocate_with_rounding(;total = n_samples_adult_per_week, weights = fill(1/n_collections_per_week,n_collections_per_week))
                         n_samples_child_per_collection_vec = allocate_with_rounding(;total = n_samples_child_per_week, weights = fill(1/n_collections_per_week,n_collections_per_week))
-                        collection_dow = Int64( round( phl_courier_collection_times[c] % 7 + initial_dow - (1-phl_collection_time) ), digits=0 )  # Finds the day of the week of this collection (adjusted for collection time/cut-off)
+                        collection_dow = Int64( round( phl_courier_collection_times[c] % 7 + initial_dow - (1-phl_collection_time) , digits=0 ) )  # Finds the day of the week of this collection (adjusted for collection time/cut-off)
                         collection_number_this_week = findfirst(==(collection_dow), phl_collection_dow) # Finds which number collection day this is, i.e. collection 2 out of 3 per week
                         n_samples_adult_for_this_collection = n_samples_adult_per_collection_vec[ collection_number_this_week ]
                         n_samples_child_for_this_collection = n_samples_child_per_collection_vec[ collection_number_this_week ]
