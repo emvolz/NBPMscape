@@ -59,6 +59,10 @@ export ITL2_TO_NHS_TRUST_PROB_ADULT, ITL2_TO_NHS_TRUST_PROB_CHILD
 export ARI_CC_BED_SITREP, AE_12M
 #export NHS_TRUST_ICU_SAMPLE_PROB, ITL2_ICU_SAMPLE_PROB
 
+include("NHS_Wales_ICU_data.jl")
+export NHS_WALES_ICU_BEDS #NHS_WALES_ICU_BEDS_ADULT, NHS_WALES_ICU_BEDS_CHILD
+#export ITL2_TO_NHS_TRUST_PROB_ADULT_EW, ITL2_TO_NHS_TRUST_PROB_CHILD_EW, ARI_CC_BED_SITREP_EW
+
 include("population_data.jl")
 export ITL2SIZE
 
@@ -98,7 +102,7 @@ export nll_trunc_gamma, discretize_gamma_pmf, assign_bins, nll_disc_gamma, nll_t
 export erlang_truncated_means, gamma_params_from_mode_cdf
 
 include("outbreak_timeline_analysis_functions.jl")
-export median_td_sim_reps, cases_before_td, infections_time_analysis
+export median_td_sim_reps, cases_before_td, cases_before_td_v2, infections_time_analysis, infections_time_analysis_v2
 export local_doubling_time, global_doubling_time, _fit_log_linear, _fit_weighted_log_linear, _growth_rate_to_doubling_time, _fit_nonlinear_optim, _estimate_initial_r
 export plot_outbreak_analysis, plot_outbreak_analysis_combined
 

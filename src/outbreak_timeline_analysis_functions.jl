@@ -191,6 +191,48 @@ function cases_before_td(; sims_simid_tinf_df_file = "covidlike-1.4.1-sims-nrep5
     return( n_cases_before_td )
 end
 
+"""
+Function        cases_before_td_v2
+
+Description     Same as cases_before_td function but uses sims_tinf_df instead of sims_simid_tinf_df.
+                This avoids the small possibility that there is more than one infection with the same time of infection
+                in the same simtree. (sims_simid_tinf_df is created by filtering for unique combinations of simid and tinf)
+                Counts the number of infected cases before the first case is detected. 
+                Requires the time to detection as an input.
+
+Arguments       sims_tinf_df_file   Name of .jld2 file containing vector of dataframes, each containing
+                                    times of infection, as output from simulation.
+                sim_rep_n           Number of the particular simulation (element within vector) within file
+                                    that the TD value relates to.
+                td_value            The number of cases of infection before or equal to this time will be counted
+
+Returns         Number of cases of infection before the td_value
+
+Examples        
+            cases_before_td_v2(; sims_tinf_df_file = "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1719024/covidlike-1.5.0-sims-nrep10_sims_tinf_df_1719024.61.jld2"
+                                , sim_rep_n = poisson_gleam_timport_med_td.sim_rep_n_in_file_n_med_lower # sim_rep_n = 5
+                                , td_value  = poisson_gleam_timport_med_td.median_td_lower # td_value = 34.371756928670074
+                                )
+            # 1151
+
+"""
+function cases_before_td_v2(; sims_tinf_df_file = "covidlike-1.4.1-sims-nrep50_sims_simid_tinf_df_1287570.10.jld2"
+            , sim_rep_n
+            , td_value
+             )
+    # Load sims_tinf_df for the individual sim reps relating to the median TD
+    sims_tinf_df = load( sims_tinf_df_file, "sims_tinf_df")
+    
+    # simid and tinf for simulation replicates that correspond to median TD
+    tinf_vec = sims_tinf_df[ sim_rep_n ]
+    #println( sort(tinf_vec)[1:51] )
+
+    # Count number of cases before detection
+    n_cases_before_td = sum( sort(tinf_vec) .<= td_value )
+    
+    return( n_cases_before_td )
+end
+
 
 """
 Function        infections_time_analysis
@@ -681,6 +723,273 @@ end
 """
 
 """
+Function        infections_time_analysis_v2
+
+Description     Same as infections_time_analysis function but uses sims_tinf_df instead of sims_simid_tinf_df.
+                This avoids the small possibility that there is more than one infection with the same time of infection
+                in the same simtree. (sims_simid_tinf_df is created by filtering for unique combinations of simid and tinf)
+                Analysis of simulation output files to create time series for outbreak, including 
+                the number of infections, import, numbers at each healthcare stage. 
+                Also computes the counts of infections, imports and healthcare setting visits/admissions
+                at times of detection. In addition, estimates the doubling time of the outbreak.
+
+Arguments       sims_simid_tinf_df_object   Name of object containing the sims_simid_tinf_df data preloaded from a single simulation output file (see examples below)
+                sims_G_filtered_object      Name of object containing the sims_G_filtered data preloaded from a single simulation output file (see examples below)
+                sims_max_cases_df_object    Name of object containing the sims_max_cases_df data preloaded from a single simulation output file (see examples below)
+                td_gp                       Time to detect 1st case using GP sampling
+                td_sc                       Time to detect 1st case using Secondary Care sampling, e.g. via HARISS network
+                td_icu                      Time to detect 1st case using ICU sampling
+                td3_gp                      Time to detect 3rd case using GP sampling
+                td3_sc                      Time to detect 3rd case using Secondary Care sampling, e.g. via HARISS network
+                td3_icu                     Time to detect 3rd case using ICU sampling
+                base_date                   Example date of first import into UK, e.g. Date(2020, 1, 15)
+                maxtime                     Parameter used when simtree or simforest run used to create the input data, e.g. 90 #days
+                
+                Note: td values used here should be for the same sim rep otherwise results (of number of m at TD) 
+                are not really comparable
+
+Returns         Returns a tuple containing:
+                - Values for tinf, tgp, ted, thosp, ticu, tdeceased, tinf for fatal infections, timport
+                - A df containing counts and cumulative values for these times by day and date (given input base date)
+                - A df containing counts and cumulative values for these times by week (given input base date)
+                - Counts at time of 1st detection (TD) for infections, timports and healthcare settings
+                - Counts at time of 3rd detection (3TD) for infections, timports and healthcare settings
+                - Estimated infection doubling times (local time series and df of global single values)
+              
+Examples    
+                # Read files containing TDs
+                sc_tds_1_1717144_1719024_1719029  = CSV.read( "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1717144_1719024_1719029_analysis/sc_tds_1.csv", DataFrame)
+                gp_tds_1_1717144_1719024_1719029  = CSV.read( "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1717144_1719024_1719029_analysis/gp_tds_1.csv", DataFrame)
+                icu_tds_1_1717144_1719024_1719029 = CSV.read( "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1717144_1719024_1719029_analysis/icu_tds_1.csv", DataFrame)
+
+                ## Lower median sim rep
+                tds_1_1717144_1719024_1719029 = DataFrame(
+                                                              sc_td   =  sc_tds_1_1717144_1719024_1719029[ 385,:].SC_TD 
+                                                            , gp_td   =  gp_tds_1_1717144_1719024_1719029[ 385,:].GP_TD 
+                                                            , icu_td  = icu_tds_1_1717144_1719024_1719029[ 385,:].ICU_TD 
+                                                            , sc_td3  =  sc_tds_1_1717144_1719024_1719029[ 385,:].SC_3TD 
+                                                            , gp_td3  =  gp_tds_1_1717144_1719024_1719029[ 385,:].GP_3TD 
+                                                            , icu_td3 = icu_tds_1_1717144_1719024_1719029[ 385,:].ICU_3TD
+                ) 
+
+                ## Load files
+                # load sims_simid_tinf_df
+                sims_tinf_df_1719024_61 = load( "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1719024/covidlike-1.5.0-sims-nrep10_sims_tinf_df_1719024.61.jld2"
+                                                    , "sims_tinf_df") # 39th file in folders
+                sims_tinf_df_1719024_61_5_385 = sims_tinf_df_1719024_61[5]
+
+                # load filtered G df
+                sims_1719024_61 = load( "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1719024/1719024_sims_G_filtered/covidlike-1.5.0-sims-nrep10_filtered_G_1719024.61.jld2"
+                                        , "sims_G_filtered" )
+                sims_1719024_61_5_385 = sims_1719024_61[5] # HPC run 61, sim rep 5 (in HPC run 61), sim rep 385 in combined .jld2 file, 39th file in folder used to combine
+
+                # Load max_cases_df
+                sims_max_cases_df_1719024_61 = load( "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1719024/1719024_max_cases_df/covidlike-1.5.0-sims-nrep10_max_cases_df_1719024.61.jld2", "sims_max_cases_df" )
+                sims_max_cases_df_1719024_61_5_385 = sims_max_cases_df_1719024_61[5] # HPC run 61, sim rep 5 (in HPC run 61), sim rep 385 in combined .jld2 file, 39th file in folder used to combine
+
+                inf_t_analysis_1719024_61_5_385 = infections_time_analysis_v2(; sims_tinf_df_object = sims_tinf_df_1719024_61_5_385
+                                                                                , sims_G_filtered_object = sims_1719024_61_5_385
+                                                                                , sims_max_cases_df_object = sims_max_cases_df_1719024_61_5_385
+                                                                                #, sim_rep_n
+                                                                                , td_gp = tds_1_1717144_1719024_1719029.gp_td
+                                                                                , td_sc = tds_1_1717144_1719024_1719029.sc_td
+                                                                                , td_icu = tds_1_1717144_1719024_1719029.icu_td
+                                                                                , td3_gp = tds_1_1717144_1719024_1719029.gp_td3
+                                                                                , td3_sc = tds_1_1717144_1719024_1719029.sc_td3
+                                                                                , td3_icu = tds_1_1717144_1719024_1719029.icu_td3
+                                                                                , base_date = Date(2020, 1, 15)
+                                                                                , maxtime = 70 #days
+                                                                                )
+                            
+"""
+function infections_time_analysis_v2(; sims_tinf_df_object
+                                  , sims_G_filtered_object
+                                  , sims_max_cases_df_object
+                                  #, sim_rep_n
+                                  , td_gp = Inf
+                                  , td_sc = Inf
+                                  , td_icu = Inf
+                                  , td3_gp = Inf
+                                  , td3_sc = Inf
+                                  , td3_icu = Inf
+                                  , base_date = Date(2020, 1, 15)
+                                  , maxtime = 90 #days
+                                 )
+    
+    ## Time series of infections
+    tinf_vals = sort( sims_tinf_df_object ) # sort( sims_simid_tinf_df_object[:,:tinf] ) ## THIS IS THE ONLY DIFFERENCE WITH infections_time_analysis function
+    tgp_vals       = sort( sims_G_filtered_object[ isfinite.( sims_G_filtered_object.tgp       ), : ][:,:tgp      ] )
+    ted_vals       = sort( sims_G_filtered_object[ isfinite.( sims_G_filtered_object.ted       ), : ][:,:ted      ] )
+    thosp_vals     = sort( sims_G_filtered_object[ isfinite.( sims_G_filtered_object.thospital ), : ][:,:thospital] )
+    ticu_vals      = sort( sims_G_filtered_object[ isfinite.( sims_G_filtered_object.ticu      ), : ][:,:ticu     ] )
+    tdeceased_vals = sort( sims_G_filtered_object[ isfinite.( sims_G_filtered_object.tdeceased ), : ][:,:tdeceased] ) # TODO May be lower because from df filtered for infections with healthcare setting times
+    tinf_fatal_vals = sort( sims_G_filtered_object[ (sims_G_filtered_object.fatal) , : ][:,:tinf] ) # TODO May be lower because from df filtered for infections with healthcare setting times# TODO May be lower because from df filtered for infections with healthcare setting times
+    timport_vals = sort( sims_max_cases_df_object[ isfinite.( sims_max_cases_df_object.timport ), : ][:,:timport] )
+
+    ## Count number of infections before detection
+    # One detection (TD)
+    number_at_td = DataFrame(  Description = ["All_infections","GP_visits","ED_visits","Hospital_admissions","ICU_admissions","Deaths","Infections_leading_to_death","Imported_infections"]
+                            , TD_via_GP  = [ sum(tinf_vals .<= td_gp), sum(tgp_vals .<= td_gp), sum(ted_vals .<= td_gp), sum(thosp_vals .<= td_gp), sum(ticu_vals .<= td_gp), sum(tdeceased_vals .<= td_gp), sum(tinf_fatal_vals .<= td_gp), sum(timport_vals .<= td_gp) ]
+                            , TD_via_SC  = [ sum(tinf_vals .<= td_sc), sum(tgp_vals .<= td_sc), sum(ted_vals .<= td_sc), sum(thosp_vals .<= td_sc), sum(ticu_vals .<= td_sc), sum(tdeceased_vals .<= td_sc), sum(tinf_fatal_vals .<= td_sc), sum(timport_vals .<= td_sc) ]
+                            , TD_via_ICU = [ sum(tinf_vals .<= td_icu), sum(tgp_vals .<= td_icu), sum(ted_vals .<= td_icu), sum(thosp_vals .<= td_icu), sum(ticu_vals .<= td_icu), sum(tdeceased_vals .<= td_icu), sum(tinf_fatal_vals .<= td_icu), sum(timport_vals .<= td_icu) ]
+                            )
+    # Three detections (TD)
+    number_at_td3 = DataFrame(  Description = ["All infections","GP visits","ED visits","Hospital admissions","ICU admissions","Deaths","Infections_leading_to_death","Imported_infections"]
+                            , TD3_via_GP  = [ sum(tinf_vals .<= td3_gp), sum(tgp_vals .<= td3_gp), sum(ted_vals .<= td3_gp), sum(thosp_vals .<= td3_gp), sum(ticu_vals .<= td3_gp), sum(tdeceased_vals .<= td3_gp), sum(tinf_fatal_vals .<= td3_gp), sum(timport_vals .<= td3_gp) ]
+                            , TD3_via_SC  = [ sum(tinf_vals .<= td3_sc), sum(tgp_vals .<= td3_sc), sum(ted_vals .<= td3_sc), sum(thosp_vals .<= td3_sc), sum(ticu_vals .<= td3_sc), sum(tdeceased_vals .<= td3_sc), sum(tinf_fatal_vals .<= td3_sc), sum(timport_vals .<= td3_sc) ]
+                            , TD3_via_ICU = [ sum(tinf_vals .<= td3_icu), sum(tgp_vals .<= td3_icu), sum(ted_vals .<= td3_icu), sum(thosp_vals .<= td3_icu), sum(ticu_vals .<= td3_icu), sum(tdeceased_vals .<= td3_icu), sum(tinf_fatal_vals .<= td3_icu), sum(timport_vals .<= td3_icu) ]
+                            )
+    
+    ## Convert infection times to time series of infections by day and week
+    
+    # Helper function to convert infection times to time series of infection by DAY
+    function convert_tinf_to_time_series_days(; times, base_date) base_date = Date(2020,1,15)
+    
+        # Create df with times of infection and conversion to days
+        times_days_df = DataFrame(tinf = times)
+        times_days_df.day = Int.( floor.(times) .+ 1 )
+
+        # Group infections by day number and date
+        day_infs_df = DataFrame( days = collect(1:maxtime+1))
+        day_infs_gdf = groupby( times_days_df, :day)
+        day_infs_df_final = combine(day_infs_gdf, nrow => :count)
+        day_infs_df_final.cum_cases = cumsum( day_infs_df_final.count )
+        day_infs_df_final.date = base_date .+ Day.(day_infs_df_final.day) .- Day(1)
+
+        return( day_infs_df_final )
+    end
+
+    # Helper function to convert infection times to time series of infection by WEEK
+    function convert_tinf_to_time_series_weeks(; times, base_date)
+        
+        # Convert times to Dates (integer + fractional days)
+        dates = base_date + Dates.Day.(floor.(times)) #+ Dates.Millisecond.(round.(mod.(times, 1) * 86400000))
+
+        # Create DataFrame and count by year-week
+        week_infs_df = DataFrame(date = dates)
+        week_infs_df.week_groups = string.(year.(dates), '-', week.(dates))
+
+        # Group and count
+        week_infs_gdf = groupby(week_infs_df, :week_groups)
+        week_infs_df_final = combine(week_infs_gdf, nrow => :count)
+        week_infs_df_final.cum_cases = cumsum( week_infs_df_final.count )
+
+        return( week_infs_df_final )
+    end
+
+    # Compile daily time series
+    tinf_n_by_day       = convert_tinf_to_time_series_days(; times = tinf_vals,       base_date = base_date) # times = [0.1,1.5,2.8]
+    tgp_n_by_day        = convert_tinf_to_time_series_days(; times = tgp_vals,        base_date = base_date)
+    ted_n_by_day        = convert_tinf_to_time_series_days(; times = ted_vals,        base_date = base_date)
+    thosp_n_by_day      = convert_tinf_to_time_series_days(; times = thosp_vals,      base_date = base_date)
+    ticu_n_by_day       = convert_tinf_to_time_series_days(; times = ticu_vals,       base_date = base_date)
+    tdeceased_n_by_day  = convert_tinf_to_time_series_days(; times = tdeceased_vals,  base_date = base_date)
+    tinf_fatal_n_by_day = convert_tinf_to_time_series_days(; times = tinf_fatal_vals, base_date = base_date)
+    timport_n_by_day    = convert_tinf_to_time_series_days(; times = timport_vals,    base_date = base_date)
+
+
+    # Create base df with day and date columns
+    days = collect(1:maxtime+1)
+    day_date_df = DataFrame(
+        day = days,
+        date = base_date.+ Day.(days) .-Day(1) # Subtract 1 because day 1  and NOT day 0 is the base date
+    )
+
+    # Initialise the df to contain the daily count and cumulative values
+    numbers_by_day_df = copy(day_date_df)
+    count_types = ["all", "gp", "ed", "hosp", "icu", "deceased", "fatal", "import"]
+
+    for count_type in count_types
+        numbers_by_day_df[!, Symbol("$(count_type)_count")] = zeros(Int, maxtime+1)
+        numbers_by_day_df[!, Symbol("$(count_type)_cumulative")] = zeros(Int, maxtime+1)
+    end
+
+    # Process each data type using a helper function
+    function process_count_data!(df, source_df, prefix)
+        temp_df = sort(leftjoin(day_date_df, source_df[:, [:day, :count]], on = :day), :day)
+        replace!(temp_df.count, missing => 0)
+        temp_df.cumulative = cumsum(temp_df.count)
+        
+        df[!, Symbol("$(prefix)_count")] = Int.(temp_df.count)
+        df[!, Symbol("$(prefix)_cumulative")] = Int.(temp_df.cumulative)
+    end
+
+    # Apply to all data sources and fill df
+    data_sources_day = [
+        (tinf_n_by_day, "all")
+        ,(tgp_n_by_day, "gp") 
+        ,(ted_n_by_day, "ed")
+        ,(thosp_n_by_day, "hosp")
+        ,(ticu_n_by_day, "icu")
+        ,(tdeceased_n_by_day, "deceased")
+        ,(tinf_fatal_n_by_day, "fatal")
+        ,(timport_n_by_day, "import")
+    ]
+
+    for (source_df, prefix) in data_sources_day
+        process_count_data!(numbers_by_day_df, source_df, prefix)
+    end
+    # CSV.write("test.csv", numbers_by_day_df)
+
+    # Produce weekly df by converting daily df
+    # Base on daily df
+    numbers_by_week_df = copy(numbers_by_day_df)
+    # Add weeks
+    numbers_by_week_df.week = string.(year.(numbers_by_week_df.date), '-', week.(numbers_by_week_df.date))
+    # Remove day and date columns
+    select!(numbers_by_week_df, Not([:day,:date]))
+    # Sum data by week and reduce to one row per week
+    numbers_by_week_df = combine(
+                                  groupby(numbers_by_week_df, :week),
+                                  names(numbers_by_week_df, Not(:week)) .=> sum .=> names(numbers_by_week_df, Not(:week))
+    )
+    # Cumulative values will be incorrect after sum, so should be recalculated
+    # Define the column pairs
+    cols = [:all, :gp, :ed, :hosp, :icu, :deceased, :fatal, :import]
+    # Apply cumsum to all count columns and assign to cumulative columns
+    for col in cols
+        numbers_by_week_df[!, Symbol(col, :_cumulative)] = cumsum(numbers_by_week_df[!, Symbol(col, :_count)])
+    end
+    
+    ## Compute estimates of doubling times using different methods
+    tinf_local_doubling_times_vec  = local_doubling_time(t = numbers_by_day_df.day, x = numbers_by_day_df.all_cumulative)
+    tinf_global_doubling_times_df = DataFrame( method = ["global_log_linear", "global_wtd_log_linear","global_nonlinear_least_squares"]
+                                , doubling_time_estimates = [ global_doubling_time(t = numbers_by_day_df.day, x = numbers_by_day_df.all_cumulative, method=:log_linear)
+                                                            , global_doubling_time(t = numbers_by_day_df.day, x = numbers_by_day_df.all_cumulative, method=:weighted_log_linear)
+                                                            , global_doubling_time(t = numbers_by_day_df.day, x = numbers_by_day_df.all_cumulative, method=:nonlinear_optim)
+                                                            ]
+    )
+
+
+    # Compile output
+    output = (  # Simulated times of infection
+                tinf_vals  = tinf_vals
+              , tgp_vals   = tgp_vals
+              , ted_vals   = ted_vals
+              , thosp_vals = thosp_vals
+              , ticu_vals  = ticu_vals
+              , tdeceased_vals  = tdeceased_vals
+              , tinf_fatal_vals  = tinf_fatal_vals
+              , timport_vals  = timport_vals
+              # Daily time series
+              , numbers_by_day_df = numbers_by_day_df
+              # Weekly time series
+              , numbers_by_week_df = numbers_by_week_df
+              # Number of infections at first time to detection
+              , number_at_td
+              # Number of infections at third time to detection
+              , number_at_td3
+              # Estimated infection doubling times
+              , tinf_local_doubling_times_vec
+              , tinf_global_doubling_times_df
+              )
+
+    return( output ) # output.numbers_by_week_df # output.ticu_vals
+end
+
+
+
+"""
 Function        local_doubling_time(t, x)
 
 Description     Return a vector of local doubling times (same length as `x`, with `missing`
@@ -1017,7 +1326,8 @@ function plot_outbreak_analysis_combined(; data = sim_analysis_1287570_29_4_1004
                                         , x_labels = "date" #"number" #
                                         , td = Inf # td = 50
                                         , td3 = Inf # td3 = 60
-                                        , limit_x_axis = true )
+                                        , limit_x_axis = true 
+                                        , add_import_markers = true)
 
     @assert time_period in ("days","weeks")
     @assert x_labels in ("number","date")
@@ -1152,11 +1462,12 @@ function plot_outbreak_analysis_combined(; data = sim_analysis_1287570_29_4_1004
     vline!( [ td_value  ], label = "1st case detected (TD)" )
     vline!( [ td3_value ], label = "3rd case detected (TD3)" )
 
-    # Add import dates
-    scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
-            , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
-            , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
-
+    if add_import_markers == true
+        # Add import dates
+        scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
+                , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
+                , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    end
     # Add twin axis - but don't store the twin, store the base
     p_twin = twinx(p_import)
     
@@ -1204,10 +1515,12 @@ function plot_outbreak_analysis_combined(; data = sim_analysis_1287570_29_4_1004
     vline!( [ td_value  ], label = "1st case detected (TD)" )
     vline!( [ td3_value ], label = "3rd case detected (TD3)" )
 
-    # Add import dates
-    scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
-            , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
-            , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    if add_import_markers == true
+        # Add import dates
+        scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
+                , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
+                , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    end
 
     # Add twin axis - but don't store the twin, store the base
     p_twin = twinx(p_inf)
@@ -1256,10 +1569,12 @@ function plot_outbreak_analysis_combined(; data = sim_analysis_1287570_29_4_1004
     vline!( [ td_value  ], label = "1st case detected (TD)", linewidth = 2 )
     vline!( [ td3_value ], label = "3rd case detected (TD3)", linewidth = 2 )
 
-    # Add import dates
-    scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
-            , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
-            , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    if add_import_markers == true
+        # Add import dates
+        scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
+                , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
+                , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    end
 
     # Add twin axis - but don't store the twin, store the base
     p_twin = twinx(p_inf_log10)
@@ -1336,10 +1651,12 @@ function plot_outbreak_analysis_combined(; data = sim_analysis_1287570_29_4_1004
     vline!( [ td_value  ], label = "1st case detected (TD)", linewidth = 2 )
     vline!( [ td3_value ], label = "3rd case detected (TD3)", linewidth = 2 )
 
-    # Add import dates
-    scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
-            , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
-            , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    if add_import_markers == true
+        # Add import dates
+        scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
+                , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
+                , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    end
 
     # Add twin axis - but don't store the twin, store the base
     p_twin = twinx(p_gp_ed_hosp)
@@ -1435,11 +1752,13 @@ function plot_outbreak_analysis_combined(; data = sim_analysis_1287570_29_4_1004
     vline!( [ td_value  ], label = "1st case detected (TD)", linewidth = 2 )
     vline!( [ td3_value ], label = "3rd case detected (TD3)", linewidth = 2 )
 
-    # Add import dates
-    scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
-            , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
-            , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
-
+    if add_import_markers == true
+        # Add import dates
+        scatter!(importations[:,1], repeat( [importations_y] , length(importations[:,1]) )
+                , marker = :diamond, markersize = sqrt.(importations.import_count) #* 5 # 8
+                , markerstrokewidth = 1.5, color = :red, label = "Imported infection(s)")
+    end
+    
     # Add twin axis - but don't store the twin, store the base
     p_twin = twinx(p_icu_deceased_fatal)
     
