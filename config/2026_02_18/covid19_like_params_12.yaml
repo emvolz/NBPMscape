@@ -40,9 +40,9 @@ parameters:
   initial_dow: 1 # Day of the week that initial case imported. Day of week codes: Sunday =1, Monday = 2, ..., Saturday = 7 
   hariss_courier_to_analysis: 1.0 # Time between courier collection from PHL and beginning of analysis
   n_hosp_samples_per_week: 300 # Total number of hospital samples to be taken per week
-  sample_allocation: "equal" # "equal" or "weighted". Number of samples to be allocated either equally amongst public health laboratories in the network or weighted by Emergency Department attendances (all not ARI specific) or catchment area population
-  sample_proportion_adult: "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified and so the split will depend on the proportions attending hospital.
-  hariss_nhs_trust_sampling_sites_file: "data/hariss_nhs_trust_sampling_sites_dummy.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+  sample_allocation: "weighted" # "equal" or "weighted". Number of samples to be allocated either equally amongst public health laboratories in the network or weighted by Emergency Department attendances (all not ARI specific) or catchment area population
+  sample_proportion_adult: 0.0 # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified and so the split will depend on the proportions attending hospital.
+  hariss_nhs_trust_sampling_sites_file: "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
   weight_samples_by: "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
   phl_collection_dow: [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
   phl_collection_time: 0.5 # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
@@ -67,7 +67,7 @@ parameters:
 
 ## 1(d) Tertiary care sampling (i.e. via ICUs) ##
   turnaroundtime_icu: [2, 4]   # ICU test turnaround time range # upper and lower limits, in days, of time taken to process sample and report results /declare detection. tsample drawn from a Uniform(lower, upper) distribution in sampling functions
-  p_sampled_icu: 0.15          # proportion of relevant ICU admissions that are sampled (i.e. acute respiratory infections (ARI))
+  p_sampled_icu: 0.05          # proportion of relevant ICU admissions that are sampled (i.e. acute respiratory infections (ARI))
   sample_target_prob_icu: 0.90     # target sampling probability # To account for some patients not being tested due to logistics/practicalities even though ideally 100% are tested at a particular ICU site
   icu_swab_lag_max: 1          # max days between ICU admission and swab # Upper limit on the time between admission to ICU and a swab being taken. Simulated time = Uniform(ticu, ticu + icu_swab_lag_max)
   icu_sample_type: "regional" # "regional" or "fixed". If "fixed" then p_sampled_icu will be used, note that this doesn't take into account test sensitivity or practical sampling proportion, which "regional" does by using {sample_icu_cases} function
@@ -77,7 +77,7 @@ parameters:
   icu_ari_admissions: 1440 # [793, 1440] # Weekly ICU admission numbers [summer,winter]
   icu_ari_admissions_adult_p: 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
   icu_ari_admissions_child_p: 0.24 # Proportion of ICU ARI admissions that are children (<16y)
-  icu_nhs_trust_sampling_sites_file: "data/nhs_trust_site_sample_targets_dummy.csv" # CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame ) # List of NHS Trusts with ICU sites that are sampling for metagenomic testing
+  icu_nhs_trust_sampling_sites_file: "data/nhs_trust_site_sample_targets_24pilot.csv" #"data/nhs_trust_site_sample_targets.csv" # CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame ) # List of NHS Trusts with ICU sites that are sampling for metagenomic testing
   icu_only_sample_before_death: true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
 
 ## 2(a) Pathogen specific parameters ##
