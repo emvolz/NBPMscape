@@ -10,7 +10,8 @@ render("~/mSCAPE/presentations/nbpmscape-slides.md", output_format = "html_docum
 
 ---
 
-## Parameter values
+## Parameter values 
+$\color{red}{\text{[UPDATE IN PROGRESS - see config/outbreak_params_covid19_like.yaml and core.jl for default configurable parameters]}}$
 Here we describe the parameter values and estimates used in simulating disease transmission and cluster growth of a SARS-CoV-2-like respiratory pathogen using *NBMscape.jl*.
 
 ### Importation probability

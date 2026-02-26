@@ -1,7 +1,7 @@
 name = "NBPMscape"
 uuid = "db6c8c85-0f38-4083-b9e9-69418a0b7188"
 version = "0.1.4"
-authors = ["Erik Volz <erik.volz@gmail.com>"]
+authors = ["Erik Volz <erik.volz@gmail.com>", "Kieran O. Drake"]
 
 [deps]
 AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"

@@ -47,7 +47,6 @@ parameters:
   phl_collection_dow: [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
   phl_collection_time: 0.5 # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
   hosp_to_phl_cutoff_time_relative: 1 # day(s). The cut-off time for the last swab that can be taken at a hospital and transported to the local public health lab (PHL) and made available for courier collection at the phl_collection_time. E.g. hosp_to_phl_cutoff_time_relative = 1 and phl_collection_time = 0.5, indicates midday collection from the PHL and cut-off swab time at the hospital of midday the day before. As another example, midday (12:00) collection from PHL (phl_collection_time = 0.5) and the cutoff for swabs at 5pm (17:00) the day before would be hosp_to_phl_cutoff_time_relative = 0.7917 (=(12+(24-17))/24)
-        
   swab_time_mode: 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
   swab_proportion_at_48h: 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
   proportion_hosp_swabbed: 0.9 # Assume X% of ARI attendances are swabbed, i.e. some will not be swabbed for practical reasons and therefore not available for sampling

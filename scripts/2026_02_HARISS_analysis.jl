@@ -221,8 +221,6 @@ end
 
 
 ## Read in sc_tds files and compute median TD values
-using CSV
-using DataFrames
 
 # Directory and base file name
 path_name = "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1717144_1719024_1719029_analysis/"
@@ -232,9 +230,15 @@ scenario_numbers = [1,2,3,4,5,6,7,13,19,25,31,37,43,49,55,61,67]
 sc_tds_df_dict = Dict{Int, DataFrame}()
 # Prepare a df to hold the median TD values
 sc_tds_df = DataFrame(
-                    Scenario_number = zeros(Int, length(scenario_numbers))
-                    ,sc_median_TD = zeros(Float64, length(scenario_numbers))
-                    ,sc_median_3TD = zeros(Float64, length(scenario_numbers))
+                     Scenario_number  = zeros(Int,     length(scenario_numbers))
+                    ,sc_median_TD     = zeros(Float64, length(scenario_numbers))
+                    ,sc_TD_iqr_lower  = zeros(Float64, length(scenario_numbers))
+                    ,sc_TD_iqr_upper  = zeros(Float64, length(scenario_numbers))
+                    ,sc_TD_std        = zeros(Float64, length(scenario_numbers))
+                    ,sc_median_3TD    = zeros(Float64, length(scenario_numbers))
+                    ,sc_3TD_iqr_lower = zeros(Float64, length(scenario_numbers))
+                    ,sc_3TD_iqr_upper = zeros(Float64, length(scenario_numbers))
+                    ,sc_3TD_std       = zeros(Float64, length(scenario_numbers))
                     )
 
 # Loop through scenarios, read in files and compute median TD values
@@ -250,6 +254,12 @@ for i in 1:length(scenario_numbers)
     sc_tds_df[i,"Scenario_number"] = k
     sc_tds_df[i,"sc_median_TD"] = median(sc_tds_df_dict[k][:,"SC_TD"])
     sc_tds_df[i,"sc_median_3TD"] = median(sc_tds_df_dict[k][:,"SC_3TD"])
+    sc_tds_df[i,"sc_TD_iqr_lower"] = quantile(sc_tds_df_dict[k][:,"SC_TD"], 0.25)
+    sc_tds_df[i,"sc_TD_iqr_upper"] = quantile(sc_tds_df_dict[k][:,"SC_TD"], 0.75)
+    sc_tds_df[i,"sc_3TD_iqr_lower"] = quantile(sc_tds_df_dict[k][:,"SC_3TD"], 0.25)
+    sc_tds_df[i,"sc_3TD_iqr_upper"] = quantile(sc_tds_df_dict[k][:,"SC_3TD"], 0.75)
+    sc_tds_df[i,"sc_TD_std"] = std(sc_tds_df_dict[k][:,"SC_TD"])
+    sc_tds_df[i,"sc_3TD_std"] = std(sc_tds_df_dict[k][:,"SC_3TD"])
 end
 
 # View
@@ -267,11 +277,23 @@ icu_tds_df_dict = Dict{Int, DataFrame}()
 gp_tds_df_dict = Dict{Int, DataFrame}()
 # Prepare a df to hold the median TD values
 icu_gp_tds_df = DataFrame(
-                    Scenario_number = zeros(Int, length(scenario_numbers_2))
-                    ,icu_median_TD = zeros(Float64, length(scenario_numbers_2))
-                    ,icu_median_3TD = zeros(Float64, length(scenario_numbers_2))
-                    ,gp_median_TD = zeros(Float64, length(scenario_numbers_2))
-                    ,gp_median_3TD = zeros(Float64, length(scenario_numbers_2))
+                    Scenario_number    = zeros(Int,     length(scenario_numbers_2))
+                    ,icu_median_TD     = zeros(Float64, length(scenario_numbers_2))
+                    ,icu_TD_iqr_lower  = zeros(Float64, length(scenario_numbers_2))
+                    ,icu_TD_iqr_upper  = zeros(Float64, length(scenario_numbers_2))
+                    ,icu_TD_std        = zeros(Float64, length(scenario_numbers_2))
+                    ,icu_median_3TD    = zeros(Float64, length(scenario_numbers_2))
+                    ,icu_3TD_iqr_lower = zeros(Float64, length(scenario_numbers_2))
+                    ,icu_3TD_iqr_upper = zeros(Float64, length(scenario_numbers_2))
+                    ,icu_3TD_std       = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_median_TD      = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_TD_iqr_lower   = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_TD_iqr_upper   = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_TD_std         = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_median_3TD     = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_3TD_iqr_lower  = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_3TD_iqr_upper  = zeros(Float64, length(scenario_numbers_2))
+                    ,gp_3TD_std        = zeros(Float64, length(scenario_numbers_2))
                     )
 
 # Loop through scenarios, read in files and compute median TD values
@@ -289,10 +311,31 @@ for i in 1:length(scenario_numbers_2)
                         
     # Compute times to detection and populate df
     icu_gp_tds_df[i,"Scenario_number"] = k
+    # ICU
     icu_gp_tds_df[i,"icu_median_TD"]  = median(icu_tds_df_dict[k][:,"ICU_TD"])
     icu_gp_tds_df[i,"icu_median_3TD"] = median(icu_tds_df_dict[k][:,"ICU_3TD"])
+    
+    icu_gp_tds_df[i,"icu_TD_iqr_lower"] = quantile(icu_tds_df_dict[k][:,"ICU_TD"], 0.25)
+    icu_gp_tds_df[i,"icu_TD_iqr_upper"] = quantile(icu_tds_df_dict[k][:,"ICU_TD"], 0.75)
+    
+    icu_gp_tds_df[i,"icu_3TD_iqr_lower"] = quantile(icu_tds_df_dict[k][:,"ICU_3TD"], 0.25)
+    icu_gp_tds_df[i,"icu_3TD_iqr_upper"] = quantile(icu_tds_df_dict[k][:,"ICU_3TD"], 0.75)
+    
+    icu_gp_tds_df[i,"icu_TD_std"] = std(icu_tds_df_dict[k][:,"ICU_TD"])
+    icu_gp_tds_df[i,"icu_3TD_std"] = std(icu_tds_df_dict[k][:,"ICU_3TD"])
+    # GP
     icu_gp_tds_df[i,"gp_median_TD"]   = median(gp_tds_df_dict[k][:,"GP_TD"])
     icu_gp_tds_df[i,"gp_median_3TD"]  = median(gp_tds_df_dict[k][:,"GP_3TD"])
+
+    icu_gp_tds_df[i,"gp_TD_iqr_lower"] = quantile(gp_tds_df_dict[k][:,"GP_TD"], 0.25)
+    icu_gp_tds_df[i,"gp_TD_iqr_upper"] = quantile(gp_tds_df_dict[k][:,"GP_TD"], 0.75)
+    
+    icu_gp_tds_df[i,"gp_3TD_iqr_lower"] = quantile(gp_tds_df_dict[k][:,"GP_3TD"], 0.25)
+    icu_gp_tds_df[i,"gp_3TD_iqr_upper"] = quantile(gp_tds_df_dict[k][:,"GP_3TD"], 0.75)
+    
+    icu_gp_tds_df[i,"gp_TD_std"] = std(gp_tds_df_dict[k][:,"GP_TD"])
+    icu_gp_tds_df[i,"gp_3TD_std"] = std(gp_tds_df_dict[k][:,"GP_3TD"])
+
 end
 
 # View
@@ -771,10 +814,6 @@ Plots.savefig( joinpath( output_folder, "scatter_all_TD3.png" ) )
 ## Computing and plotting combined times to detection
 
 # Read in files 
-
-using CSV
-using DataFrames
-
 # Directory and base file name
 path_name = "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1717144_1719024_1719029_analysis/"
 
@@ -895,6 +934,105 @@ tds_df = DataFrame(
                     ,sc_icu_8_gp_comb_median_3TD_upper = default_float_col
                     # SC + ICU 29 + GP
                     ,sc_icu_29_gp_comb_median_3TD_upper = default_float_col
+                    ## Lower IQR
+                    # TD
+                    ,sc_TD_iqr_lower     = default_float_col
+                    ,icu_8_TD_iqr_lower  = default_float_col
+                    ,icu_29_TD_iqr_lower = default_float_col
+                    ,gp_TD_iqr_lower     = default_float_col
+                    # 3TD
+                    ,sc_3TD_iqr_lower     = default_float_col
+                    ,icu_8_3TD_iqr_lower  = default_float_col
+                    ,icu_29_3TD_iqr_lower = default_float_col
+                    ,gp_3TD_iqr_lower     = default_float_col
+                    # Combined TD
+                    # SC + ICU 8
+                    ,sc_icu_8_comb_TD_iqr_lower = default_float_col
+                    # SC + ICU 29
+                    ,sc_icu_29_comb_TD_iqr_lower = default_float_col
+                    # SC + GP
+                    ,sc_gp_comb_TD_iqr_lower = default_float_col
+                    # SC + ICU 8 + GP
+                    ,sc_icu_8_gp_comb_TD_iqr_lower = default_float_col
+                    # SC + ICU 29 + GP
+                    ,sc_icu_29_gp_comb_TD_iqr_lower = default_float_col
+                    # Combined 3TD
+                    # SC + ICU 8
+                    ,sc_icu_8_comb_3TD_iqr_lower = default_float_col
+                    # SC + ICU 29
+                    ,sc_icu_29_comb_3TD_iqr_lower = default_float_col
+                    # SC + GP
+                    ,sc_gp_comb_3TD_iqr_lower = default_float_col
+                    # SC + ICU 8 + GP
+                    ,sc_icu_8_gp_comb_3TD_iqr_lower = default_float_col
+                    # SC + ICU 29 + GP
+                    ,sc_icu_29_gp_comb_3TD_iqr_lower = default_float_col
+                    ## Upper IQR
+                    # TD
+                    ,sc_TD_iqr_upper     = default_float_col
+                    ,icu_8_TD_iqr_upper  = default_float_col
+                    ,icu_29_TD_iqr_upper = default_float_col
+                    ,gp_TD_iqr_upper     = default_float_col
+                    # 3TD
+                    ,sc_3TD_iqr_upper     = default_float_col
+                    ,icu_8_3TD_iqr_upper  = default_float_col
+                    ,icu_29_3TD_iqr_upper = default_float_col
+                    ,gp_3TD_iqr_upper     = default_float_col
+                    # Combined TD
+                    # SC + ICU 8
+                    ,sc_icu_8_comb_TD_iqr_upper = default_float_col
+                    # SC + ICU 29
+                    ,sc_icu_29_comb_TD_iqr_upper = default_float_col
+                    # SC + GP
+                    ,sc_gp_comb_TD_iqr_upper = default_float_col
+                    # SC + ICU 8 + GP
+                    ,sc_icu_8_gp_comb_TD_iqr_upper = default_float_col
+                    # SC + ICU 29 + GP
+                    ,sc_icu_29_gp_comb_TD_iqr_upper = default_float_col
+                    # Combined 3TD
+                    # SC + ICU 8
+                    ,sc_icu_8_comb_3TD_iqr_upper = default_float_col
+                    # SC + ICU 29
+                    ,sc_icu_29_comb_3TD_iqr_upper = default_float_col
+                    # SC + GP
+                    ,sc_gp_comb_3TD_iqr_upper = default_float_col
+                    # SC + ICU 8 + GP
+                    ,sc_icu_8_gp_comb_3TD_iqr_upper = default_float_col
+                    # SC + ICU 29 + GP
+                    ,sc_icu_29_gp_comb_3TD_iqr_upper = default_float_col
+                    ## Standard Deviation
+                    # TD
+                    ,sc_TD_std     = default_float_col
+                    ,icu_8_TD_std  = default_float_col
+                    ,icu_29_TD_std = default_float_col
+                    ,gp_TD_std     = default_float_col
+                    # 3TD
+                    ,sc_3TD_std     = default_float_col
+                    ,icu_8_3TD_std  = default_float_col
+                    ,icu_29_3TD_std = default_float_col
+                    ,gp_3TD_std     = default_float_col
+                    # Combined TD
+                    # SC + ICU 8
+                    ,sc_icu_8_comb_TD_std = default_float_col
+                    # SC + ICU 29
+                    ,sc_icu_29_comb_TD_std = default_float_col
+                    # SC + GP
+                    ,sc_gp_comb_TD_std = default_float_col
+                    # SC + ICU 8 + GP
+                    ,sc_icu_8_gp_comb_TD_std = default_float_col
+                    # SC + ICU 29 + GP
+                    ,sc_icu_29_gp_comb_TD_std = default_float_col
+                    # Combined 3TD
+                    # SC + ICU 8
+                    ,sc_icu_8_comb_3TD_std = default_float_col
+                    # SC + ICU 29
+                    ,sc_icu_29_comb_3TD_std = default_float_col
+                    # SC + GP
+                    ,sc_gp_comb_3TD_std = default_float_col
+                    # SC + ICU 8 + GP
+                    ,sc_icu_8_gp_comb_3TD_std = default_float_col
+                    # SC + ICU 29 + GP
+                    ,sc_icu_29_gp_comb_3TD_std = default_float_col
                     )
 
 
@@ -912,8 +1050,15 @@ for i in 1:length(scenario_numbers_sc)
                         
     # Compute times to detection and populate df
     tds_df[i,"Scenario_number"] = j
-    tds_df[i,"sc_median_TD"] = median(sc_tds_df_dict[j][:,"SC_TD"])
-    tds_df[i,"sc_median_3TD"] = median(sc_tds_df_dict[j][:,"SC_3TD"])
+    tds_df[i,"sc_median_TD"]       = median(sc_tds_df_dict[j][:,"SC_TD"])
+    tds_df[i,"sc_median_3TD"]      = median(sc_tds_df_dict[j][:,"SC_3TD"])
+    tds_df[i,"sc_TD_iqr_lower"]  = quantile(sc_tds_df_dict[j][:,"SC_TD"], 0.25)
+    tds_df[i,"sc_3TD_iqr_lower"] = quantile(sc_tds_df_dict[j][:,"SC_3TD"], 0.25)
+    tds_df[i,"sc_TD_iqr_upper"]  = quantile(sc_tds_df_dict[j][:,"SC_TD"], 0.75)
+    tds_df[i,"sc_3TD_iqr_upper"] = quantile(sc_tds_df_dict[j][:,"SC_3TD"], 0.75)
+    tds_df[i,"sc_TD_std"]             = std(sc_tds_df_dict[j][:,"SC_TD"] )
+    tds_df[i,"sc_3TD_std"]            = std(sc_tds_df_dict[j][:,"SC_3TD"] )
+    
 end
 
 # ICU 8 sites
@@ -928,8 +1073,15 @@ for i in 1:length(scenario_numbers_icu_8)
     icu_8_tds_df_dict[k] = CSV.read(file, DataFrame)
                         
     # Compute times to detection and populate df
-    tds_df[i,"icu_8_median_TD"] = median(icu_8_tds_df_dict[k][:,"ICU_TD"])
-    tds_df[i,"icu_8_median_3TD"] = median(icu_8_tds_df_dict[k][:,"ICU_3TD"])
+    tds_df[i,"icu_8_median_TD"]       = median(icu_8_tds_df_dict[k][:,"ICU_TD"])
+    tds_df[i,"icu_8_median_3TD"]      = median(icu_8_tds_df_dict[k][:,"ICU_3TD"])
+    tds_df[i,"icu_8_TD_iqr_lower"]  = quantile(icu_8_tds_df_dict[k][:,"ICU_TD"], 0.25)
+    tds_df[i,"icu_8_3TD_iqr_lower"] = quantile(icu_8_tds_df_dict[k][:,"ICU_3TD"], 0.25)
+    tds_df[i,"icu_8_TD_iqr_upper"]  = quantile(icu_8_tds_df_dict[k][:,"ICU_TD"], 0.75)
+    tds_df[i,"icu_8_3TD_iqr_upper"] = quantile(icu_8_tds_df_dict[k][:,"ICU_3TD"], 0.75)
+    tds_df[i,"icu_8_TD_std"]             = std(icu_8_tds_df_dict[k][:,"ICU_TD"] )
+    tds_df[i,"icu_8_3TD_std"]            = std(icu_8_tds_df_dict[k][:,"ICU_3TD"] )
+
 end
 
 # ICU 29 sites
@@ -945,8 +1097,14 @@ for i in 1:length(scenario_numbers_icu_29)
                         
     # Compute times to detection and populate df
     tds_df[i,"Scenario_number_icu_29"] = m
-    tds_df[i,"icu_29_median_TD"] = median(icu_29_tds_df_dict[m][:,"ICU_TD"])
-    tds_df[i,"icu_29_median_3TD"] = median(icu_29_tds_df_dict[m][:,"ICU_3TD"])
+    tds_df[i,"icu_29_median_TD"]       = median(icu_29_tds_df_dict[m][:,"ICU_TD"])
+    tds_df[i,"icu_29_median_3TD"]      = median(icu_29_tds_df_dict[m][:,"ICU_3TD"])
+    tds_df[i,"icu_29_TD_iqr_lower"]  = quantile(icu_29_tds_df_dict[m][:,"ICU_TD"], 0.25)
+    tds_df[i,"icu_29_3TD_iqr_lower"] = quantile(icu_29_tds_df_dict[m][:,"ICU_3TD"], 0.25)
+    tds_df[i,"icu_29_TD_iqr_upper"]  = quantile(icu_29_tds_df_dict[m][:,"ICU_TD"], 0.75)
+    tds_df[i,"icu_29_3TD_iqr_upper"] = quantile(icu_29_tds_df_dict[m][:,"ICU_3TD"], 0.75)
+    tds_df[i,"icu_29_TD_std"]             = std(icu_29_tds_df_dict[m][:,"ICU_TD"] )
+    tds_df[i,"icu_29_3TD_std"]            = std(icu_29_tds_df_dict[m][:,"ICU_3TD"] )
 end
 
 # GP
@@ -961,8 +1119,14 @@ for i in 1:length(scenario_numbers_gp)
     gp_tds_df_dict[n] = CSV.read(file, DataFrame)
                         
     # Compute times to detection and populate df
-    tds_df[i,"gp_median_TD"]  = median(gp_tds_df_dict[n][:,"GP_TD"])
-    tds_df[i,"gp_median_3TD"] = median(gp_tds_df_dict[n][:,"GP_3TD"])
+    tds_df[i,"gp_median_TD"]       = median(gp_tds_df_dict[n][:,"GP_TD"])
+    tds_df[i,"gp_median_3TD"]      = median(gp_tds_df_dict[n][:,"GP_3TD"])
+    tds_df[i,"gp_TD_iqr_lower"]  = quantile(gp_tds_df_dict[n][:,"GP_TD"], 0.25)
+    tds_df[i,"gp_3TD_iqr_lower"] = quantile(gp_tds_df_dict[n][:,"GP_3TD"], 0.25)
+    tds_df[i,"gp_TD_iqr_upper"]  = quantile(gp_tds_df_dict[n][:,"GP_TD"], 0.75)
+    tds_df[i,"gp_3TD_iqr_upper"] = quantile(gp_tds_df_dict[n][:,"GP_3TD"], 0.75)
+    tds_df[i,"gp_TD_std"]             = std(gp_tds_df_dict[n][:,"GP_TD"] )
+    tds_df[i,"gp_3TD_std"]            = std(gp_tds_df_dict[n][:,"GP_3TD"] )
 end
 
 #println(tds_df)
@@ -1015,6 +1179,13 @@ for i in 1:length(scenario_numbers_sc) # i =1
 
     (tds_df[i,"sc_icu_8_comb_median_TD"], tds_df[i,"sc_icu_8_comb_median_TD_lower"], tds_df[i,"sc_icu_8_comb_median_TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_8_comb, n_boot = 1000, alpha = 0.05)
     (tds_df[i,"sc_icu_8_comb_median_3TD"], tds_df[i,"sc_icu_8_comb_median_3TD_lower"], tds_df[i,"sc_icu_8_comb_median_3TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_8_comb_3, n_boot = 1000, alpha = 0.05)
+    
+    tds_df[i,"sc_icu_8_comb_TD_iqr_lower"]  = quantile( sc_icu_8_comb, 0.25)
+    tds_df[i,"sc_icu_8_comb_3TD_iqr_lower"] = quantile( sc_icu_8_comb_3, 0.25)
+    tds_df[i,"sc_icu_8_comb_TD_iqr_upper"]  = quantile( sc_icu_8_comb, 0.75)
+    tds_df[i,"sc_icu_8_comb_3TD_iqr_upper"] = quantile( sc_icu_8_comb_3, 0.75)
+    tds_df[i,"sc_icu_8_comb_TD_std"]             = std( sc_icu_8_comb)
+    tds_df[i,"sc_icu_8_comb_3TD_std"]            = std( sc_icu_8_comb_3)
 
     # SC and ICU 29 sites
     sc_icu_29_comb = min.(sc_tds,   icu_29_tds  )
@@ -1022,7 +1193,14 @@ for i in 1:length(scenario_numbers_sc) # i =1
 
     (tds_df[i,"sc_icu_29_comb_median_TD"], tds_df[i,"sc_icu_29_comb_median_TD_lower"], tds_df[i,"sc_icu_29_comb_median_TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_29_comb, n_boot = 1000, alpha = 0.05)
     (tds_df[i,"sc_icu_29_comb_median_3TD"], tds_df[i,"sc_icu_29_comb_median_3TD_lower"], tds_df[i,"sc_icu_29_comb_median_3TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_29_comb_3, n_boot = 1000, alpha = 0.05)
-
+    
+    tds_df[i,"sc_icu_29_comb_TD_iqr_lower"]  = quantile( sc_icu_29_comb, 0.25)
+    tds_df[i,"sc_icu_29_comb_3TD_iqr_lower"] = quantile( sc_icu_29_comb_3, 0.25)
+    tds_df[i,"sc_icu_29_comb_TD_iqr_upper"]  = quantile( sc_icu_29_comb, 0.75)
+    tds_df[i,"sc_icu_29_comb_3TD_iqr_upper"] = quantile( sc_icu_29_comb_3, 0.75)
+    tds_df[i,"sc_icu_29_comb_TD_std"]             = std( sc_icu_29_comb)
+    tds_df[i,"sc_icu_29_comb_3TD_std"]            = std( sc_icu_29_comb_3)
+    
     # SC and GP
     sc_gp_comb = min.(sc_tds,   gp_tds  )
     sc_gp_comb_3 = min.(sc_tds_3,   gp_tds_3  )
@@ -1030,6 +1208,13 @@ for i in 1:length(scenario_numbers_sc) # i =1
     (tds_df[i,"sc_gp_comb_median_TD"], tds_df[i,"sc_gp_comb_median_TD_lower"], tds_df[i,"sc_gp_comb_median_TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_gp_comb, n_boot = 1000, alpha = 0.05)
     (tds_df[i,"sc_gp_comb_median_3TD"], tds_df[i,"sc_gp_comb_median_3TD_lower"], tds_df[i,"sc_gp_comb_median_3TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_gp_comb_3, n_boot = 1000, alpha = 0.05)
 
+    tds_df[i,"sc_gp_comb_TD_iqr_lower"]  = quantile( sc_gp_comb, 0.25)
+    tds_df[i,"sc_gp_comb_3TD_iqr_lower"] = quantile( sc_gp_comb_3, 0.25)
+    tds_df[i,"sc_gp_comb_TD_iqr_upper"]  = quantile( sc_gp_comb, 0.75)
+    tds_df[i,"sc_gp_comb_3TD_iqr_upper"] = quantile( sc_gp_comb_3, 0.75)
+    tds_df[i,"sc_gp_comb_TD_std"]             = std( sc_gp_comb)
+    tds_df[i,"sc_gp_comb_3TD_std"]            = std( sc_gp_comb_3)
+    
     # SC and ICU 8 sites and GP
     sc_icu_8_gp_comb = min.(sc_tds,   icu_8_tds, gp_tds )
     sc_icu_8_gp_comb_3 = min.(sc_tds_3, icu_8_tds_3,   gp_tds_3  )
@@ -1037,12 +1222,26 @@ for i in 1:length(scenario_numbers_sc) # i =1
     (tds_df[i,"sc_icu_8_gp_comb_median_TD"], tds_df[i,"sc_icu_8_gp_comb_median_TD_lower"], tds_df[i,"sc_icu_8_gp_comb_median_TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_8_gp_comb, n_boot = 1000, alpha = 0.05)
     (tds_df[i,"sc_icu_8_gp_comb_median_3TD"], tds_df[i,"sc_icu_8_gp_comb_median_3TD_lower"], tds_df[i,"sc_icu_8_gp_comb_median_3TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_8_gp_comb_3, n_boot = 1000, alpha = 0.05)
 
+    tds_df[i,"sc_icu_8_gp_comb_TD_iqr_lower"]  = quantile( sc_icu_8_gp_comb, 0.25)
+    tds_df[i,"sc_icu_8_gp_comb_3TD_iqr_lower"] = quantile( sc_icu_8_gp_comb_3, 0.25)
+    tds_df[i,"sc_icu_8_gp_comb_TD_iqr_upper"]  = quantile( sc_icu_8_gp_comb, 0.75)
+    tds_df[i,"sc_icu_8_gp_comb_3TD_iqr_upper"] = quantile( sc_icu_8_gp_comb_3, 0.75)
+    tds_df[i,"sc_icu_8_gp_comb_TD_std"]             = std( sc_icu_8_gp_comb)
+    tds_df[i,"sc_icu_8_gp_comb_3TD_std"]            = std( sc_icu_8_gp_comb_3)
+
     # SC and ICU 29 sites and GP
     sc_icu_29_gp_comb = min.(sc_tds,   icu_29_tds, gp_tds )
     sc_icu_29_gp_comb_3 = min.(sc_tds_3, icu_29_tds_3,   gp_tds_3  )
 
     (tds_df[i,"sc_icu_29_gp_comb_median_TD"], tds_df[i,"sc_icu_29_gp_comb_median_TD_lower"], tds_df[i,"sc_icu_29_gp_comb_median_TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_29_gp_comb, n_boot = 1000, alpha = 0.05)
     (tds_df[i,"sc_icu_29_gp_comb_median_3TD"], tds_df[i,"sc_icu_29_gp_comb_median_3TD_lower"], tds_df[i,"sc_icu_29_gp_comb_median_3TD_upper"]) = NBPMscape.median_ci_bootstrap( vec = sc_icu_29_gp_comb_3, n_boot = 1000, alpha = 0.05)
+
+    tds_df[i,"sc_icu_29_gp_comb_TD_iqr_lower"]  = quantile( sc_icu_29_gp_comb, 0.25)
+    tds_df[i,"sc_icu_29_gp_comb_3TD_iqr_lower"] = quantile( sc_icu_29_gp_comb_3, 0.25)
+    tds_df[i,"sc_icu_29_gp_comb_TD_iqr_upper"]  = quantile( sc_icu_29_gp_comb, 0.75)
+    tds_df[i,"sc_icu_29_gp_comb_3TD_iqr_upper"] = quantile( sc_icu_29_gp_comb_3, 0.75)
+    tds_df[i,"sc_icu_29_gp_comb_TD_std"]             = std( sc_icu_29_gp_comb)
+    tds_df[i,"sc_icu_29_gp_comb_3TD_std"]            = std( sc_icu_29_gp_comb_3)
 
 end
 
@@ -1492,3 +1691,133 @@ inf_t_analysis_1719024_62_5_395.tinf_global_doubling_times_df
 plot(inf_t_analysis_1719024_62_5_395.tinf_local_doubling_times_vec, xlabel = "Time since first importation (days)", ylabel = "Estimated doubling time (days)", label = "Local estimate")
 hline!( repeat( [ inf_t_analysis_1719024_62_5_395.tinf_global_doubling_times_df[3,:doubling_time_estimates] ], length(inf_t_analysis_1719024_62_5_395.tinf_local_doubling_times_vec) ), label = "Global estimate using nonlinear least squares")
 Plots.savefig( "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1717144_1719024_1719029_analysis/sim_analysis_HPC1719024_SC_med_TD_upper_array62_simrep5_simrepcombined395_doubling_time.png" )            
+
+
+
+### Computing number of importations ###
+# - at TD AND
+# - at simulation maxtime
+
+## Load simulated outbreak data
+sims_simid_tinf_df = combine_sim_reps(;  # sim_input_folders in vector format where multiple paths
+                                        sim_input_folders = [ "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1717144/1717144_sims_simid_tinf_df/"
+                                                            , "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1719024/1719024_sims_simid_tinf_df/"
+                                                            , "C:/Users/kdrake/Documents/mSCAPE/3_results/from_hpc/2026_02_final_run_for_paper/1719029/1719029_sims_simid_tinf_df/" ]
+                                        , sim_object_name = "sims_simid_tinf_df" #"sims_G_filtered" #"sims" # "sims_G_icu_filter" # "sims_G_gp_filter" # "sim_G_filtered"
+                                        , nrep = 10
+                                        )
+
+# Save to file
+@save "covidlike-1.5.0-sims_simid_tinf_df_nrep1000_1717144_1719024_1719029.jld2" sims_simid_tinf_df
+
+# Reload file if necessary
+#sims_simid_tinf_df = load("covidlike-1.5.0-sims_simid_tinf_df_nrep1000_1717144_1719024_1719029.jld2", "sims_simid_tinf_df")
+
+# Compute mean number of importations over simulation maxtime
+sim_maxtime = 70.0
+
+# Objects containing TD values for scenario 1 (computed and loaded earlier)
+ sc_tds_1_1717144_1719024_1719029
+icu_tds_1_1717144_1719024_1719029
+ gp_tds_1_1717144_1719024_1719029
+
+integer_zeros = Int.(zeros(length(sims_simid_tinf_df[1])))
+nimports_df = DataFrame(
+                        sim_rep_n            = integer_zeros
+                        , nimport_total      = integer_zeros
+                        , nimport_at_sc_td   = integer_zeros
+                        , nimport_at_icu_td  = integer_zeros
+                        , nimport_at_gp_td   = integer_zeros
+                        , nimport_at_sc_td3  = integer_zeros
+                        , nimport_at_icu_td3 = integer_zeros
+                        , nimport_at_gp_td3  = integer_zeros
+)
+
+for s in 1:length(sims_simid_tinf_df[1]) #s=1
+
+    # Extract importation times using unique sim IDs (each simtree is generated by an individual importation)
+    # and the earliest time of infection for each sim ID, which must be the time of importation
+    import_times = combine( groupby(sims_simid_tinf_df[1][s], :simid), :tinf => minimum => :min_tinf)
+    #sort()
+
+    sc_td  = sc_tds_1_1717144_1719024_1719029[s,:SC_TD ] # sort( sc_tds_1_1717144_1719024_1719029[:,:SC_TD ] )
+    sc_td3 = sc_tds_1_1717144_1719024_1719029[s,:SC_3TD]
+    icu_td  = icu_tds_1_1717144_1719024_1719029[s, :ICU_TD ]
+    icu_td3 = icu_tds_1_1717144_1719024_1719029[s, :ICU_3TD ]
+    gp_td = gp_tds_1_1717144_1719024_1719029[s, :GP_TD]
+    gp_td3 = gp_tds_1_1717144_1719024_1719029[s, :GP_3TD]
+    
+    # method if want to append to a minimal existing df
+    #temp_df_row = DataFrame(
+    #                      sim_rep_n = s
+    #                    , nimport_total = length( unique( sims_simid_tinf_df[s].simid ) )
+    #                    , nimport_at_sc_td   = sum( import_times.tinf .<=  sc_td )
+    #                    , nimport_at_icu_td  = sum( import_times.tinf .<= icu_td )
+    #                    , nimport_at_gp_td   = sum( import_times.tinf .<=  gp_td )
+    #                    , nimport_at_sc_td3  = sum( import_times.tinf .<=  sc_td3 )
+    #                    , nimport_at_icu_td3 = sum( import_times.tinf .<= icu_td3 )
+    #                    , nimport_at_gp_td3  = sum( import_times.tinf .<=  gp_td3 )
+    #)
+    
+    #append!( temp_df_row , nimports_df )
+    
+    # OR
+
+    # Method if populating already fully formed df
+    nimports_df[s, :sim_rep_n]          = s
+    nimports_df[s, :nimport_total]      = length( unique( sims_simid_tinf_df[1][s].simid ) )
+    nimports_df[s, :nimport_at_sc_td]   = sum( import_times.min_tinf .<=  sc_td )
+    nimports_df[s, :nimport_at_icu_td]  = sum( import_times.min_tinf .<= icu_td )
+    nimports_df[s, :nimport_at_gp_td]   = sum( import_times.min_tinf .<=  gp_td )
+    nimports_df[s, :nimport_at_sc_td3]  = sum( import_times.min_tinf .<=  sc_td3 )
+    nimports_df[s, :nimport_at_icu_td3] = sum( import_times.min_tinf .<= icu_td3 )
+    nimports_df[s, :nimport_at_gp_td3]  = sum( import_times.min_tinf .<=  gp_td3 )
+
+end
+
+CSV.write( joinpath(output_folder,"nimports_df.csv"), nimports_df)
+
+# Compute mean values over the 1000 sim reps
+nimports_mean_df = DataFrame( 
+                              nimport_type = names(nimports_df)[2:end]
+                            , mean_over_sim_reps = [
+                                                      mean( nimports_df[:, :nimport_total] )
+                                                    , mean( nimports_df[:, :nimport_at_sc_td] )
+                                                    , mean( nimports_df[:, :nimport_at_icu_td] )
+                                                    , mean( nimports_df[:, :nimport_at_gp_td] )
+                                                    , mean( nimports_df[:, :nimport_at_sc_td3] )
+                                                    , mean( nimports_df[:, :nimport_at_icu_td3] )
+                                                    , mean( nimports_df[:, :nimport_at_gp_td3] )
+                                                    ]
+                            , median_over_sim_reps = [
+                                                      median( nimports_df[:, :nimport_total] )
+                                                    , median( nimports_df[:, :nimport_at_sc_td] )
+                                                    , median( nimports_df[:, :nimport_at_icu_td] )
+                                                    , median( nimports_df[:, :nimport_at_gp_td] )
+                                                    , median( nimports_df[:, :nimport_at_sc_td3] )
+                                                    , median( nimports_df[:, :nimport_at_icu_td3] )
+                                                    , median( nimports_df[:, :nimport_at_gp_td3] )
+                                                    ]
+)
+
+CSV.write( joinpath(output_folder,"nimports_mean_df.csv"), nimports_mean_df)
+
+# Plot distributions of nimports
+# TD
+Plots.histogram( nimports_df[:, :nimport_total], alpha = 0.5, label = "total imports in 70 day sim", normalize = :pdf#, bins=20
+                , xlabel = "Number of importations", ylabel="PDF over 1000 simulation replicates" )
+Plots.histogram!( nimports_df[:, :nimport_at_sc_td], alpha = 0.5, label = "imports before TD HARISS", normalize = :pdf)#, bins=20 )
+Plots.histogram!( nimports_df[:, :nimport_at_icu_td], alpha = 0.5, label = "imports before TD ICU", normalize = :pdf)#, bins=20 )
+Plots.histogram!( nimports_df[:, :nimport_at_gp_td], alpha = 0.5, label = "imports before TD GP", normalize = :pdf)#, bins=20 )
+
+Plots.savefig( joinpath( output_folder,"nimports_TD_hist.png") )
+
+# TD3
+Plots.histogram( nimports_df[:, :nimport_total], alpha = 0.5, label = "total imports in 70 day sim", normalize = :pdf, bins=20, xlabel = "Number of importations", ylabel="PDF over 1000 simulation replicates" )
+Plots.histogram!( nimports_df[:, :nimport_at_sc_td3], alpha = 0.5, label = "imports before TD3 HARISS", normalize = :pdf, bins=20 )
+Plots.histogram!( nimports_df[:, :nimport_at_icu_td3], alpha = 0.5, label = "imports before TD3 ICU", normalize = :pdf, bins=20 )
+Plots.histogram!( nimports_df[:, :nimport_at_gp_td3], alpha = 0.5, label = "imports before TD3 GP", normalize = :pdf, bins=20 )
+
+Plots.savefig( joinpath( output_folder,"nimports_TD3_hist.png") )
+
+
