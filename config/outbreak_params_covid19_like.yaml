@@ -103,6 +103,10 @@ parameters:
   rho_hosp: 0.25               # transmission reduction in hospital (25% of normal)
   rho_asymptomatic: 0.223      # transmission reduction for asymptomatic individuals - see Knock et al (2021), Science Translational Medicine, 13(602) Supplementary Information
 
+# Infection severity probabilities (age-dependent)
+  symptomatic_IHR_IFR_by_age_file: "data/severity_care_probabilities/covid_knock_symptomatic_ihr_ifr_by_age.csv"
+  care_pathway_prob_by_age_file: "data/severity_care_probabilities/covid_knock_care_pathway_prob_by_age.csv"
+
 # Infection severity probabilities (age-independent)
 # Split 'severe' infections, which is defined by hospital admission, into short and long stay.
 #severity_probabilities:
