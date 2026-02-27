@@ -66,9 +66,6 @@ export NHS_WALES_ICU_BEDS #NHS_WALES_ICU_BEDS_ADULT, NHS_WALES_ICU_BEDS_CHILD
 include("population_data.jl")
 export ITL2SIZE
 
-include("severity_care_probabilities.jl")
-export SYMPTOMATIC_PROB_BY_AGE, IHR_BY_AGE, IFR_BY_AGE, CARE_PATHWAY_PROB_BY_AGE
-
 include("load_import_data.jl")
 export GLEAM_DAILY_IMPORT_RATES
 

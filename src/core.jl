@@ -166,6 +166,18 @@ function initialize_parameters(config_file::String="")
     	println("Missing file required to load default parameters: data/hariss_nhs_trust_sampling_sites.csv")
 		return
 	end
+	if isfile( joinpath( pkgdir(NBPMscape), "data/severity_care_probabilities/covid_knock_symptomatic_ihr_ifr_by_age.csv" ) )
+    	#println("File exists")
+	else
+    	println("Missing file required to load default parameters: data/severity_care_probabilities/covid_knock_symptomatic_ihr_ifr_by_age.csv")
+		return
+	end
+	if isfile( joinpath( pkgdir(NBPMscape), "data/severity_care_probabilities/covid_knock_care_pathway_prob_by_age.csv" ) )
+    	#println("File exists")
+	else
+    	println("Missing file required to load default parameters: data/severity_care_probabilities/covid_knock_care_pathway_prob_by_age.csv")
+		return
+	end
     #P = create_default_parameters()
 	default_params = create_default_parameters(); # split(default_params)
 	# Also define the default configurable parameters so can check 
@@ -173,8 +185,8 @@ function initialize_parameters(config_file::String="")
 	default_configurable_params = default_params.default_configurable_params; # typeof(default_configurable_params); collect(propertynames(default_configurable_params))
     # Apply configuration if provided
     if !isempty(config_file)
-        #try
-            config_data = load_config( joinpath( pkgdir(NBPMscape), config_file ) );
+        #try 
+            config_data = load_config( joinpath( pkgdir(NBPMscape), config_file ) ); #config_data["parameters"]["symptomatic_IHR_IFR_by_age_file"] #config_data["parameters"]["care_pathway_prob_by_age_file"]
             warnings, errors = validate_config(config_data);
             # Process warnings
 			for warning in warnings
@@ -240,32 +252,6 @@ function create_default_parameters()
 		, g_contact_matrix_age = CONTACT_MATRIX_SCHOOL_WORK_SINGLE_YEAR
 		, o_contact_matrix_age = CONTACT_MATRIX_OTHER_SINGLE_YEAR
 
-		### Infection severity disaggregated by age
-		
-		## Single values calculated using disaggregated probabilities (see below) and
-		## weighted by population age distribution
-		#, propverysevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
-		#, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
-		#, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
-		#, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
-		#, propmildorasymptomatic = 0.507 + (1 - 0.008 - 0.03 - 0.053 - 0.507) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
-		# CHECK: propverysevere + propsevere + propmoderate + propmildorasymptomatic == 1
-		
-		## Infection severity probabilities disaggregated by age
-		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
-		, symptomatic_prob_by_age = SYMPTOMATIC_PROB_BY_AGE
-		, ihr_by_age = IHR_BY_AGE[:,"IHR"]
-		, symptomatic_ihr_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_hosp_sympt"])
-		, icu_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_ICU_hosp"]) # Prob of admission to ICU if already admitted to hospital
-
-		## Probability of death by age and care stage
-		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
-		, ifr_by_age = IFR_BY_AGE[:,"IFR"] # Infection fatality ratio
-		, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
-		, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
-		, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
-		#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
-
 		# Hospital parameters
         , nhs_trust_catchment_pop = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
         #, nhs_trust_ae_12m = AE_12M
@@ -310,6 +296,36 @@ function create_default_parameters()
 
 		, frate = 0.0 # rate of gaining & losing flinks
 		, grate = 1/30.0 # rate of gaining and losing
+
+		### Infection severity disaggregated by age
+		
+		## Single values calculated using disaggregated probabilities (see below) and
+		## weighted by population age distribution
+		#, propverysevere = 0.008 # Proportion of infected that are admitted to ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+		#, propsevere = 0.03 # Proportion of infected that are admitted to hospital but not ICU. Based on age group disaggregated probabilities in Knock et al (2021) weighted by ONS England population data for MYE 2022 by age group. Also supported by value reported in Thygesen et al (2022) Lancet Digital Health, 6.4% admitted to hospital, of which 10.6% admitted to ICU = 0.7%
+		#, propmoderate = 0.053 # Analysis of FluSurvey data for 2024/25 shows 11% (weekly mean) of symptomatic ILI consult GP in person or via phone. Symptomatic proportion is 49.3%.
+		#, prop_asymptomatic = 0.507 # = 1 - weighted mean of symptomatic probability in Knock et al (2021) (weighted by MYE 2022 ONS population of England by single year age)
+		#, propmildorasymptomatic = 0.507 + (1 - 0.008 - 0.03 - 0.053 - 0.507) # prop_asymptomatic + (1-prop_asymptomatic-propmoderate-propsevere-propverysevere)  # asymptomatic + mild (a balancing number), i.e. no healthcare and no sampling
+		# CHECK: propverysevere + propsevere + propmoderate + propmildorasymptomatic == 1
+		
+		## Infection severity probabilities disaggregated by age
+		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
+		#, symptomatic_prob_by_age = SYMPTOMATIC_PROB_BY_AGE
+		#, ihr_by_age = IHR_BY_AGE[:,"IHR"]
+		#, symptomatic_ihr_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_hosp_sympt"])
+		#, icu_by_age = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_ICU_hosp"]) # Prob of admission to ICU if already admitted to hospital
+
+		## Probability of death by age and care stage
+		## Sourced from Knock et al (2021), Science Translational Medicine, 13(602)
+		#, ifr_by_age = IFR_BY_AGE[:,"IFR"] # Infection fatality ratio
+		#, p_death_icu = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_ICU"])
+		#, p_death_hosp = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_hosp_D"])
+		#, p_death_stepdown = parse.(Float64, CARE_PATHWAY_PROB_BY_AGE[:,"p_death_stepdown"])
+		#plot(ifr_by_age); plot!(p_death_icu); plot!(p_death_hosp);plot!(p_death_stepdown)
+		
+		# The datatypes above can be read from these two files and are then defined in convert_params_to_dfs function
+		, symptomatic_IHR_IFR_by_age_file = "data/severity_care_probabilities/covid_knock_symptomatic_ihr_ifr_by_age.csv"
+  		, care_pathway_prob_by_age_file = "data/severity_care_probabilities/covid_knock_care_pathway_prob_by_age.csv"
 
 		# Severity probabilities with no age disaggregation
 		# Split 'severe' infections, which is defined by hospital admission, into short and long stay.

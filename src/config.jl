@@ -92,6 +92,22 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         push!(warnings, "Could not validate hariss_nhs_trust_sampling_sites_file: $error_msg");
     elseif hariss_site_file_value !== nothing && !( isfile( joinpath( pkgdir(NBPMscape), hariss_site_file_value ) ) )
         push!(errors, "hariss_nhs_trust_sampling_sites_file = $(hariss_site_file_value), but the file is missing, please ensure the file indicated is present in the correct directory.");
+    end # errors
+
+    # Check that any files required are available
+    symptomatic_IHR_IFR_by_age_file_value, error_msg = safe_get_value(config, "parameters.symptomatic_IHR_IFR_by_age_file")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate symptomatic_IHR_IFR_by_age_file: $error_msg");
+    elseif symptomatic_IHR_IFR_by_age_file_value !== nothing && !( isfile( joinpath( pkgdir(NBPMscape), symptomatic_IHR_IFR_by_age_file_value ) ) )
+        push!(errors, "symptomatic_IHR_IFR_by_age_file = $(symptomatic_IHR_IFR_by_age_file_value), but the file is missing, please ensure the file indicated is present in the correct directory.");
+    end
+
+    # Check that any files required are available
+    care_pathway_prob_by_age_file_value, error_msg = safe_get_value(config, "parameters.care_pathway_prob_by_age_file")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate care_pathway_prob_by_age_file: $error_msg");
+    elseif care_pathway_prob_by_age_file_value !== nothing && !( isfile( joinpath( pkgdir(NBPMscape), care_pathway_prob_by_age_file_value ) ) )
+        push!(errors, "care_pathway_prob_by_age_file = $(care_pathway_prob_by_age_file_value), but the file is missing, please ensure the file indicated is present in the correct directory.");
     end
 
     # Check that probabilities and proportions are between 0 and 1
@@ -862,5 +878,23 @@ function convert_params_to_dfs(P::NamedTuple)
     #				,:ed_ari_destinations_child_p_discharged,:ed_ari_destinations_child_p_short_stay,:ed_ari_destinations_child_p_longer_stay
     #				])
     #	P = (; (k => v for (k, v) in pairs(P) if !(k in drop))...)
+    
+    # Infection severity probabilities disaggregated by age
+    symptomatic_IHR_IFR_by_age_df = CSV.read( joinpath( pkgdir(NBPMscape), P.symptomatic_IHR_IFR_by_age_file), DataFrame )
+    P = (; P..., symptomatic_prob_by_age = symptomatic_IHR_IFR_by_age_df[:,["age_single_year","symptomatic_prob"]]);
+    P = (; P..., ihr_by_age = symptomatic_IHR_IFR_by_age_df[:,"IHR"]); # Infection hospitalisation ratio
+    P = (; P..., ifr_by_age = symptomatic_IHR_IFR_by_age_df[:,"IFR"]); # Infection fatality ratio
+    care_pathway_prob_by_age_df = CSV.read( joinpath( pkgdir(NBPMscape), P.care_pathway_prob_by_age_file), DataFrame )
+    #P = (; P..., symptomatic_ihr_by_age = parse.(Float64, care_pathway_prob_by_age_df[:,"p_hosp_sympt"]));
+    #P = (; P..., icu_by_age = parse.(Float64, care_pathway_prob_by_age_df[:,"p_ICU_hosp"])); # Prob of admission to ICU if already admitted to hospital
+    #P = (; P..., p_death_icu = parse.(Float64, care_pathway_prob_by_age_df[:,"p_death_ICU"]));
+    #P = (; P..., p_death_hosp = parse.(Float64, care_pathway_prob_by_age_df[:,"p_death_hosp_D"]));
+    #P = (; P..., p_death_stepdown = parse.(Float64, care_pathway_prob_by_age_df[:,"p_death_stepdown"]));
+    P = (; P..., symptomatic_ihr_by_age = care_pathway_prob_by_age_df[:,"p_hosp_sympt"]);
+    P = (; P..., icu_by_age = care_pathway_prob_by_age_df[:,"p_ICU_hosp"]); # Prob of admission to ICU if already admitted to hospital
+    P = (; P..., p_death_icu = care_pathway_prob_by_age_df[:,"p_death_ICU"]);
+    P = (; P..., p_death_hosp = care_pathway_prob_by_age_df[:,"p_death_hosp_D"]);
+    P = (; P..., p_death_stepdown = care_pathway_prob_by_age_df[:,"p_death_stepdown"]); P.p_death_stepdown
+
     return P;
 end
