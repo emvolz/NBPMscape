@@ -77,7 +77,7 @@ parameters:
   icu_ari_admissions: 1440 # [793, 1440] # Weekly ICU admission numbers [summer,winter]
   icu_ari_admissions_adult_p: 0.76 # Proportion of ICU ARI admissions that are adults (16y and over)
   icu_ari_admissions_child_p: 0.24 # Proportion of ICU ARI admissions that are children (<16y)
-  icu_nhs_trust_sampling_sites_file: "data/nhs_trust_site_sample_targets_24pilot.csv" #"data/nhs_trust_site_sample_targets.csv" # CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame ) # List of NHS Trusts with ICU sites that are sampling for metagenomic testing
+  icu_nhs_trust_sampling_sites_file: "data/nhs_trust_site_sample_targets.csv" #"data/nhs_trust_site_sample_targets.csv" # CSV.read( "data/nhs_trust_site_sample_targets.csv" , DataFrame ) # List of NHS Trusts with ICU sites that are sampling for metagenomic testing
   icu_only_sample_before_death: true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
 
 ## 2(a) Pathogen specific parameters ##
