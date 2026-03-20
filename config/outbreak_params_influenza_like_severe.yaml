@@ -1,6 +1,9 @@
 # NBPMscape parameters configuration file
 
-# User description: influenza # Combination of seasonal and H1N1 2009 pandemic
+# User description: Influenza - severe
+# pathogen specific parameters are as 'outbreak_params_influenza_like_mild.yaml' but with the following changes:
+# # 4x IFR, IHR,
+# # prop_mild, prop_moderate_GP and prop_moderate_ED changed to account for increased number of severe cases
 
 # Contents
 # (1) Sampling and testing parameters
@@ -87,9 +90,9 @@ parameters:
 
 # Transmission parameters
 #transmission:
-  infectivity: 6.0             # scales transmission rate # Use infectivitytoR() to check R value for current parameters. 16 gives R of between 1.4 and 1.5.
-  infectivity_shape: 2.46       # 2009 PANDEMIC # Produces generation time of ~2.6 # Estimated from Fig.1.b. in Ghani et al (2010), The Early Transmission Dynamics of H1N1pdm Influenza in the United Kingdom, PLoS Currents, 1, DOI: 10.1371/currents.RRN1130
-  infectivity_scale: 1.17       # 2009 PANDEMIC # Produces generation time of ~2.6 # Estimated from Fig.1.b. in Ghani et al (2010), The Early Transmission Dynamics of H1N1pdm Influenza in the United Kingdom, PLoS Currents, 1, DOI: 10.1371/currents.RRN1130
+  infectivity: 8.5             # scales transmission rate # Use infectivitytoR() to check R value for current parameters. 16 gives R of between 1.4 and 1.5.
+  infectivity_shape: 2.46       # 2009 PANDEMIC # Produces generation time ~2.5 to 2.7 # Estimated from Fig.1.b. in Ghani et al (2010), The Early Transmission Dynamics of H1N1pdm Influenza in the United Kingdom, PLoS Currents, 1, DOI: 10.1371/currents.RRN1130
+  infectivity_scale: 1.17       # 2009 PANDEMIC # Produces generation time ~2.5 to 2.7 # Estimated from Fig.1.b. in Ghani et al (2010), The Early Transmission Dynamics of H1N1pdm Influenza in the United Kingdom, PLoS Currents, 1, DOI: 10.1371/currents.RRN1130
 
 # Disease progression parameters
 #disease_progression:
@@ -107,13 +110,13 @@ parameters:
 # SEASONAL # Symptomatic proportion values from Table 1 from Biddle et al (2025), Asymptomatic and Mildly Symptomatic Influenza Virus Infections by Season: Case-Ascertained Household Transmission Studies, United States, 2017–2023, The Journal of Infectious Diseases, 232(4),e637-e641, DOI:10.1093/infdis/jiae591. The larger non-ARI proportion is selected, instead of smaller asymptomatic, because the values more closely match the findings of Leung et al (2015), Epidemiology, 26,862-72, and Furuya-Kanamori et al (2016), Emerg Infect Dis, 22, 1052-56 as reported in Montgomery et al (2024), Lancet Infectious Diseases, 24(6)
 # PANDEMIC # IHR calculated from CHR data in Table 1 of Tuite et al (2010), Estimated epidemiologic parameters and morbidity associated with pandemic H1N1 influenza, CMAJ, 182(2), DOI: 10.1503/cmaj.091807. and adjusted for 10x lower estimate referenced to Wilson N, Baker MG. The emerging influenza pandemic: estimating the case fatality ratio. Euro Surveill 2009;4. pii:19255.
 # MIX OF PANDEMIC & SEASONAL # IFR calculated using 2009 pandemic CFR from FluSurvey and adjusting to IFR using seasonal symptomatic ILI proportions in Biddle et al (2025) (see above). Note that the symptomatic version used here is 'without ILI' rather than 'without ARI' as used for symptomatic proportion
-  symptomatic_IHR_IFR_by_age_file: "data/severity_care_probabilities/influenza_symptomatic_ihr_ifr_by_age_mild.csv" 
+  symptomatic_IHR_IFR_by_age_file: "data/severity_care_probabilities/influenza_symptomatic_ihr_ifr_by_age_severe.csv" 
 # PANDEMIC # Probability of hospitalisation given symptomatic (p_hosp_sympt) estimated from Figure 3 in Presanis et al (2011), Changes in severity of 2009 pandemic A/H1N1 influenza in England: a Bayesian evidence synthesis, BMJ, 343, DOI:10.1136/bmj.d5408
 # PANDEMIC # Probability of ICU admission given hospitalisation(p_ICU_hosp)  estimated from Figure 4 in Presanis et al (2011), Changes in severity of 2009 pandemic A/H1N1 influenza in England: a Bayesian evidence synthesis, BMJ, 343, DOI:10.1136/bmj.d5408
 # PANDEMIC # Probability of death given hospitalisation (p_death_hosp_D)       estimated from Figure 4 in Presanis et al (2011), Changes in severity of 2009 pandemic A/H1N1 influenza in England: a Bayesian evidence synthesis, BMJ, 343, DOI:10.1136/bmj.d5408
 # PANDEMIC # Probability of death given ICU (p_death_ICU) is assumed to be equal to p_death_hosp_D as asssume that all deaths occur in ICU
 # PANDEMIC # Probability of death in stepdown, after ICU (p_death_stepdown) is set to 0 because assume all deaths occur in ICU
-  care_pathway_prob_by_age_file: "data/severity_care_probabilities/influenza_care_pathway_prob_by_age_mild.csv"
+  care_pathway_prob_by_age_file: "data/severity_care_probabilities/influenza_care_pathway_prob_by_age_severe.csv"
 
 # Infection severity probabilities (age-independent)
 # Split 'severe' infections, which is defined by hospital admission, into short and long stay.
@@ -122,9 +125,9 @@ parameters:
   prop_severe_hosp_long_stay: 0.59649   # hospital stay >24h. Given admitted to hospital, will stay for >24h. Same as COVID-like parameter value. Estimated using Knock et al (2021) and Saigal et al. (2025), BMC Emergency Medicine, 25:11. See 'HARISS_pathway_adjustment.jl' 
 # Note that mild, moderate_GP and moderate_ED sum to 1. 
 # They are symptomatic but the distinction is whether they do not seek healthcare, consult a GP (in person or via phone) or visit an Emergency Department (ED) respectively.
-  prop_moderate_ED: 0.316116328         # ED visit without admission. Balancing value = 1-prop_moderate_ED - prop_moderate_GP.
-  prop_moderate_GP: 0.10931031          # GP visit only. Will visit a GP but won't go to hospital. 0.10825/(1-0.0097) 10.825% of symptomatic only visit GP adjusting for CHR value of 0.0097 so that moderate + mild sum to 1. Estimated from FluSurvey data (people with ILI), combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
-  prop_mild: 0.574573362                # symptomatic, no healthcare. 43.1% of ILI cases sought medical attention, so we can assume that 56.9% did not and so would fall into the prop_mild categorry. However, mild, moderate_GP and moderate_ED sum to 1, so adjust for CHR of 0.97%. (1-0.569/(1-0.0097) = 0.5746. Brooks-Pollack et al (2011), Using an online survey of healthcare-seeking behaviour to estimate the magnitude and severity of the 2009 H1N1v influenza epidemic in England, BMC Infectious Diseases, 11(68)
+  prop_moderate_ED: 0.439339497         # ED visit without admission. Balancing value = 1-prop_moderate_ED - prop_moderate_GP.
+  prop_moderate_GP: 0.112547982         # GP visit only. Will visit a GP but won't go to hospital. 0.10825/(1-0.038188) 10.825% of symptomatic only visit GP adjusting for CHR value of 0.0097 so that moderate + mild sum to 1. Estimated from FluSurvey data (people with ILI), combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
+  prop_mild: 0.448112521                # symptomatic, no healthcare. 43.1% of ILI cases sought medical attention, so we can assume that 56.9% did not and so would fall into the prop_mild categorry. However, mild, moderate_GP and moderate_ED sum to 1, so adjust for CHR of 3.8188%. (1-0.569/(1-0.0097) = 0.5746. Brooks-Pollack et al (2011), Using an online survey of healthcare-seeking behaviour to estimate the magnitude and severity of the 2009 H1N1v influenza epidemic in England, BMC Infectious Diseases, 11(68)
 
 # Healthcare progression rates (1/duration in days)
 # Where a patient visits a GP before visiting hospital, the rates are such that the number of days is approximately the
