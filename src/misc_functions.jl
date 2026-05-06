@@ -1,6 +1,8 @@
 #= Miscellaneous functions
 
-- median_ci_bootstrap:      Computes median and (1-alpha)% CI via bootstrap
+- median_ci_bootstrap:      Computes median and (1-alpha)% bootstrap estimate
+
+- mean_ci_bootstrap:      Computes mean and (1-alpha)% bootstrap estimate
 
 - allocate_with_rounding:   allocates a number across a number of categories based on weights
                             ensuring integer values are allocated and the sum of allocations
@@ -54,6 +56,30 @@ function median_ci_bootstrap(; vec::Vector, n_boot::Int64=1000, alpha::Float64=0
     return (median = med, lower = lower, upper = upper)
 end
 
+"""
+Function    mean_ci_bootstrap(vec; n_boot=2000, alpha=0.05)
+
+Description     Function to compute mean and (1-alpha)% bootstrap estimate
+
+Arguments   vec::Vector     Vector of values for median and bootstrap estimates to be computed on
+            n_boot::Int64   Number of bootstrap repeats required
+            alpha::Float64  Quantile value, i.e. 0.05 for 95% boostrap estimate
+
+Returns     Mean of vector and the lower and upper quantiles or mean
+            values generated using bootstrapping. Returned as a NamedTuple.
+
+Examples    # Compute mean and upper and lower values for 95% bootstrap estimate
+            # for each TD results df in a dictionary containing different scenarios
+            v = rand(100000)
+            mean_ci_bootstrap( vec = v, n_boot = 1000, alpha = 0.05 ) 
+"""
+function mean_ci_bootstrap(; vec::Vector, n_boot::Int64=1000, alpha::Float64=0.05)
+    μ = mean(vec)
+    boot_samples = [mean(rand(vec, length(vec))) for _ in 1:n_boot]
+    lower = quantile(boot_samples, alpha/2)
+    upper = quantile(boot_samples, 1 - alpha/2)
+    return (mean = μ, lower = lower, upper = upper)
+end
 
 """
 Function:       allocate_with_rounding
@@ -167,6 +193,7 @@ Description     Produces a line plot of the rolling mean age of infected individ
                     in the simulation (maxtime)
 
 Arguments   sims            object containing simulation data output from simtree or simforest, including G dataframes
+            format_G        Determine whether the 'sims' object holds the data in dataframes named 'G' or not
             rolling_window  Number of days to include in the rolling window
             maxtime         maxtime used when running simulation to create sims
             plot_save_name  path and filename for output plot .png file
@@ -178,18 +205,22 @@ Examples
             # Load file
             sims = load("covidlike-1.3.6-sims-nreps10.jld2", "sims")
             # Run function
-            severity_rolling_mean(; sims = sims, rolling_window = 3, maxtime = 90, plot_save_name = "examples/tinf_age_rolling_mean_3d.png")    
-            severity_rolling_mean(; sims = sims, rolling_window = 10, maxtime = 90, plot_save_name = "examples/tinf_age_rolling_mean_10d.png")    
+            severity_rolling_mean(; sims = sims, format_G = true, rolling_window = 3,  maxtime = 90, plot_save_name = "examples/tinf_age_rolling_mean_3d.png")    
+            severity_rolling_mean(; sims = sims, format_G = true, rolling_window = 10, maxtime = 90, plot_save_name = "examples/tinf_age_rolling_mean_10d.png")    
 
 """    
 
-function severity_rolling_mean(; sims, rolling_window = 3, maxtime = 90, plot_save_name)    
+function severity_rolling_mean(; sims, rolling_window = 3, maxtime = 90, format_G::Bool = false, plot_save_name)    
 
     ### Combine data from simulation replicates
     nreps = length(sims)
     tinf_age_severity_dfs = Vector{DataFrame}(undef, nreps) 
     for i in 1:length(sims)
-        tinf_age_severity_dfs[i] = sims[i].G[:,[:tinf,:infectee_age,:severity]]
+        if format_G
+            tinf_age_severity_dfs[i] = sims[i].G[:,[:tinf,:infectee_age,:severity]]
+        else
+            tinf_age_severity_dfs[i] = sims[i][:,[:tinf,:infectee_age,:severity]]
+        end
     end
     combined_df = vcat(tinf_age_severity_dfs...)
 
@@ -251,22 +282,35 @@ Description     Generate three plots:
                 (3) boxplots of time of infection vs age group disaggregated by infection severity
                 
 Arguments   - sims                      object containing simulation data output from simtree or simforest, including G dataframes
+            - format_G::Bool            Determine whether the 'sims' object holds the data in dataframes named 'G' or not
             - age_group_width::Integer  bin width (e.g., 5 years)
             - min_age::Integer          minimum age
             - max_age::Integer          maximum age
             - plot_file_prefix          path and filename prefix to save plots    
 
-Returns     Three plots in .png files as described above
+Returns     Three plots in .png files as described above, and a vector of dataframes. 
+            Each df contains data relating to a different infection severity, with information on
+            the time of infection, infectee age, and age group. Example below for 'moderate_ED' severity.
+            Outputting the data as a vector of dfs allows more flexibility to change how the data is plotted.
+
+                  Row │ tinf     infectee_age  severity     age_group 
+                      │ Float64  Int8          Symbol       Cat…      
+            ──────────┼───────────────────────────────────────────────
+                    1 │ 27.2723            65  moderate_ED  65-69
+                    2 │ 30.5866            44  moderate_ED  40-44
+                    3 │ 38.0046            80  moderate_ED  80-84
+                    4 │ 38.35              27  moderate_ED  25-29
 
 Example     
             # Load file
             sims = load("covidlike-1.3.6-sims-nreps10.jld2", "sims")
             # Run function to generate plots
-            tinf_by_age(; sims = sims, age_group_width = 5, min_age = 0, max_age = 100
-                     , plot_file_prefix = "examples/test_prefix"
-                     )
+            tinf_by_age(; sims = sims, format_G::Bool = true
+                        ,age_group_width = 5, min_age = 0, max_age = 100, format_G
+                        , plot_file_prefix = "examples/test_prefix"
+                        )
 """
-function tinf_by_age(; sims
+function tinf_by_age(; sims, format_G::Bool = true
                      , age_group_width::Integer = 5, min_age::Integer = 0, max_age::Integer = 100
                      , plot_file_prefix
                      )
@@ -276,7 +320,11 @@ function tinf_by_age(; sims
     
     tinf_age_severity_dfs = Vector{DataFrame}(undef, length(sims)) 
     for i in 1:length(sims)
-        tinf_age_severity_dfs[i] = sims[i].G[:,[:tinf,:infectee_age,:severity]]
+        if format_G
+            tinf_age_severity_dfs[i] = sims[i].G[:,[:tinf,:infectee_age,:severity]]
+        else
+            tinf_age_severity_dfs[i] = sims[i][:,[:tinf,:infectee_age,:severity]]
+        end
     end
     
     # Compute age bins and labels
@@ -285,7 +333,7 @@ function tinf_by_age(; sims
 
     # Assign age groups
     for i in 1:length(sims)
-        tinf_age_dfs[i][!, :age_group] = CategoricalArrays.cut(tinf_age_dfs[i].infectee_age, age_bins; labels=labels)
+        #tinf_age_dfs[i][!, :age_group] = CategoricalArrays.cut(tinf_age_dfs[i].infectee_age, age_bins; labels=labels)
         tinf_age_severity_dfs[i][!, :age_group] = CategoricalArrays.cut(tinf_age_severity_dfs[i].infectee_age, age_bins; labels=labels)
     end
     
@@ -297,14 +345,23 @@ function tinf_by_age(; sims
     
     # Boxplots
     #using Plots.PlotMeasures
-    plots = [@df tinf_age_dfs[i] StatsPlots.boxplot(:age_group, :tinf
-                                                    #, xlabel="Age Group", ylabel="Infection Time (days)"
-                                                    #, title="Distribution of Infection Times by Age Group"
-                                                    , size=(1000,400), legend = false, left_margin=10mm) for i in 1:length(tinf_age_dfs)]
-    Plots.plot(plots..., layout=(10,1), size=(1200, 2000), left_margin = 10mm)
-    
-    # Save plot to file
-    Plots.savefig("$(plot_file_prefix)_tinf_age.png")
+    #plots = [@df tinf_age_dfs[i] StatsPlots.boxplot(:age_group, :tinf
+    #                                                #, xlabel="Age Group", ylabel="Infection Time (days)"
+    #                                                #, title="Distribution of Infection Times by Age Group"
+    #                                                , size=(1000,400), legend = false, left_margin=10mm) for i in 1:length(tinf_age_dfs)]
+
+    # Only plot separate simulation replicates if there are 10 or less
+    if length(sims) <= 10
+        plots = [@df tinf_age_severity_dfs[i] StatsPlots.boxplot(:age_group, :tinf
+                                                        #, xlabel="Age Group", ylabel="Infection Time (days)"
+                                                        #, title="Distribution of Infection Times by Age Group"
+                                                        , size=(1000,400), legend = false, left_margin=10mm) for i in 1:length(tinf_age_severity_dfs)]
+        #Plots.plot(plots..., layout=(10,1), size=(1200, 2000), left_margin = 10mm)
+        Plots.plot(plots..., layout=(length(sims),1), size=(1200, 2000), left_margin = 10mm)
+        
+        # Save plot to file
+        Plots.savefig("$(plot_file_prefix)_tinf_age.png")
+    end
 
     # Plot data combined from all sim reps
     combined_df = vcat(tinf_age_severity_dfs...)
@@ -323,6 +380,9 @@ function tinf_by_age(; sims
     # Add separate dataframes for each infection severity level to a vector of dataframes
     severity_dfs_vec = collect(values(severity_dict))
 
+    # Create vector to store severity types
+    severity_types = Vector{Symbol}(undef, length(severity_dfs_vec)) 
+
     for i in 1:1:length(severity_dfs_vec)
         severity_types[i] = only(unique( severity_dfs_vec[i][:,:severity] ))
     end
@@ -330,13 +390,14 @@ function tinf_by_age(; sims
     plots = [@df severity_dfs_vec[i] StatsPlots.boxplot(:age_group, :tinf
                                                         #, xlabel="Age Group", ylabel="Infection Time (days)"
                                                         , title = severity_types[i]#string(only(unique( severity_dfs_vec[i][:,:severity] )))
-                                                        , size=(1000,400), legend = false, left_margin=10mm, color = :lightgreen) for i in 1:length(severity_dfs_vec)]
+                                                        , size=(1000,400), legend = false, left_margin=10mm, color = palette(:default)[i]) for i in 1:length(severity_dfs_vec)]
     
     Plots.plot(plots..., layout=(length(severity_dfs_vec),1), size=(1200, 2000), left_margin = 10mm)
     
     # Save plot to file
     Plots.savefig("$(plot_file_prefix)_tinf_age_severity_nrep$(length(sims)).png")
 
+    return( severity_dfs_vec )
 end
 
 

@@ -2,6 +2,7 @@ module NBPMscape
 
 # using Pkg.Artifacts
 using CSV 
+using CategoricalArrays
 using DataFrames
 using DataFramesMeta
 using Dates
