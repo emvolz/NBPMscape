@@ -29,6 +29,13 @@
                 (2) boxplots of time of infection vs age group for individual simulation replicates combined
                 (3) boxplots of time of infection vs age group disaggregated by infection severity
 
+- kernel_box_jitter_plot    Generates plot of times to detection (TD) displaying:
+                            (1) line of distribution
+                            (2) boxplot
+                            (3) jitter with points
+                            Information will also be annotated on the plot. 
+                            This includes statistics computed from the data (e.g. mean, variance, etc)
+                            and text supplied as arguments to the function.
 =#
 
 """
@@ -409,4 +416,183 @@ Example
 function convert_t_to_day_of_week(;t, initial_dow)
     d = Int( floor( (initial_dow-1) + t ) % 7  ) + 1
     d
+end
+
+
+"""
+Function        kernel_box_jitter_plot
+
+Description     Generates plot of times to detection (TD) displaying:
+                (1) line of distribution
+                (2) boxplot
+                (3) jitter with points
+                Information will also be annotated on the plot. 
+                This includes statistics computed from the data (e.g. mean, variance, etc)
+                and text supplied as arguments to the function.
+                Requires at least: StatsPlots, KernelDensity, Statistics, Distributions, Random
+
+Arguments   
+            # Data
+            - x
+            - plot_color
+            # Data for label/text on plot
+            - samp_strategy
+            - n_samples
+            - n_sites
+            - n_blocks=""
+             - season
+            # Axis information
+            - x_label = "Time since first imported infection (days)"
+            - x_min = 0
+            - x_max = 80
+            - x_ticks = true
+            - annot_x_pos = "left"
+            - dens_zero_below_zero = true
+
+Returns     Plot as described above
+
+Examples    
+            # Example 1
+            # Define time to detection dataset
+            df = icu_tds_df_dict["icu_tds_seasonal_ari_1440_500_sampling_sites_30blocks_10sites"]
+            x = df[:,:ICU_TD]
+            # Define colour
+            hcgs_color = :mediumpurple3 #(i.e. :royalblue1, :orangered,:gold, :mediumpurple3)
+            # Run function to generate plots
+            p1 = kernel_box_jitter_plot(;x = icu_tds_df_dict["icu_tds_seasonal_ari_1440_300_sampling_sites_10blocks_10sites"][:,:ICU_TD]
+                                        , plot_color = hcgs_color
+                                        ,samp_strategy="HCGS"
+                                        ,n_samples=300
+                                        ,n_sites=10
+                                        ,n_blocks=10
+                                        ,season="Winter")
+            
+            # Example 2
+            kernel_box_jitter_plot(;x = rand(Gamma(2.0,3.0), 1000) .+30
+                        , plot_color = :red
+                        ,samp_strategy="HCGS"
+                        ,n_samples=300
+                        ,n_sites=10
+                        ,n_blocks=10
+                        ,season="Winter")
+
+            
+"""
+function kernel_box_jitter_plot(;x, plot_color, samp_strategy, n_samples, n_sites, n_blocks="", season
+                                , x_label = "Time since first imported infection (days)", x_min = 0, x_max = 80, x_ticks = true, annot_x_pos = "left"
+                                , dens_zero_below_zero = true )#, main_title)
+    
+    # Available named colors
+    # https://juliagraphics.github.io/Colors.jl/stable/namedcolors/
+    # For color blindness, four good colors are orange, blue, purple and yellow (i.e. :royalblue1, :orangered,:gold, :mediumpurple3)
+
+    # Summary stats (mean + 95% CI)
+    n   = length(x)
+    μ   = mean(x)
+    #σ   = std(x)
+    #se  = σ / sqrt(n)
+    #α   = 0.05
+    #tval = quantile(TDist(n - 1), 1 - α/2)
+    #ci  = (μ - tval * se, μ + tval * se)
+    # Bootstrap estimate of the median TD, computed using n resamples with replacement and taking the 2.5% and 97.5% quantiles
+    bootstrap_estimate = NBPMscape.mean_ci_bootstrap( vec = x, n_boot = 1000, alpha = 0.05 ) # [ mean, lower, upper ] mean_ci_bootstrap function is in misc_functions.jl
+
+    # Kernel density
+    kd   = kde(x)
+    #kd   = kde(x; boundary=(0, x_max)) # Specify boundaries for density
+    xs   = kd.x
+    dens = kd.density ./ maximum(kd.density)  # normalize to 0–1
+    # Force density to 0 for x < 0
+    if dens_zero_below_zero 
+        dens[xs.< 0].= 0
+    end
+
+    # Kernel density with boundary correction (values cannot be below 0)
+    # For information on KDE bias corrction by reflection, see https://search.r-project.org/CRAN/refmans/evmix/html/bckden.html and Boneva, L.I., Kendall, D.G. and Stefanov, I. (1971). Spline transformations: Three new diagnostic aids for the statistical data analyst (with discussion). Journal of the Royal Statistical Society B, 33, 1-70.
+    #x_reflected = vcat(x, -x)  # Reflect across x=0
+    #kd   = kde(x_reflected)
+    #xs   = kd.x
+    #dens = kd.density
+    ## Keep only x >= 0 and double the density (due to reflection)
+    #mask = xs.>= 0
+    #xs = xs[mask]
+    #dens = 2 .* dens[mask]
+    #dens = dens./ maximum(dens)  # normalize to 0–1
+
+    # Visual placement parameters
+    yloc           = 1.0           # vertical "track" for this raincloud
+    jitter         = 0.06          # vertical jitter for points
+    density_gap    = 0.35          # distance between box midline and density start
+    density_height = 0.45          # max density height above its start
+
+    default(legend=false, background_color=:white, grid=false, framestyle=:box)
+    p = Plots.plot(; size=(900, 280))#, main = main_title)
+
+    # 1) BOX: use a categorical position at y=1 via group=fill(1, n)
+    g = fill(1, n)
+    #if xticks == () : 
+    StatsPlots.boxplot!(p, x;#, g;
+        orientation = :horizontal
+        ,fillalpha   = 0.14
+        ,fillcolor   = plot_color #:orangered
+        ,linecolor   = :black
+        ,whiskercolor = :black
+        ,xlabel = x_label #"Time since first imported infection (days)"
+        ,xticks = x_ticks
+        ,guidefontsize = 14     # Axis labels font size
+        ,tickfontsize = 12      # Tick labels font size
+        ,outliers    = false # These will be plotted in 2) scatter below
+    )
+
+    # 2) SCATTER (overlays the boxplot): draw AFTER the box
+    scatter!(p, x, yloc .+ randn(n) .* jitter;
+        ms = 5, mc = plot_color #:orangered
+        , ma = 0.40, msw = 0
+        ,alpha = 0.5
+    )
+
+    # 3) DENSITY (above): draw at y = yloc + density_gap + scaled_height
+    ys = yloc .+ density_gap .+ dens .* density_height
+    plot!(p, xs, ys; lw=3, c=plot_color) #:orangered)
+
+    # 4) Mean tick and annotation
+    plot!(p, [μ, μ], [yloc - 0.18, yloc + 0.18]; c=:black, lw=3)
+    #annot_str = "Mean: $(round(μ, digits=1))\n95% CI: [$(round(ci[1], digits=1)), $(round(ci[2], digits=1))]"
+    #annot_str = "Mean: $(round(μ, digits=1))\n[95% bootstrap est: $(round(bootstrap_estimate[1], digits=1)), $(round(bootstrap_estimate[2], digits=1))]\nVariance: $(round(var(x),digits=1))\nStandard deviation: $(round(std(x),digits=1))"
+    annot_str = "Mean: $(round(μ, digits=1))\n[95%: $(round(bootstrap_estimate[2], digits=1)), $(round(bootstrap_estimate[3], digits=1))]\nVar: $(round(var(x),digits=1))\nSt.Dev.: $(round(std(x),digits=1))"
+    xmin, xmax = (x_min,x_max) #(0,80) #extrema(x)
+    xpad       = 0.06 * (xmax - xmin)
+    annot_x    = xmin + 0.5 * (xmax - xmin) #xmin + 0.75 * (xmax - xmin)
+    annot_y    = yloc + density_gap + density_height + 0.2 #0.1
+    #annotate!(p, annot_x, annot_y, text(annot_str, 12, :right, :black))
+    annotate!(p, xmax, annot_y, text(annot_str, 12, :right, :black))
+    #scatter!(p, [annot_x - 0.02*(xmax-xmin)], [annot_y]; marker=:rect, ms=10, mc=plot_color #:orangered
+    #            , ma=0.7, msw=0)
+
+    # Add text describing data
+    if n_blocks == ""
+        blocks_text = ""
+    else
+        blocks_text = "blocks in HC"
+    end
+
+    annot_data_desc = "$(samp_strategy)\n$(season)\n$(n_samples) samples\n$(n_sites) sites\n$(n_blocks) $(blocks_text)"
+    
+    if annot_x_pos == "left"
+        annot_x = xmin
+    elseif annot_x_pos == "middle"
+        annot_x = xmin + 0.25 * (xmax - xmin) #xmin + 0.75 * (xmax - xmin)
+    end
+    
+    annotate!(p, annot_x, annot_y, text(annot_data_desc, 12, :left, :black))
+    
+    samp_strategy, n_samples, n_sites, season
+
+    # Cosmetics
+    xlims!(p, xmin - xpad, xmax + xpad)
+    yticks!(p, ([1.0], [""]))
+    ylims!(p, 0.3, 2.5) #ylims!(p, 0.3, 2.5)
+
+    #display(p)
+    return p
 end

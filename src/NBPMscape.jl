@@ -13,7 +13,8 @@ using GLM
 using HypothesisTests
 using Interpolations
 using JLD2
-using JumpProcesses 
+using JumpProcesses
+using KernelDensity 
 using LinearAlgebra
 using NamedArrays
 using Optim
@@ -106,6 +107,10 @@ export plot_outbreak_analysis, plot_outbreak_analysis_combined
 
 include("misc_functions.jl")
 export median_ci_bootstrap, allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
+export kernel_box_jitter_plot
+
+include("site_selection_functions.jl")
+export select_nhs_trust_sampling_sites
 
 
 ## Configure parameter input values
