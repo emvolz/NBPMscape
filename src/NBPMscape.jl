@@ -106,12 +106,15 @@ export local_doubling_time, global_doubling_time, _fit_log_linear, _fit_weighted
 export plot_outbreak_analysis, plot_outbreak_analysis_combined
 
 include("misc_functions.jl")
-export median_ci_bootstrap, allocate_with_rounding, generation_time, severity_rolling_mean, tinf_by_age
-export kernel_box_jitter_plot
+export median_ci_bootstrap, mean_ci_bootstrap, allocate_with_rounding 
+export generation_time, severity_rolling_mean, tinf_by_age
+export kernel_box_jitter_plot, root_folder
 
 include("site_selection_functions.jl")
 export select_nhs_trust_sampling_sites
 
+include("sample_strategy_ranking.jl")
+export mean_risk_loss, mean_risk_cvar, strategy_rank, results_dict_to_df, filter_strat_names
 
 ## Configure parameter input values
 include("config.jl")
@@ -119,4 +122,4 @@ export load_config, validate_config, update_configurable_parameters, print_chang
 
 initialize_parameters();
 
-end 
+end
