@@ -20,22 +20,29 @@ It plots the distribution of these percentages across all simulation repliacetes
 percentage value for the each infection severity category.
 
 # Arguments
-    'sims_file':            .jld2 file containing simulation replicates as output by {simtree} or {simforest}
-                            For example, "sims", or "sims_G_gp_filter" or "sims_G_icu_filter" if pre-filtered for certain cases.
-    'sim_object_name':      The name of the object saved to the .jld2 file. 
-                            For example, "sims", "sims_G_icu_filter", or "sims_G_gp_filter" for files filtered using {sims_filter}.
-                            Without this name the data cannot be loaded. 
-    'infection_severity':   Vector of infection severity categories (formatted as symbols), which must match those in the G dataframe 
-                            in the simulation results file.
+    'file_or_object::String'    Is data in a file to be loaded or a Julia object? "file" or "string"
+    'sims_file':                .jld2 file containing simulation replicates as output by {simtree} or {simforest}
+                                For example, "sims", or "sims_G_gp_filter" or "sims_G_icu_filter" if pre-filtered for certain cases.
+    'sim_object_name_in_file':  The name of the object saved to the .jld2 file. 
+                                For example, "sims", "sims_G_icu_filter", or "sims_G_gp_filter" for files filtered using {sims_filter}.
+                                Without this name the data cannot be loaded.
+    'sims'                      Object containing simulations. Required if object selected instead of file.
+    'format_G::Bool':           Determine whether the 'sims' object holds the data in dataframes named 'G' or not 
+    'infection_severity':       Vector of infection severity categories (formatted as symbols), which must match those in the G dataframe 
+                                in the simulation results file.
 # Returns
-    Infection severity distribution for each simulation in file is shown in a violin plot. 
-    This can then be saved to file as shown below.
-    Median percentages also printed to screen and also returned from function.
+    'p':    Infection severity distribution for each simulation in file is shown in a violin plot. 
+            (This can then be saved to file as shown below.)
+    'severity_median_percentage':   Median percentages also printed to screen and also returned from function.
+    'severity_percentage':  Values for individual simulation replicates returned as a named tuple 'severity_percentage'
 
 # Example
     # Estimate infection severity weights
-    inf_severity_estimate( sims_file = "covidlike-1.3.1-sims-nrep1000_955898_2.jld2"
-                        , sims_object_name = "sims" 
+    output = inf_severity_estimate( file_or_object = "file"
+                        , sims_file = "covidlike-1.3.1-sims-nrep1000_955898_2.jld2"
+                        , sims_object_name_in_file = "sims" 
+                        , sims = sims_obj
+                        , format_G = true
                         , infection_severity = [:asymptomatic, :mild, :moderate, :severe, :verysevere ]
                         )
      Row │ infection_severity  median_percentage_across_simreps 
@@ -48,17 +55,25 @@ percentage value for the each infection severity category.
        5 │ verysevere                                  0.541461
 
     # Save figure
+    ouptut.p
     savefig("examples/infection_severity_weights.png")
 
 """
 
-function inf_severity_estimate(;  sims_file
-                                , sims_object_name = "sims"
+function inf_severity_estimate(;  file_or_object::String = "file"
+                                , sims_file
+                                , sims_object_name_in_file = "sims"
+                                , sims
+                                , format_G::Bool = true
                                 , infection_severity = [:asymptomatic, :mild, :moderate, :severe, :verysevere ]
                                 )
 
     # Load simulation file
-    sims = load(sims_file, sims_object_name)
+    if file_or_object == "file"
+        sims = load(sims_file, sims_object_name_in_file)
+    elseif file_or_object == "object"
+        sims = sims
+    end
 
     # Column to search in
     column_name = :severity 
@@ -70,10 +85,18 @@ function inf_severity_estimate(;  sims_file
 
     # Loop through the simulation replicates and gather frequency and percentages for each severity type
     for s in sims
-        counts = [count(==(val), s.G[!, column_name]) for val in infection_severity]
+        if format_G
+            counts = [count(==(val), s.G[!, column_name]) for val in infection_severity]
+        else
+            counts = [count(==(val), s[!, column_name]) for val in infection_severity]
+        end
         push!(inf_severity_counts, counts)
 
-        total = size(s.G,1)
+        if format_G
+            total = size(s.G,1)
+        else
+            total = size(s,1)
+        end
         push!(total_infections, total)
 
         percentages = counts ./ total #[count(==(val), s[!, column_name]) / total for val in infection_severity]
@@ -96,7 +119,7 @@ function inf_severity_estimate(;  sims_file
     
     # Create the violin plot
     colors = [:red, :blue, :green, :orange, :purple]
-    violin( infection_severity_names
+    p = violin( infection_severity_names
           , inf_severity_percs_separated*100
           , legend=false
           , palette = colors
@@ -113,7 +136,10 @@ function inf_severity_estimate(;  sims_file
                                                                                ]
                                            )
     println(severity_median_percentage)
-    return(severity_median_percentage)
+    return( p
+           , severity_median_percentage
+           , severity_percentage = (severity=infection_severity_names, perc=inf_severity_percs_separated*100)
+            )
 end
 
 # Save figure

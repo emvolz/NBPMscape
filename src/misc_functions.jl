@@ -1,8 +1,10 @@
 #= Miscellaneous functions
 
-- median_ci_bootstrap:      Computes median and (1-alpha)% bootstrap estimate
+- median_ci_bootstrap:    Computes median and (1-alpha)% bootstrap estimate
 
 - mean_ci_bootstrap:      Computes mean and (1-alpha)% bootstrap estimate
+
+- var_ci_bootstrap:       Computes variance and (1-alpha)% bootstrap estimate
 
 - allocate_with_rounding:   allocates a number across a number of categories based on weights
                             ensuring integer values are allocated and the sum of allocations
@@ -36,10 +38,13 @@
                             Information will also be annotated on the plot. 
                             This includes statistics computed from the data (e.g. mean, variance, etc)
                             and text supplied as arguments to the function.
+
+- root_folder     Function to define root directory/folder
+
 =#
 
 """
-Function    median_ci_bootstrap(vec; n_boot=2000, alpha=0.05)
+Function    median_ci_bootstrap(;vec, n_boot=1000, alpha=0.05)
 
 Description     Function to compute median and (1-alpha)% CI via bootstrap
 
@@ -86,6 +91,30 @@ function mean_ci_bootstrap(; vec::Vector, n_boot::Int64=1000, alpha::Float64=0.0
     lower = quantile(boot_samples, alpha/2)
     upper = quantile(boot_samples, 1 - alpha/2)
     return (mean = μ, lower = lower, upper = upper)
+end
+
+"""
+Function    var_ci_bootstrap(vec; n_boot=1000, alpha=0.05)
+
+Description     Function to compute variance and (1-alpha)% bootstrap estimate
+
+Arguments   vec::Vector     Vector of values for variance and bootstrap estimates to be computed on
+            n_boot::Int64   Number of bootstrap repeats required
+            alpha::Float64  Quantile value, i.e. 0.05 for 95% boostrap estimate
+
+Returns     Variance of vector and the lower and upper quantiles 
+            generated using bootstrapping. Returned as a NamedTuple.
+
+Examples    # Compute variance and upper and lower values for 95% bootstrap estimate
+            v = rand(100000)
+            var_ci_bootstrap( vec = v, n_boot = 1000, alpha = 0.05 ) 
+"""
+function var_ci_bootstrap(; vec::Vector, n_boot::Int64=1000, alpha::Float64=0.05)
+    vec_var = var(vec)
+    boot_samples = [ var( rand(vec, length(vec) ) ) for _ in 1:n_boot]
+    lower = quantile(boot_samples, alpha/2)
+    upper = quantile(boot_samples, 1 - alpha/2)
+    return (variance = vec_var, lower = lower, upper = upper)
 end
 
 """
@@ -595,4 +624,36 @@ function kernel_box_jitter_plot(;x, plot_color, samp_strategy, n_samples, n_site
 
     #display(p)
     return p
+end
+
+
+
+"""
+Function        root_folder
+
+Description     Function to define root directory/folder
+
+Arguments   None required
+            
+
+Returns     the path to the Project.toml file, which is can then be used as the root directory
+            from which to locate other files and folders
+
+Examples    root_folder()
+            # Example return
+            "C:/Users/user/Documents/GitHub/NBPMscape"
+            # This can then be combined using joinpath()
+            results_df = CSV.read( joinpath( root_dir, "scripts/paper/2_sampling_analysis/covid_like/1717144_1719024_1719029_analysis/geo_optimisation"
+                                            ,"icu_td_results_df.csv" )
+                                    , DataFrame )
+                        
+"""
+function root_folder()
+    dir = @__DIR__
+    while !isfile(joinpath(dir, "Project.toml"))
+        parent = dirname(dir)
+        parent == dir && error("Project.toml not found")
+        dir = parent
+    end
+    return dir
 end
