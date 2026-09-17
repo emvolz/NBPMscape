@@ -42,8 +42,8 @@ end
 """
 Function:   sample_hosp_cases_n
 
-Description:    Samples cases based on a number of total target number of samples split across a number of local labs which are fed by individual hospitals.
-                The number of samples taken from each local can be distributed equally or weighted by either catchment population or A&E attendances.
+Description:    Samples cases based on a total target number of samples split across a number of local labs which are fed by individual hospitals.
+                The number of samples taken from each local lab can be distributed equally or weighted by either catchment population or A&E attendances.
                 Samples at local labs are then transferred to a central lab for metagenomic testing.
                 Sampling Criteria:
                 - Only sample from swabs taken within 48h of admission/presentation to hospital
@@ -56,24 +56,23 @@ Description:    Samples cases based on a number of total target number of sample
                 - at each HARISS participating site / NHS Trust
                 - allocate cases pro rata using hospital catchment area populations or average A&E attendances
                 Summary of code:
-                1 Run simulation and save all GP, hospital, ICU cases (this will be a larger file so may need to trim down to the data we actually need)
-                2 For HARISS, filter for hospital cases (may need to add levels of severity to care pathways)
+                1 Requires simulated infected data, including at least those infections with values for 'ted' and 'thospital'
+                2 For acute secondary care sampling (i.e. expanded HARISS network), filter for infections admitted to hospital ('thospital') (assume via ED) and those discharged directly from ED ('ted')
                 3 Allocate each case to an NHS Trust based on home region and probability of emergency admission.
                 4 Filter for cases at Trusts that are part of the sampling network (e.g. HARISS)
                 5 Simulate hospital arrival times for background ARI cases using Uniform distribution
                 6 Add Gamma distributed time between hospital arrival and swabbing to get tswab (for both ARI background and pathogen X cases).
-                  Estimated distributed is truncated depending on length of hospital stay.
+                  Estimated distribution is truncated depending on length of hospital stay.
                 7 Merge linelists for ARI background and pathogen X cases
                 6 Filter for cases sampled:
                 (a) within 48h of presentation to hospital
-                (b) between 24h and 48h of presentation to hospital
-                6 Define courier pick up times (e.g. Monday and Thursday) and swab cut-off times to account for transfer between hospital and public health lab
-                7 Filter for X/(number of weekly courier pickups) most recent samples (merging background ARI and pathogen X samples) prior to the courier 
+                7 Define courier pick up times (e.g. Monday and Thursday) and swab cut-off times to account for transfer between hospital and public health lab
+                8 Filter for X/(number of weekly courier pickups) most recent samples (merging background ARI and pathogen X samples) prior to the courier 
                   pick-up cut-off times (i.e. filter eligible samples, sort by time of swabbing and select most recent 
                   (weekly sample target)/(number of weekly courier pickups) samples for each pick up day)
                   - option to split by adults and children, e.g. A adult samples and C child samples (assume hospitals with an ED also able to treat children,
                     albeit they may be transferred if admitted, but this is not included)
-                8 Compute probabilities of these samples being background or pathogen X
+                9 Compute probabilities of these samples being background or pathogen X
 
 Arguments:  p::NamedTuple                       (default: NBPMscape.P)
             hosp_cases::DataFrame   Version of the G dataframe output from {simforest} or {simtree} and filtered for hospital  
@@ -125,7 +124,11 @@ Arguments:  p::NamedTuple                       (default: NBPMscape.P)
                                                     attendance/admission at hospital.
             swab_proportion_at_48h::Real            See description of 'swab_time_mode' above. 'swab_proportion_at_48h' defines the proportion of swabs that
                                                     are taken within 2 days (=48hrs) of attendance/admission at hospital.
-            proportion_hosp_swabbed::Real           For practical reasons, all ARI attendances at hospital may not be sampled. This argument sets the 
+            #proportion_hosp_swabbed::Real           For practical reasons, all ARI attendances at hospital may not be sampled. This argument sets the 
+            #                                        proportion that are sampled using a value between 0 and 1.
+            proportion_ed_attendances_swabbed::Real For practical reasons, all ARI attendances at EDs may not be sampled. This argument sets the 
+                                                    proportion that are sampled using a value between 0 and 1.
+		    proportion_ed_admissions_swabbed::Real  For practical reasons, all ARI admissions to hospital from the EDs may not be sampled. This argument sets the 
                                                     proportion that are sampled using a value between 0 and 1.
             
             only_sample_before_death::Bool          There is a possibilty that the swabbing time (tswab) drawn from the Gamma distribution is after the time of 
@@ -174,10 +177,10 @@ Arguments:  p::NamedTuple                       (default: NBPMscape.P)
                                                     Example format:
                                                     DataFrame( destination = [:discharged,:short_stay,:longer_stay]
                                                              , proportion_of_attendances = [0.851,0.012,0.137])
-            hosp_ari_admissions::Int                Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
-            hosp_ari_admissions_adult_p::Float64    Estimate of proportion of ED ARI admissions that are adults (16y and over)
+            ed_ari_attendances::Int                 Estimate of weekly ED ARI attendances (excluding pathogen X being simulated)
+            ed_ari_attendances_adult_p::Float64     Proportion of ED ARI attendances that are adults (16y and over)
                                                     Note that this is a fixed value in the model but in reality it varies throughout the year.
-            hosp_ari_admissions_child_p::Float64    Estimate of proportion of ED ARI admissions that are children (<16y)
+            ed_ari_attendances_child_p::Float64     Proportion of ED ARI attendances that are children (<16y)
                                                     Note that this is a fixed value in the model but in reality it varies throughout the year.
             
 Returns:    DataFrame of the same format as hosp_cases (see above) but only contains the rows representing sampled hospital cases for 
@@ -196,7 +199,9 @@ hosp_cases_sub = sample_hosp_cases_n(; p = NBPMscape.P
                                     , hariss_nhs_trust_sampling_sites::DataFrame # List of NHS Trusts in HARISS sampling network
                                                                     , swab_time_mode::Real = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
                                     , swab_proportion_at_48h::Real = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
-                                    , proportion_hosp_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
+                                    #, proportion_hosp_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
+                                    , proportion_ed_attendances_swabbed::Real = 0.05 # Assume 90% of ARI attendances are swabbed
+		                            , proportion_ed_admissions_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
                                     , only_sample_before_death::Bool = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
                                     # Hospital parameters
                                     , ed_discharge_limit::Float64 = NBPMscape.P.tdischarge_ed_upper_limit # days. Assume that people attending the Emergency Department are discharged within this time limit.
@@ -204,9 +209,9 @@ hosp_cases_sub = sample_hosp_cases_n(; p = NBPMscape.P
                                     , nhs_trust_catchment_pop = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
                                     #, nhs_trust_ae_12m = AE_12M
                                     # Seasonal values
-                                    , hosp_ari_admissions::Int # Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
-                                    , hosp_ari_admissions_adult_p::Float64 = 0.52# Proportion of ED ARI admissions that are adults (16y and over)
-                                    , hosp_ari_admissions_child_p::Float64 = 0.48 # Proportion of ED ARI admissions that are children (<16y)
+                                    , ed_ari_attendances::Int = NBPMscape.P.ed_ari_attendances # Estimate of weekly ED ARI attendances (excluding pathogen X being simulated)
+                                    , ed_ari_attendances_adult_p::Float64 = NBPMscape.P.ed_ari_attendances_adult_p # Proportion of ED ARI attendances that are adults (16y and over)
+                                    , ed_ari_attendances_child_p::Float64 = NBPMscape.P.ed_ari_attendances_child_p # Proportion of ED ARI attendances that are children (<16y)
                                     , ed_ari_destinations_adult::DataFrame = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
                                                                                         , proportion_of_attendances = [0.628,0.030,0.342]
                                                                                         )
@@ -244,17 +249,20 @@ function sample_hosp_cases_n(; p = NBPMscape.P
                                 , hariss_nhs_trust_sampling_sites::DataFrame # List of NHS Trusts in HARISS sampling network
                                 , swab_time_mode::Real = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
                                 , swab_proportion_at_48h::Real = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
-                                , proportion_hosp_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
+                                #, proportion_hosp_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
+                                , proportion_ed_attendances_swabbed::Real = 0.05 # Assume 90% of ARI attendances are swabbed
+		                        , proportion_ed_admissions_swabbed::Real = 0.9 # Assume 90% of ARI attendances are swabbed
                                 , only_sample_before_death::Bool = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
                                 # Hospital parameters
                                 , ed_discharge_limit::Float64 = NBPMscape.P.tdischarge_ed_upper_limit # days. Assume that people attending the Emergency Department are discharged within this time limit.
                                 , hosp_short_stay_limit::Float64 = NBPMscape.P.tdischarge_hosp_short_stay_upper_limit # days. Assume that people attending the Emergency Department are discharged within this time limit.
                                 , nhs_trust_catchment_pop = NHS_TRUST_CATCHMENT_POP_ADULT_CHILD
+                                , sample_ed_admissions_only::Bool = NBPMscape.P.sample_ed_admissions_only # Function can sample all emergency department (ED) attendances (false) or filter and sample only admissions from ED (true). Default value set in core.jl is false which is compatible with configuration files prepared for previous version of function.
                                 #, nhs_trust_ae_12m = AE_12M
                                 # Seasonal values
-                                , hosp_ari_admissions::Int # Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated)
-                                , hosp_ari_admissions_adult_p::Float64 = 0.52# Proportion of ED ARI admissions that are adults (16y and over)
-                                , hosp_ari_admissions_child_p::Float64 = 0.48 # Proportion of ED ARI admissions that are children (<16y)
+                                , ed_ari_attendances::Int = NBPMscape.P.ed_ari_attendances # Estimate of weekly ED ARI attendances (excluding pathogen X being simulated)
+                                , ed_ari_attendances_adult_p::Float64 = NBPMscape.P.ed_ari_attendances_adult_p # Proportion of ED ARI attendances that are adults (16y and over)
+                                , ed_ari_attendances_child_p::Float64 = NBPMscape.P.ed_ari_attendances_child_p # Proportion of ED ARI attendances that are children (<16y)
                                 , ed_ari_destinations_adult::DataFrame = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
                                                                                   , proportion_of_attendances = [0.628,0.030,0.342]
                                                                                     )
@@ -271,8 +279,13 @@ function sample_hosp_cases_n(; p = NBPMscape.P
     swab_time_gamma_d = gamma_params_from_mode_cdf( mode_val = swab_time_mode, cdf_at_2 = swab_proportion_at_48h
                                                         , lower_shape = 1.0 + 1e-6, upper_shape = 10)
 
-    # Ensure only hospital cases included
-    hosp_cases = hosp_cases[ isfinite.(hosp_cases.ted) .| isfinite.(hosp_cases.thospital) , : ] 
+    # Ensure only hospital cases included - and determine whether only hospital admissions or cases discharged from the emergency department (ED)
+    if sample_ed_admissions_only == true # only include infections that will be admitted to hospital
+        hosp_cases = hosp_cases[ isfinite.(hosp_cases.thospital) , : ] 
+    elseif sample_ed_admissions_only == false # include infections that will be admitted to hospital as well as those that will be discharged from the emergency department (ED)
+        hosp_cases = hosp_cases[ isfinite.(hosp_cases.ted) .| isfinite.(hosp_cases.thospital) , : ] 
+    end
+
 
     if size( hosp_cases, 1 ) == 0 
         return( DataFrame() )
@@ -301,7 +314,12 @@ function sample_hosp_cases_n(; p = NBPMscape.P
     hosp_cases_Eng = filter(row -> !in( row[:homeregion], wales_regions), hosp_cases)
     
     # Assume that only a proportion of hospital cases are swabbed, e.g. 90% swabbed and 10% not (on average) for practical reasons
-    n_pathx_cases_swabbed =  rand( Binomial( size(hosp_cases_Eng,1), proportion_hosp_swabbed ) )
+    # Different swabbing percentage used for all ED attendances and admissions from ED
+    if sample_ed_admissions_only == true # only include infections that will be admitted to hospital
+        n_pathx_cases_swabbed =  rand( Binomial( size(hosp_cases_Eng,1), proportion_ed_admissions_swabbed ) )
+    elseif sample_ed_admissions_only == false
+        n_pathx_cases_swabbed =  rand( Binomial( size(hosp_cases_Eng,1), proportion_ed_attendances_swabbed ) )
+    end
     # Sample from the hospital cases
     hosp_cases_Eng = hosp_cases_Eng[sample( 1:size(hosp_cases_Eng,1), n_pathx_cases_swabbed, replace=false ), :]
         
@@ -430,10 +448,20 @@ function sample_hosp_cases_n(; p = NBPMscape.P
         #est_weekly_ed_ari_child = copy(est_weekly_ed_ari_adult)
         
         # Estimate adult and child ARI A&E/ED attendances and hospital admissions per PHL per week (as an estimate of background ARI)
-        phl_sample_targets[!,:est_weekly_bkg_hosp_ari_admissions] = Int.( round.( hosp_ari_admissions * phl_sample_targets.phl_sum_mean_12m_prop) )
-        phl_sample_targets[!,:est_weekly_bkg_hosp_ari_admissions_adult] = Int.( round.( hosp_ari_admissions_adult_p * phl_sample_targets.est_weekly_bkg_hosp_ari_admissions) )
-        phl_sample_targets[!,:est_weekly_bkg_hosp_ari_admissions_child] = Int.( round.( hosp_ari_admissions_child_p * phl_sample_targets.est_weekly_bkg_hosp_ari_admissions) )
-        # CHECK # sum(phl_sample_targets.est_weekly_bkg_hosp_ari_admissions_adult) + sum(phl_sample_targets.est_weekly_bkg_hosp_ari_admissions_child) == sum(phl_sample_targets.est_weekly_bkg_hosp_ari_admissions)
+        phl_sample_targets[!,:est_weekly_bkg_ari] = Int.( round.( ed_ari_attendances * phl_sample_targets.phl_sum_mean_12m_prop) )    
+
+        # Adjust value depending on whether want to sample from all ED ARI attendances or only those admitted to hospital from ED
+        if sample_ed_admissions_only == true # only include ARI admissions from ED
+            proportion_bkg_ed_ari_admitted_adult = sum( filter( x -> x.destination !=:discharged, ed_ari_destinations_adult).proportion_of_attendances )
+            proportion_bkg_ed_ari_admitted_child = sum( filter( x -> x.destination !=:discharged, ed_ari_destinations_child).proportion_of_attendances )
+            phl_sample_targets[!,:est_weekly_bkg_ari_adult] = Int.( round.( ed_ari_attendances_adult_p * phl_sample_targets.est_weekly_bkg_ari * proportion_bkg_ed_ari_admitted_adult ) )
+            phl_sample_targets[!,:est_weekly_bkg_ari_child] = Int.( round.( ed_ari_attendances_child_p * phl_sample_targets.est_weekly_bkg_ari * proportion_bkg_ed_ari_admitted_child ) )
+            # CHECK # sum(phl_sample_targets.est_weekly_bkg_ari_adult) + sum(phl_sample_targets.est_weekly_bkg_ari_child) == sum(phl_sample_targets.est_weekly_bkg_ari)
+        elseif sample_ed_admissions_only == false # include ED ARI admissions as well as infections discharged from ED
+            phl_sample_targets[!,:est_weekly_bkg_ari_adult] = Int.( round.( ed_ari_attendances_adult_p * phl_sample_targets.est_weekly_bkg_ari ) )
+            phl_sample_targets[!,:est_weekly_bkg_ari_child] = Int.( round.( ed_ari_attendances_child_p * phl_sample_targets.est_weekly_bkg_ari ) )
+            # CHECK # sum(phl_sample_targets.est_weekly_bkg_ari_adult) + sum(phl_sample_targets.est_weekly_bkg_ari_child) == sum(phl_sample_targets.est_weekly_bkg_ari)
+        end
         
         ## Determine timetable for courier collection of samples from PHLs and arrival at central testing lab
         # Courier collections twice per week - assume Monday and Thursday at midday. 
@@ -479,15 +507,27 @@ function sample_hosp_cases_n(; p = NBPMscape.P
             # Public Health Lab (PHL) name
             phl_name = String(phl_sample_targets[j,:public_health_laboratory])
             # Weekly numbers of swabs for individual PHLs
-            phl_bkg_ari_swabs_n_adult = Int( round(phl_sample_targets[j,:est_weekly_bkg_hosp_ari_admissions_adult] * proportion_hosp_swabbed , digits = 0) )
-            phl_bkg_ari_swabs_n_child = Int( round(phl_sample_targets[j,:est_weekly_bkg_hosp_ari_admissions_child] * proportion_hosp_swabbed, digits = 0 ) )
-                
+            if sample_ed_admissions_only == true
+                phl_bkg_ari_swabs_n_adult = Int( round(phl_sample_targets[j,:est_weekly_bkg_ari_adult] * proportion_ed_admissions_swabbed, digits = 0 ) )
+                phl_bkg_ari_swabs_n_child = Int( round(phl_sample_targets[j,:est_weekly_bkg_ari_child] * proportion_ed_admissions_swabbed, digits = 0 ) )
+            elseif sample_ed_admissions_only == false
+                phl_bkg_ari_swabs_n_adult = Int( round(phl_sample_targets[j,:est_weekly_bkg_ari_adult] * proportion_ed_attendances_swabbed, digits = 0 ) )
+                phl_bkg_ari_swabs_n_child = Int( round(phl_sample_targets[j,:est_weekly_bkg_ari_child] * proportion_ed_attendances_swabbed, digits = 0 ) )
+            end
+
             for wn in 1:max_week # wn=13
 
                 # Create df for each PHL and DataFrames and push them
                 # Severity
-                ED_destination_adult = wsample( ed_ari_destinations_adult[:,1] , ed_ari_destinations_adult[:,2], phl_bkg_ari_swabs_n_adult) # CHECK # StatsBase.countmap(ED_destination_adult)
-                ED_destination_child = wsample( ed_ari_destinations_child[:,1] , ed_ari_destinations_child[:,2], phl_bkg_ari_swabs_n_child) # CHECK # StatsBase.countmap(ED_destination_child)
+                if sample_ed_admissions_only == true
+                    ed_ari_destinations_adult_adj = filter( x -> x.destination !=:discharged, ed_ari_destinations_adult)
+                    ed_ari_destinations_child_adj = filter( x -> x.destination !=:discharged, ed_ari_destinations_child)
+                elseif sample_ed_admissions_only == false
+                    ed_ari_destinations_adult_adj = ed_ari_destinations_adult
+                    ed_ari_destinations_child_adj = ed_ari_destinations_child
+                end
+                ED_destination_adult = wsample( ed_ari_destinations_adult_adj[:,1] , ed_ari_destinations_adult_adj[:,2], phl_bkg_ari_swabs_n_adult) # CHECK # StatsBase.countmap(ED_destination_adult)
+                ED_destination_child = wsample( ed_ari_destinations_child_adj[:,1] , ed_ari_destinations_child_adj[:,2], phl_bkg_ari_swabs_n_child) # CHECK # StatsBase.countmap(ED_destination_child)
                 
                 # Simulate the time (in days) for hospital arrival, thosp = start time of week + random draw from 7 days
                 thosp_adult = ((wn-1)*7) .+ rand(phl_bkg_ari_swabs_n_adult).*7 

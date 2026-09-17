@@ -422,14 +422,20 @@ function create_default_parameters()
 		, hosp_to_phl_cutoff_time_relative = 1 # day(s). The cut-off time for the last swab that can be taken at a hospital and transported to the local public health lab (PHL) and made available for courier collection at the phl_collection_time. E.g. hosp_to_phl_cutoff_time_relative = 1 and phl_collection_time = 0.5, indicates midday collection from the PHL and cut-off swab time at the hospital of midday the day before. As another example, midday (12:00) collection from PHL (phl_collection_time = 0.5) and the cutoff for swabs at 5pm (17:00) the day before would be hosp_to_phl_cutoff_time_relative = 0.7917 (=(12+(24-17))/24)
         , swab_time_mode = 0.25 # Assume swabbing peaks at 6hrs (=0.25 days) after attendance/admission at hospital
         , swab_proportion_at_48h = 0.9 # Assume 90% of swabs are taken within 48hrs (=2 days) of attendance/admission at hospital
-        , proportion_hosp_swabbed = 0.9 # Assume X% of ARI attendances are swabbed
+        #, proportion_hosp_swabbed = 0.9 # Assume X% of ARI attendances are swabbed
+		, proportion_ed_attendances_swabbed = 0.05 # Assume X% of ED ARI attendances are swabbed
+		, proportion_ed_admissions_swabbed = 0.9 # Assume X% of ED ARI admissions are swabbed
         , hariss_only_sample_before_death = true # There is a possibilty of swabbing time being drawn after death so 'true' here will constrain tswab to tdeceased
+		, sample_ed_admissions_only = false # Model can sample all emergency department (ED) attendances (false) or filter and sample only admissions from ED (true). Default value set in core.jl is false which is compatible with configuration files prepared for previous version of secondary_care_td and sample_hosp_cases_n functions.
         # Hospital parameters
         # Seasonal values
         # Winter
-        , hosp_ari_admissions = Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2025 data for winter and Jun, Jul, Aug 2024 for summer
-        , hosp_ari_admissions_adult_p = 0.52 # for winter and 0.58 for summer.Proportion of ED ARI admissions that are adults (16y and over)
-        , hosp_ari_admissions_child_p = 0.48 # for winter and 0.42 for summer. Proportion of ED ARI admissions that are children (<16y)
+		#, hosp_ari_admissions = Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2024 data for winter and Jun, Jul, Aug 2024 for summer
+        #, hosp_ari_admissions_adult_p = 0.52 # for winter and 0.58 for summer.Proportion of ED ARI admissions that are adults (16y and over)
+        #, hosp_ari_admissions_child_p = 0.48 # for winter and 0.42 for summer. Proportion of ED ARI admissions that are children (<16y)
+        , ed_ari_attendances = 27926 # 27926 for winter and 15831 for summer. Based on Emergency Department Syndromic Surveillance System data for Dec-23, Jan-24, Feb-24 (winter) and Jun, Jul, Aug-24 (summer). Data from subset of EDs 121 of estimated 185.
+        , ed_ari_attendances_adult_p = 0.52 # 0.52 for winter and 0.57 for summer. Proportion of ED ARI attendances that are adults (16y and over)
+        , ed_ari_attendances_child_p = 0.48 # 0.48 for winter and 0.43 for summer. Proportion of ED ARI attendances that are children (<16y)
         #, ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
         #                                                           , proportion_of_attendances = [0.628,0.030,0.342])
         # , ed_ari_destinations_child = DataFrame( destination = [:discharged,:short_stay,:longer_stay]
@@ -743,7 +749,7 @@ function Infection(p; pid = "0"
 	R = 0 
 
 	# Determine length of infectious period
-	gammalatent = Gamma(p.latent_shape, p.latent_scale) # median( Gamma(P.latent_shape, P.latent_scale) ) = 3.19154
+	gammalatent = Gamma(p.latent_shape, p.latent_scale) # mean( Gamma(P.latent_shape, P.latent_scale) ) = 3.19154, median( Gamma(P.latent_shape, P.latent_scale) ) = 2.87
 	latenthazard(t) = pdf(gammalatent,t) / (1 - cdf(gammalatent,t))
 	gammarecovery = Gamma(p.infectious_shape, p.infectious_scale) # median( Gamma(P.infectious_shape, P.infectious_scale) ) = 23.7
 	recoveryhazard(t) = pdf(gammarecovery ,t) / (1 - cdf(gammarecovery,t)) 

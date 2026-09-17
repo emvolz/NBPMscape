@@ -54,12 +54,27 @@ Returns         Returns vectors of warnings and errors
 
 Example         warnings, errors = validate_config(config_data)
 """
-function validate_config(config::Dict) # config=config_data # config=load_config("C:\\Users\\kdrake\\AppData\\Local\\Temp\\jl_7OHsHe7obS.yaml") # config=load_config("config/outbreak_params_covid19_like.yaml")
+# config=config_data 
+# config=load_config("C:\\Users\\kdrake\\AppData\\Local\\Temp\\jl_7OHsHe7obS.yaml") 
+# config=load_config("config/outbreak_params_covid19_like.yaml")
+# config=load_config("test/ED/config_files/param_name_change_tests/covid19_like_params_1_v2_old_and_new_params.yaml")
+function validate_config(config::Dict) 
     
     # Initialize warnings and errors
     warnings = String[];
     errors = String[];
-    
+        
+    # Throw error if configuration file includes old parameter names
+    config_params = get(config, "parameters", Dict())
+    if  get(config_params, "hosp_ari_admissions",         nothing) !== nothing ||
+        get(config_params, "hosp_ari_admissions_adult_p", nothing) !== nothing ||
+        get(config_params, "hosp_ari_admissions_child_p", nothing) !== nothing ||
+        get(config_params, "proportion_hosp_swabbed",     nothing) !== nothing
+
+        throw(ArgumentError("Configuration validation failed\nThe configuration file includes some old parameter names that need to be updated.\nThese parameter names have been changed in the model:\n   hosp_ari_admissions -> ed_ari_attendances\n   hosp_ari_admissions_adult_p -> ed_ari_attendances_adult_p\n   hosp_ari_admissions_child_p -> ed_ari_attendances_child_p\n   proportion_hosp_swabbed -> proportion_ed_attendances_swabbed\nAnd these are the new parameters added to the model:\n   sample_ed_admissions_only\n   proportion_ed_admissions_swabbed"))
+        #TODO Possibly add automatic adjustment of parameter values so that old configuration files work as they did previously
+    end
+
     # Helper function to safely get nested value
     function safe_get_value(config, field_path)
         keys = split(field_path, ".")
@@ -119,12 +134,14 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         "parameters.prop_mild",
         "parameters.p_sampled_icu",
         "parameters.sample_target_prob_icu",
-        "parameters.proportion_hosp_swabbed",
+        #"parameters.proportion_hosp_swabbed", # Note: this parameter has been replaced with proportion_ed_attendances_swabbed, and proportion_ed_admissions_swabbed also added so the proportion can be differentiated
+        "parameters.proportion_ed_attendances_swabbed",
+		"parameters.proportion_ed_admissions_swabbed",
         "parameters.sensitivity_mg_virus",
         "parameters.sensitivity_mg_bacteria",
         "parameters.sensitivity_mg_fungi",
-        "parameters.rho_hosp", # Note that ho is used in the yaml file instead of ρ which is used in P
-        "parameters.rho_asymptomatic", # Note that ho is used in the yaml file instead of ρ which is used in P
+        "parameters.rho_hosp", # Note that rho is used in the yaml file instead of ρ which is used in P
+        "parameters.rho_asymptomatic", # Note that rho is used in the yaml file instead of ρ which is used in P
         "parameters.swab_proportion_at_48h"
     ];
     
@@ -249,7 +266,8 @@ function validate_config(config::Dict) # config=config_data # config=load_config
                  , "parameters.pop_eng"
                  , "parameters.gp_ari_consults"
                  , "parameters.hariss_courier_to_analysis"
-                 , "parameters.hosp_ari_admissions"
+                 #, "parameters.hosp_ari_admissions"
+                 , "parameters.ed_ari_attendances"
                   ];
     
     for field in other_fields
@@ -402,12 +420,15 @@ function validate_config(config::Dict) # config=config_data # config=load_config
     end
 
     # Check hospital and ICU ARI admissions adult and child proportions are non-negative and sum to 1
-    hosp_ari_admissions_fields = ["parameters.hosp_ari_admissions_adult_p"
-                                 ,"parameters.hosp_ari_admissions_child_p"];
+    #hosp_ari_admissions_fields = ["parameters.hosp_ari_admissions_adult_p"
+    #                             ,"parameters.hosp_ari_admissions_child_p"];
     icu_ari_admissions_fields = ["parameters.icu_ari_admissions_adult_p"
                                 ,"parameters.icu_ari_admissions_child_p"];
+    ed_ari_attendances_fields = ["parameters.ed_ari_attendances_adult_p"
+                                ,"parameters.ed_ari_attendances_child_p"];
     
-    ari_admissions_fields = append!(hosp_ari_admissions_fields, icu_ari_admissions_fields);
+    #ari_admissions_fields = append!(hosp_ari_admissions_fields, icu_ari_admissions_fields);
+    ari_admissions_fields = append!(ed_ari_attendances_fields, icu_ari_admissions_fields);
        
     # First, check values are between 0 and 1, inclusive
     for field in ari_admissions_fields
@@ -421,11 +442,21 @@ function validate_config(config::Dict) # config=config_data # config=load_config
 
     # Second, check sum to one
     # hosp_ari_admissions
-    hosp_ari_adult, error_msg_adult = safe_get_value(config, "parameters.hosp_ari_admissions_adult_p")
-    hosp_ari_child, error_msg_child = safe_get_value(config, "parameters.hosp_ari_admissions_child_p")
+    #hosp_ari_adult, error_msg_adult = safe_get_value(config, "parameters.hosp_ari_admissions_adult_p")
+    #hosp_ari_child, error_msg_child = safe_get_value(config, "parameters.hosp_ari_admissions_child_p")
+    #try
+    #    if ( hosp_ari_adult + hosp_ari_child ) != 1
+    #        push!(errors, "Values for hosp_ari_admissions_adult_p and hosp_ari_admissions_child_p must sum to one, got $(hosp_ari_adult) and $(hosp_ari_child)")
+    #    end
+    #catch # Errors in the parameter values are already captured above
+    #end
+    
+    # ed_ari_attendances
+    ed_ari_adult, error_msg_adult = safe_get_value(config, "parameters.ed_ari_attendances_adult_p")
+    ed_ari_child, error_msg_child = safe_get_value(config, "parameters.ed_ari_attendances_child_p")
     try
-        if ( hosp_ari_adult + hosp_ari_child ) != 1
-            push!(errors, "Values for hosp_ari_admissions_adult_p and hosp_ari_admissions_child_p must sum to one, got $(hosp_ari_adult) and $(hosp_ari_child)")
+        if ( ed_ari_adult + ed_ari_child ) != 1
+            push!(errors, "Values for ed_ari_attendances_adult_p and ed_ari_attendances_child_p must sum to one, got $(ed_ari_adult) and $(ed_ari_child)")
         end
     catch # Errors in the parameter values are already captured above
     end
@@ -500,6 +531,17 @@ function validate_config(config::Dict) # config=config_data # config=load_config
         push!(warnings, "Could not validate hosp_to_phl_cutoff_time_relative: $error_msg")
     elseif hosp_to_phl_cutoff_time_relative !== nothing && !(hosp_to_phl_cutoff_time_relative > 0 )
         push!(errors, "hosp_to_phl_cutoff_time_relative must be greater than 0, got $phl_collection_time")
+    end
+
+    # Sampling from either ED discharges and ED admissions or only ED admissions
+    # Check that the input parameter for is either of type Boolean or no value included in configuration file
+    # (parameter value not originally included in function and so there are some configuration files where the parameter
+    # value is not defined)
+    sample_ed_admissions_only, error_msg = safe_get_value(config, "parameters.sample_ed_admissions_only")
+    if error_msg !== nothing
+        push!(warnings, "Could not validate sample_ed_admissions_only: $error_msg")
+    elseif sample_ed_admissions_only !== nothing && !isa(sample_ed_admissions_only, Bool )
+        push!(errors, "sample_ed_admissions_only must be of type Boolean (i.e. true or false), got $sample_ed_admissions_only")
     end
 
     return warnings, errors
