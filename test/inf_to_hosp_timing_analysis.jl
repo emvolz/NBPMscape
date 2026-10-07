@@ -66,9 +66,10 @@ results = Dict{Symbol, Vector{Float64}}(
 )
 
 # =================================================================
-# 3. Helper to strip Inf / -Inf values from a vector before storage
-#     (e.g. can arise from divisions, missing timestamps coded as
-#     Inf, or other edge cases in the upstream simulation data)
+# 3. Helper to strip Inf / -Inf values.
+#    (Default values for times (e.g. tgp, ted etc) is Inf,
+#    so if the infected individual has not reach that healthcare 
+#    stage when the simulation ends then the vlaue will be Inf)
 # =================================================================
 function remove_inf(x::AbstractVector{<:Real})
     n_before = length(x)
@@ -162,7 +163,8 @@ function plot_with_stats(data::Vector{Float64}, title_str::String, input_value::
     p = histogram(data, bins = bins, normalize = :pdf, color = color, alpha = 0.6,
                   label = "Distribution", legend = :topright,
                   xlabel = "Time (days)", ylabel = "Density",
-                  title = title_str, titlefontsize = 10)
+                  title = title_str, titlefontsize = 10
+                  , xlim = [0,30])
 
     vline!(p, [mu],  color = :red,   linewidth = 2, linestyle = :dash,
            label = "Mean = $(round(mu, digits = 2))")
@@ -195,7 +197,7 @@ ordered_keys = [
 
 plots_list = [plot_with_stats(results[key], plot_titles[key], input_values[key]) for key in ordered_keys]
 
-final_plot = plot(plots_list..., layout = (3, 2), size = (1000, 1200))
+final_plot = plot(plots_list..., layout = (2, 3), size = (1200, 1000))
 display(final_plot)
 savefig(final_plot, "test/inf_to_hosp_timing_distributions.png")
 
