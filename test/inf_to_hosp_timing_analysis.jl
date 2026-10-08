@@ -202,3 +202,74 @@ display(final_plot)
 savefig(final_plot, "test/inf_to_hosp_timing_distributions.png")
 
 println("Done. Plot saved to inf_to_hosp_timing_distributions.png")
+
+# =================================================================
+# 6. Estimate proportions for moderate_ED severity category
+#    This category has two routes to ED: direct and via GP
+#    What proportion of moderate_ED infections go via each route?
+#       :tinf     -> time of infection
+#       :tgp      -> time of GP presentation
+#       :ted      -> time of ED presentation
+#       :thospital-> time of hospital admission (note that for severe and very severe it is assumed that admission is via ED but no time is spent in ED and a ted is not recorded)
+# =================================================================
+results_route_proportions = DataFrame(  ed_direct = []
+                                      , ed_via_gp = []
+                                      , hosp_direct = []
+                                      , hosp_via_gp = []
+                                      )
+
+for i in 1:nsims
+
+    # --- Get this simulation's individual-level data ---
+    sim_data = sims[i] #simulate_one_run(n_people_per_sim)
+
+    # -------------------------------------------------------
+    # Filter for severity == moderate_ED
+    # -------------------------------------------------------
+    df_mod = filter(row -> row.severity == :moderate_ED, sim_data)
+    # Remove infections with no ted time because the simulation stopped before they
+    # reached ED and we don't know whether there is no GP time (tgp) because they went
+    # to ED directly or if the sim stopped before they reached the GP
+    df_mod_ed_clean = filter(row -> !isinf(row.ted), df_mod) 
+    df_mod_ed_clean_via_gp = filter(row -> !isinf(row.tgp), df_mod_ed_clean) 
+    df_mod_ed_clean_direct = filter(row ->  isinf(row.tgp), df_mod_ed_clean) 
+    n_moderate_ed = size( df_mod_ed_clean, 1 )
+    n_moderate_ed_direct = size( df_mod_ed_clean_direct, 1 )
+    n_moderate_ed_via_gp = size( df_mod_ed_clean_via_gp, 1 )
+
+    # -------------------------------------------------------
+    # Filter for severity in [severe, very_severe]
+    # -------------------------------------------------------
+    df_sev = filter(row -> row.severity in (:severe_hosp_short_stay,:severe_hosp_long_stay,:very_severe), sim_data)
+    # Remove infections with no thospital time because the simulation stopped before they
+    # reached hospital and we don't know whether there is no GP time (tgp) because they went
+    # to hospital directly or if the sim stopped before they reached the GP
+    df_sev_clean = filter(row -> !isinf(row.thospital), df_sev) 
+    df_sev_clean_via_gp = filter(row -> !isinf(row.tgp), df_sev_clean )
+    df_sev_clean_direct = filter(row ->  isinf(row.tgp), df_sev_clean) 
+    n_sev = size( df_sev_clean, 1 )
+    n_sev_direct = size( df_sev_clean_direct, 1 )
+    n_sev_via_gp = size( df_sev_clean_via_gp, 1 )
+
+    # -------------------------------------------------------
+    # Add proportion values to df
+    # -------------------------------------------------------
+    append!(results_route_proportions.ed_direct, n_moderate_ed_direct / n_moderate_ed )
+    append!(results_route_proportions.ed_via_gp, n_moderate_ed_via_gp / n_moderate_ed )
+    
+    append!(results_route_proportions.hosp_direct, n_sev_direct / n_sev )
+    append!(results_route_proportions.hosp_via_gp, n_sev_via_gp / n_sev )
+
+end
+
+mean(results_route_proportions.ed_direct) #0.3753674585509617
+median(results_route_proportions.ed_direct) #0.375434946122547
+
+mean(results_route_proportions.ed_via_gp) #0.6246325414490385
+median(results_route_proportions.ed_via_gp) #0.624565053877453
+
+mean(results_route_proportions.hosp_direct) # 0.4285284780196442
+median(results_route_proportions.hosp_direct) # 0.4285144718395051
+
+mean(results_route_proportions.hosp_via_gp) # 0.5714715219803551
+median(results_route_proportions.hosp_via_gp) # 0.5714855281604949
