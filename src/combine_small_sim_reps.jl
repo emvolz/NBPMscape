@@ -1,7 +1,9 @@
 #= This file contains three functions:
-1   {combine_sim_reps}
-    This function can be used to read in multiple simulation files and combine them for analysis of a larger group of
-    simulation replicates
+1(a) {combine_sim_reps}
+     This function can be used to read in multiple simulation files and combine them for analysis of a larger group of
+     simulation replicates
+1(b) {combine_sim_reps_zip}
+     As 1(a) but reading files from within zip files rather than folders.
 
 2(a) {n_sims_w_results}
      Takes one or more simulation files as input and returns the percentage of simulation replicates in those files that have
@@ -13,6 +15,7 @@
 
 using JLD2
 using DataFrames
+using ZipFile
 
 
 """
@@ -119,6 +122,167 @@ function combine_sim_reps(;  sim_input_folders # in vector format where multiple
                 catch e
                 end
             end
+        end
+    end
+
+    # Store mismatched data in df
+    mismatch_df = DataFrame( file = mismatched_file
+                            , sim_rep_n = mismatched_sim_rep_n
+                            , sim_rep_data_type = mismatched_type
+                            , nrep_in_file = mismatch_nrep
+                            , variables_in_sim_rep = mismatched_var
+                            )
+    #println(mismatch_df)   
+    #println(mismatch_df[:,1])                         
+    
+    # Check length of file in terms of sim reps
+    if  nrep * length(sim_files) == length(sims)
+        println("All simulation replicates added")
+    else
+        println("Total number of simulation replicates in output does not match the sum of the expected number in each file")
+    end
+
+    # Returned sims object which contains all sim reps combined and
+    # details of any sim rep mismatches 
+    return( sims = sims, mismatch_df = mismatch_df )
+    
+end
+
+
+
+"""
+Function: combine_sim_reps_zip
+
+As 'combine_sim_reps' above but takes zip files as input rather than folders.
+This function can be used to read in multiple simulation files and combine them for analysis of a larger group of
+simulation replicates.
+
+# Arguments
+    'sim_input_folders':    Zip file(s) containing the simulation files (produced using {simtree} or {simforest}) to be combined.
+                            The zip file(s) should not contain any other files.
+    'sim_object_name':      The name of the object saved to the .jld2 file. For example, "sims", "sims_G_icu_filter", or "sims_G_gp_filter" for files filtered using {sims_filter}.
+                            Without this name the data cannot be loaded. 
+    'nrep':                 Number of simulation replicates in each of the files. Function assumes all .jld2 files have the same number of sim reps.
+
+# Returns
+    A named tuple with first element sims being a vector with each element being an individual sim rep.
+    The second element of the tuple is a df containing details of any sim reps that do not match
+    the format of the first sim rep in the combined vector.
+
+# Example
+    using NBPMscape
+    # Run function to combine simulation replicates from multiple files
+    sims_combined = combine_sim_reps_zip(;  sim_input_folders # in vector format where multiple paths
+                                     , sim_object_name = "sims" # "sims_G_icu_filter" # "sims_G_gp_filter"
+                                     , nrep = 1000
+                                     )
+    # Save output filtered data to file
+    @save "sims_combined.jld2" sims_combined
+
+    sims_combined_test = combine_sim_reps(; sim_input_folders = ["sims_G_filtered_files.zip"]
+                                          , sim_object_name = "sims_G_filtered"
+                                          , nrep = 10
+                                          ) 
+    sims_combined_test.sims
+    sims_combined_test.mismatch_df
+"""
+function combine_sim_reps_zip(;  sim_input_folders # in vector format where multiple paths
+                            , sim_object_name = "sims" # "sims_G_icu_filter" # "sims_G_gp_filter" # sim_object_name = "sims_G_filtered"
+                            , nrep = 10
+                            #, combined_sim_output_folder
+                            #, combined_sim_output_filename
+                          )
+    
+    # Create vector to store filtered dataframes
+    sims = []
+
+    # Create vectors to store details of mismatches in sim reps
+    mismatched_file=[]; mismatched_sim_rep_n=[]; mismatched_type=[]; mismatch_nrep=[]; mismatched_var=[]
+
+    # Loop through zip files
+    for input_path in sim_input_folders # Iterate over each input (zip file) # input_path = sim_input_folders[1]
+        
+        # Check it's a zip file
+        if isfile(input_path) && endswith(input_path, ".zip")
+        
+            zip_reader = ZipFile.Reader(input_path)
+
+            # Load simulation replicates from file
+            #sims_temp = load(sim_files[j], sim_object_name)
+
+            try
+                for zip_file in zip_reader.files # zip_file = zip_reader.files[1]
+                    println("Processing ", zip_file.name)
+                    file_bytes = read(zip_file)
+                    io_buffer = IOBuffer(file_bytes)
+                    #sims_temp = FileIO.load(Stream{format"JLD2"}(io_buffer), sim_object_name)
+                    sims_temp = jldopen( io_buffer, "r") do jld_file
+                        jld_file[sim_object_name]
+                    end
+
+                    # To reduce risk of running out of memory, explicitly free raw bytes and buffer before processing sims_temp
+                    file_bytes = nothing
+                    io_buffer = nothing
+                    if Sys.free_memory() / Sys.total_memory() < 0.20
+                        GC.gc()
+                    end
+
+                    n_reps = length(sims_temp)
+
+                    # Add all simulation replicates from multiple files to a single object 
+                    for j in 1:n_reps #j=1
+                        
+                        # Append sim replicates from each file to a single vector with a df for each sim replicate
+                        if j == 1
+                            sims = sims_temp
+                            # Use the format and variables in the first simulation replicate as the reference point
+                            # for checking whether these match across all sim reps
+                            format_type = typeof(sims_temp[1])
+                            sims_1_col_names = try Set(names(sims_temp[1])); catch e; end # rename!(sims_temp[1], :pid => :new_name_pid)
+                            sims_1_keys      = try Set( keys(sims_temp[1])); catch e; end
+                        else
+                            sims = append!(sims, sims_temp);
+                        end
+                        
+                        # Record details of files and sim reps that are different from the first sim rep added to sims   
+                        for k in eachindex(sims_temp) # k=1
+                            format_type = typeof(sims_temp[k])
+                            
+                            if format_type == DataFrame        
+                                # Check df column names for each sim rep against those in the first sim rep
+                                # and record index of any that do not match
+                                try
+                                    if Set(names( sims_temp[k] )) != sims_1_col_names
+                                        push!(mismatched_file, sim_files[j])
+                                        push!(mismatched_type, format_type)
+                                        push!(mismatched_sim_rep_n, k)
+                                        push!(mismatch_nrep, length(sims_temp) )
+                                        push!(mismatched_var, "mismatch")
+                                    end
+                                catch e
+                                end
+                            else
+                                ## Check whether the column names or NamedTuple keys in each element (simulation replicate) of sims match
+                                ## and return details where there is a mismatch
+                                try
+                                    if Set(keys(sims_temp[k])) != sims_1_keys
+                                        push!(mismatched_file, sim_files[j])
+                                        push!(mismatched_type, format_type)
+                                        push!(mismatched_sim_rep_n, k)
+                                        push!(mismatch_nrep, length(sims_temp) )
+                                        push!(mismatched_var, "mismatch")
+                                    end
+                                catch e
+                                end
+                            end
+                        end
+                    end
+                end
+            finally
+                close(zip_reader)
+            end
+        else
+            @warn "Skipping unrecognised input (not a folder or .zip file): $input_path"
         end
     end
 
