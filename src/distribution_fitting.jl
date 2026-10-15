@@ -523,7 +523,7 @@ function fit_multi_dist(; times, init_gamma, init_weibull #,init_nbinom, init_lo
                 best_dists = "None found"
             end
             
-            println("Best-fitting distribution(s): $best_dists ") #$fit_results[$("$best_dist")]")
+            println("Best-fitting distribution(s): $(best_dists) ") #$fit_results[$("$best_dist")]")
         end
     end
 
