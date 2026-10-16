@@ -336,18 +336,23 @@ function create_default_parameters()
 		, prop_moderate_GP = 0.11790 # Will visit a GP but won't go to hospital. Estimated from FluSurvey data (people with ILI - not COVID specific), combining "Phoned GP" and "Visited GP" categories, for 2024/25 season (not full 12 month period) in Figure 11 of 'Influenza in the UK, annual epidemiological report: winter 2024 to 2025’, published on 22 May 2025 [Accessed on 4 Sep 2025 at https://www.gov.uk/government/statistics/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025/influenza-in-the-uk-annual-epidemiological-report-winter-2024-to-2025 
 		, prop_mild     = 0.75765 # = 1 - prop_moderate_GP - prop_moderate_ED  # Symptomatic but won't visit a GP or go to hospital
 		
-		## Rates (= 1 / duration) from symptom onset to various care stages
-		# Where a patient visits a GP before visiting hospital, the rates are such that the number of days is approximately the
-		# same as going directly to hospital (either ED and discharge or hospital admission).
+		## Healthcare progression rates (= 1 / duration in days) from symptom onset to various care stages
+		# Where a patient visits the emergency department or is admitted to hospital, there are two competing routes: direct or via a GP
+		# We only have sources for the time delay between symptom onset and (i) a GP visit, (ii) admission to hospital.
+		# We assume that (ii) is regardless of pathway (direct or via GP) and so we set rate parameters to result in a mean value equal to the sourced value.
+		# Mean time from symptom onset to hospital admission is 4 days
+		# (see Docherty et al (2020), BMJ, 369:m1985, doi: 10.1136/bmj.m1985 # Also in Knock et al (2021), Science Translational Medicine, 13(602) "mean time from symptom onset to admission to hospital" = 4 days)
 		# For those admitted to hospital, we do not add any time for attendance at ED before admission.
+		# Onset to care
 		, gp_only_rate = 1/5 # Typical lag of 3-7 days between ARI symptom onset (not pathogen specific) and GP visit (Data quality report: national flu and COVID-19 surveillance report (27 May 2025))
-		, ed_direct_rate = 1/5 # Rate of visiting a hospital Emergency Department (ED) but not being admitted. Therefore assume to be the same as the GP rate.
-		, gp_before_hosp_rate = 1/3 # Less than gp_only_rate to allow infected individual to reach hospital in approximately the same time as if went directly to hospital without visiting the GP.
+		, ed_direct_rate = 0.5*(1/5) # Rate of visiting a hospital Emergency Department (ED) but not being admitted.
+		, gp_before_hosp_rate = 0.5*(1/3) # Less than gp_only_rate as a competing pathway with direct to ED/hospital.
 		, ed_from_gp_rate = 1/2 # Rate of visiting a hospital Emergency Department (ED) but not being admitted. Therefore assume to be the same as the GP rate.
-		, hosp_admit_direct_rate = 1/4 # Docherty et al (2020), BMJ, 369:m1985, doi: 10.1136/bmj.m1985 # Also in Knock et al (2021), Science Translational Medicine, 13(602) "mean time from symptom onset to admission to hospital" = 4 days
+		, hosp_admit_direct_rate = 0.5*(1/4)
 		, hosp_admit_from_gp_rate = 1/1 # combined with gp_before_hosp_rate should be approximately the same as hosp_admit_direct_rate
 		
 		## Rate (= 1 / duration) in different care stages for different pathways - source Knock et al (2021), Science Translational Medicine, 13(602), Table S2
+		# Hospital care rates
 		# General ward rates
 		, hosp_recovery_rate = 1 / 10.7 # 'Hospitalised on general ward leading to recovery' 10.7 days (95% CI: 0.3-39.4). Erlang(k=1,gamma=0.09). Knock et al (2021). 
 		, hosp_short_stay_recovery_rate = 1 / 0.49 # hosp_recovery_rate above split into short stay (<24h) and long stay (>24h). Mean durations of the two periods computed using erlang_truncated_means( k = 1, rate = 0.0935, lower_limit = 0.0, mid_limit = 1.0, upper_limit = Inf). Note that the rate has been adjusted as the rounded rate parameter does not give the mean value reported.
@@ -415,7 +420,7 @@ function create_default_parameters()
         , n_hosp_samples_per_week = 300 # Total number of hospital samples to be taken per week
         , sample_allocation = "equal" # "equal" or "weighted"
         , sample_proportion_adult = "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified
-        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+        , hariss_nhs_trust_sampling_sites_file = "data/hariss_nhs_trust_sampling_sites_v2.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
         , weight_samples_by = "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
         , phl_collection_dow = [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
 		, phl_collection_time = 0.5 # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
@@ -427,7 +432,7 @@ function create_default_parameters()
         # Hospital parameters
         # Seasonal values
         # Winter
-        , hosp_ari_admissions = Int64( round( 79148 / ((31+31+29)/7), digits = 0 ) ) # for winter and Int64(45360 / ((30+31+31)/7)) for summer. Estimate of weekly hospital ARI admissions (excluding pathogen X being simulated) - using Dec 2023, Jan 2024, Feb 2025 data for winter and Jun, Jul, Aug 2024 for summer
+        , hosp_ari_admissions = 27894 # Weekly ED ARI attendances based on EDSSS data adjusted from subset of 121 EDs to estimated 185 total EDs. Winter value of 27894 based on data from 121 EDs for Dec 2023, Jan 2024, Feb 2024 and summer value of 15856 on Jun, Jul, Aug 2024
         , hosp_ari_admissions_adult_p = 0.52 # for winter and 0.58 for summer.Proportion of ED ARI admissions that are adults (16y and over)
         , hosp_ari_admissions_child_p = 0.48 # for winter and 0.42 for summer. Proportion of ED ARI admissions that are children (<16y)
         #, ed_ari_destinations_adult = DataFrame( destination = [:discharged,:short_stay,:longer_stay]

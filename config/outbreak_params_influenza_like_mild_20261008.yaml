@@ -44,7 +44,7 @@ parameters:
   n_hosp_samples_per_week: 300 # Total number of hospital samples to be taken per week
   sample_allocation: "equal" # "equal" or "weighted". Number of samples to be allocated either equally amongst public health laboratories in the network or weighted by Emergency Department attendances (all not ARI specific) or catchment area population
   sample_proportion_adult: "free" # "free" or numeric decimal, e.g. 0.75. Indicates split of sample target between adults and children. "free" indicates that no split is specified and so the split will depend on the proportions attending hospital.
-  hariss_nhs_trust_sampling_sites_file: "data/hariss_nhs_trust_sampling_sites.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
+  hariss_nhs_trust_sampling_sites_file: "data/hariss_nhs_trust_sampling_sites_v2.csv" #CSV.read("data/hariss_nhs_trust_sampling_sites.csv", DataFrame) # List of NHS Trusts in HARISS sampling network 
   weight_samples_by: "ae_mean" # or "catchment_pop". NHS Trust proportion of A&E attendances or NHS Trust catchment area population
   phl_collection_dow: [2,5] # Day(s) of week that swab samples will be collected from public health labs. Day of week codes: Sunday = 1,... Saturday = 7.
   phl_collection_time: 0.5 # Decimal value time of day that swab samples are collected from public health labs. E.g. midday = 0.5 (=12/24), 9am = 0.375(=9/24), 5pm = 0.7083 (=17/24)
