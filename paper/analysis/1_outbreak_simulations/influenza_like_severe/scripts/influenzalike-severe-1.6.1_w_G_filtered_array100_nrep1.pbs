@@ -1,0 +1,35 @@
+#!/bin/bash
+#PBS -lwalltime=6:00:00
+#PBS -lselect=1:ncpus=1:mem=64gb
+#PBS -J 1-100
+
+## Load environment
+module purge
+module load tools/prod
+module load Julia/1.12.6
+
+## Create temporary directory on the computer node
+export JOB_NUM=$(echo ${PBS_JOBID} | cut -f 1 -d '.' | cut -f 1 -d '[')
+export WORKDIR="${EPHEMERAL}/${JOB_NUM}.${PBS_ARRAY_INDEX}"
+mkdir -p $WORKDIR
+
+## Copy across required files to job working directory
+cp -R $HOME/nbpmscape/final/20261009_flu_severe/influenzalike-severe-1.6.1_w_G_filtered_nrep1.jl $WORKDIR
+cp -R $HOME/nbpmscape/final/20261009_flu_severe/Project.toml $WORKDIR
+cp -R $HOME/nbpmscape/final/20261009_flu_severe/Manifest.toml $WORKDIR
+
+## Move to Working directory
+cd $WORKDIR
+
+## Run Julia script
+julia --project=. influenzalike-severe-1.6.1_w_G_filtered_nrep1.jl
+
+## Copy output files from job temporary working directory
+export OUTPUT_DIR="${EPHEMERAL}/${JOB_NUM}"
+export PBS_ARRAY_INDEX="${PBS_ARRAY_INDEX}"
+mkdir -p $OUTPUT_DIR
+mv $WORKDIR/influenzalike-severe-1.6.1-sims-nrep1.jld2 $OUTPUT_DIR/influenzalike-severe-1.6.1-sims-nrep1_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/influenzalike-severe-1.6.1-sims-nrep1_filtered_G.jld2 $OUTPUT_DIR/influenzalike-severe-1.6.1-sims-nrep1_filtered_G_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/influenzalike-severe-1.6.1-sims-nrep1_max_cases_df.jld2 $OUTPUT_DIR/influenzalike-severe-1.6.1-sims-nrep1_max_cases_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/influenzalike-severe-1.6.1-sims-nrep1_sims_simid_tinf_df.jld2 $OUTPUT_DIR/influenzalike-severe-1.6.1-sims-nrep1_sims_simid_tinf_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/influenzalike-severe-1.6.1-sims-nrep1_sims_tinf_df.jld2 $OUTPUT_DIR/influenzalike-severe-1.6.1-sims-nrep1_sims_tinf_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2

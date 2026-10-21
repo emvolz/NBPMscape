@@ -1,0 +1,47 @@
+#!/bin/bash
+#PBS -lwalltime=6:00:00
+#PBS -lselect=1:ncpus=1:mem=64gb
+#PBS -J 1-100
+
+## Load environment
+##module load miniforge/3
+##eval "$(~/miniforge3/bin/conda shell.bash hook)"
+##conda activate julia-env
+module purge
+module load tools/prod
+module load Julia/1.12.6
+
+## Create temporary directory on the computer node
+export JOB_NUM=$(echo ${PBS_JOBID} | cut -f 1 -d '.' | cut -f 1 -d '[')
+export WORKDIR="${EPHEMERAL}/${JOB_NUM}.${PBS_ARRAY_INDEX}"
+mkdir -p $WORKDIR
+
+## Copy across required files to job working directory
+cp -R $HOME/nbpmscape/final/20261009/covidlike-1.6.1_w_G_filtered_nrep10.jl $WORKDIR
+cp -R $HOME/nbpmscape/final/20261009/Project.toml $WORKDIR
+cp -R $HOME/nbpmscape/final/20261009/Manifest.toml $WORKDIR
+
+## Move to Working directory
+cd $WORKDIR
+
+## Run Julia script
+##julia $WORKDIR/covidlike-1.6.0_w_G_filtered_nrep10.jl
+julia --project=. covidlike-1.6.1_w_G_filtered_nrep10.jl
+
+## Copy output files from job temporary working directory
+##cd $HOME/nbpmscape/secondary_care/
+##export OUTPUT_DIR="$HOME/nbpmscape/secondary_care/sims/${JOB_NUM}.${PBS_ARRAY_INDEX}"
+##export OUTPUT_DIR="$HOME/nbpmscape/secondary_care/sims/${JOB_NUM}"
+export OUTPUT_DIR="${EPHEMERAL}/${JOB_NUM}"
+export PBS_ARRAY_INDEX="${PBS_ARRAY_INDEX}"
+mkdir -p $OUTPUT_DIR
+##cp -R $WORKDIR/covidlike-1.3.10-sims-nrep1000_filtered_G_icu_gp.jld2 $OUTPUT_DIR/covidlike-1.3.10-sims-nrep1000_filtered_G_icu_gp_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+##cp -R $WORKDIR/covidlike-1.3.10-sims-nrep1000_max_cases_df.jld2 $OUTPUT_DIR/covidlike-1.3.10-sims-nrep1000_max_cases_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+##cp -R $WORKDIR/covidlike-1.3.10-sims-nrep1000_sims_simid_tinf_df.jld2 $OUTPUT_DIR/covidlike-1.3.10-sims-nrep1000_sims_simid_tinf_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/covidlike-1.6.1-sims-nrep10.jld2 $OUTPUT_DIR/covidlike-1.6.1-sims-nrep10_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/covidlike-1.6.1-sims-nrep10_filtered_G.jld2 $OUTPUT_DIR/covidlike-1.6.1-sims-nrep10_filtered_G_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/covidlike-1.6.1-sims-nrep10_max_cases_df.jld2 $OUTPUT_DIR/covidlike-1.6.1-sims-nrep10_max_cases_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/covidlike-1.6.1-sims-nrep10_sims_simid_tinf_df.jld2 $OUTPUT_DIR/covidlike-1.6.1-sims-nrep10_sims_simid_tinf_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+mv $WORKDIR/covidlike-1.6.1-sims-nrep10_sims_tinf_df.jld2 $OUTPUT_DIR/covidlike-1.6.1-sims-nrep10_sims_tinf_df_$JOB_NUM.$PBS_ARRAY_INDEX.jld2
+
+##conda deactivate

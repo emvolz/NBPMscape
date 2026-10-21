@@ -1,0 +1,1 @@
+Simulated outbreak with base case COVID-like symptomatic proportion is located in 'NBPMscape\paper\analysis\1_outbreak_simulations\covid_like\'
